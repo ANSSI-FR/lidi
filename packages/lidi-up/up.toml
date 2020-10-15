@@ -1,0 +1,13 @@
+directory = "/var/lib/lidi-up/"
+address = "127.0.0.1:5001"
+
+workers = 8
+
+disable_seccomp = true
+disable_pivot_root = true
+disable_worker_ns = true
+
+queues = [
+    "large",
+    "small"
+]

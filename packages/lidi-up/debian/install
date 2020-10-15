@@ -1,0 +1,5 @@
+up.env etc/lidi
+up.toml etc/lidi
+lidi-sysctl-up.service lib/systemd/system
+lidi-up usr/bin
+lidi-up-worker usr/bin

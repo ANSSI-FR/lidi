@@ -1,0 +1,11 @@
+[Unit]
+Description=lidi service for setting appropriate sysctls.
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/sysctl net.core.rmem_max=67108864
+ExecStart=/usr/bin/sysctl net.core.rmem_default=67108864
+ExecStart=/usr/bin/sysctl net.core.netdev_max_backlog=10000
+ExecStart=/usr/bin/sysctl net.ipv4.udp_mem="12148128 16197504 24296256"

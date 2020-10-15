@@ -1,0 +1,22 @@
+directory = "/var/lib/lidi-down/"
+socket = "/var/run/lidi-down/lidi-down.socket"
+address = "127.0.0.1:5001"
+
+# bandwidth limit in BYTES/s 
+# 1Gbps     = 125 MBytes/s  = 125_000_000
+# 100Mbps   = 12.5 MBytes/s =  12_500_000
+bandwidth_limit = 125000000
+max_in_flight = 1024
+max_packet_burst = 128
+
+disable_seccomp = true
+disable_pivot_root = true
+disable_worker_ns = true
+
+[queues.small]
+name = "small-queue"
+weight = 1
+
+[queues.large]
+name = "large-queue"
+weight = 9 

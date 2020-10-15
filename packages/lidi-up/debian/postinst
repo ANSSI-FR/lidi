@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+chown lidi-up:lidi /var/lib/lidi-up
+chown lidi-up:lidi /etc/lidi/up.toml
+
+#DEBHELPER#
+
+exit 0

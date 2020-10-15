@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+chown lidi-down:lidi /var/lib/lidi-down
+chown lidi-down:lidi /etc/lidi/down.toml
+
+#DEBHELPER#
+
+exit 0

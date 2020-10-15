@@ -1,0 +1,5 @@
+down.env etc/lidi
+down.toml etc/lidi
+lidi-sysctl-down.service lib/systemd/system
+lidi-down usr/bin
+lidi-down-worker usr/bin

@@ -1,0 +1,13 @@
+Source: lidi-up
+Section: unknown
+Priority: optional
+Maintainer: Vincent Dagonneau <vincent.dagonneau@ssi.gouv.fr>
+Build-Depends: debhelper (>=10.0.0),
+               dh-systemd (>= 1.5)
+Standards-Version: 4.0.0
+Homepage: https://github.com/ANSSI-FR/lidi
+
+Package: lidi-up
+Architecture: amd64
+Depends: ${shlibs:Depends} ${misc:Depends}
+Description: The [up] side of the lidi diode gateway.

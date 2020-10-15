@@ -1,0 +1,36 @@
+[Unit]
+Description=lidi daemon [DOWN] side
+After=network.target lidi-sysctl-down.service
+
+[Service]
+User=lidi-down
+Group=lidi
+# SystemCallArchitectures=native
+# SystemCallFilter=@system-service @signal @timer @process @file-system @basic-io @network-io @io-event @mount getrandom sched_getaffinity brk mremap mprotect
+# RestrictAddressFamilies=AF_INET AF_UNIX
+# RestrictRealtime=yes
+# RestrictNamespaces=user mnt net
+# ProtectHome=yes
+# ProtectSystem=yes
+# ProtectKernelModules=yes
+# ProtectKernelTunables=yes
+# ProtectControlGroups=yes
+# LockPersonality=yes
+# MemoryDenyWriteExecute=yes
+# PrivateDevices=yes
+# PrivateUsers=yes
+# PrivateTmp=yes
+# RemoveIPC=yes
+UMask=0077
+CapabilityBoundingSet=
+EnvironmentFile=/etc/lidi/down.env
+ExecStartPre=+mkdir -p /var/run/lidi-down
+ExecStartPre=+chown lidi-down:lidi /var/run/lidi-down
+ExecStartPre=+chmod 0750 /var/run/lidi-down
+ExecStartPre=+-rm /var/run/lidi-down/lidi-down.socket
+ExecStart=/usr/bin/lidi-down
+KillMode=control-group
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

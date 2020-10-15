@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+/build
+# ignore dpkg-buildpackage artifacts
+packages/lidi-*.*
+test/

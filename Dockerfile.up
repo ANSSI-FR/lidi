@@ -1,0 +1,22 @@
+FROM rustlang/rust:nightly-buster AS builder
+
+RUN apt update -yq && apt install -yq libseccomp-dev
+
+WORKDIR /app
+COPY . /app
+
+RUN cargo build --release --features "controller,worker"
+
+FROM debian:buster-slim
+
+VOLUME ["/var/lib/lidi-up"]
+
+RUN groupadd -g 1000 -r lidi && useradd -u 1000 -r -g lidi lidi
+RUN mkdir -p /etc/lidi && chown lidi:lidi /etc/lidi
+
+COPY --from=builder /app/target/release/lidi-up* /usr/bin/
+COPY --from=builder /app/packages/lidi-up/up.* /etc/lidi/
+RUN sed -i 's/127\.0\.0\.1/10\.42\.42\.100/g' /etc/lidi/up.toml
+
+USER lidi
+ENTRYPOINT ["/usr/bin/lidi-up"]

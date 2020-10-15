@@ -1,0 +1,28 @@
+digraph finite_state_machine {
+    rankdir=LR;
+    size="8,5"
+
+    node [shape = point ]; Initial;
+    node [shape = point ]; FinalSuccess;
+    node [shape = point ]; FinalFailure;
+    node [shape = circle];
+
+    Initial -> FileHeader;
+    FileHeader -> FileHeader [ label = "remaining_tries > 0" ];
+    FileHeader -> Abort;
+    FileHeader -> DataHeader [ label = "remaining_tries == 0 && nread > 0" ];
+    FileHeader -> FileFooter [ label = "remaining_tries == 0 && nread == 0" ];
+    DataHeader -> DataHeader [ label = "remaining_tries > 0" ];
+    DataHeader -> Data [ label = "remaining_tries == 0" ];
+    DataHeader -> Abort;
+    Data -> Data [ label = "last_packet < packets.len()" ];
+    Data -> DataHeader [ label = "nread > 0" ];
+    Data -> FileFooter [ label = "nread == 0" ];
+    Data -> Abort;
+    FileFooter -> FileFooter [ label = "remaining_tries > 0" ];
+    FileFooter -> Abort;
+    FileFooter -> Complete [ label = "remaining_tries == 0" ];
+
+    Abort -> FinalFailure;
+    Complete -> FinalSuccess;
+}

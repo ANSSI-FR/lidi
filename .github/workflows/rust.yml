@@ -1,0 +1,28 @@
+name: Rust
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install rust nightly
+      run: rustup install nightly
+    - name: Install dependencies
+      run: sudo apt update -yq && sudo apt install -yq libseccomp-dev debhelper dh-systemd
+    - name: Build
+      run: cargo +nightly build --verbose --release --features controller,worker
+    - name: Build debian packages
+      run: ./gen-debian-packages.sh
+    - uses: actions/upload-artifact@v2
+      with:
+        name: debian-packages
+        path: packages/lidi-*.deb

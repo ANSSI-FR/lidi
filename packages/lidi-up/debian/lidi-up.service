@@ -1,0 +1,32 @@
+[Unit]
+Description=lidi daemon [UP] side
+After=network.target lidi-sysctl-up.service
+
+[Service]
+User=lidi-up
+Group=lidi
+# SystemCallArchitectures=native
+# SystemCallFilter=@system-service @signal @timer @process @file-system @basic-io @network-io @io-event @mount getrandom sched_getaffinity brk mremap mprotect
+# RestrictAddressFamilies=AF_INET AF_UNIX
+# RestrictRealtime=yes
+# RestrictNamespaces=user mnt net
+# ProtectHome=yes
+# ProtectSystem=yes
+# ProtectKernelModules=yes
+# ProtectKernelTunables=yes
+# ProtectControlGroups=yes
+# LockPersonality=yes
+# MemoryDenyWriteExecute=yes
+# PrivateDevices=yes
+# PrivateUsers=yes
+# PrivateTmp=yes
+# RemoveIPC=yes
+UMask=0037
+CapabilityBoundingSet=
+EnvironmentFile=/etc/lidi/up.env
+ExecStart=/usr/bin/lidi-up
+KillMode=control-group
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

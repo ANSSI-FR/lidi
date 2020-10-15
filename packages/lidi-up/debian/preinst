@@ -1,0 +1,19 @@
+#!/bin/sh
+
+set -e
+
+if ! getent passwd lidi-up > /dev/null; then
+  adduser --system --quiet --home /var/lib/lidi-up lidi-up
+fi
+
+if ! getent group lidi > /dev/null; then
+    addgroup --system --quiet lidi
+fi
+
+if ! id -Gn lidi-up | grep -qw lidi; then
+  adduser --quiet lidi-up lidi
+fi
+
+#DEBHELPER#
+
+exit 0

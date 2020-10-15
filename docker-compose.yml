@@ -1,0 +1,32 @@
+version: "3.6"
+services:
+  lidi-up:
+    build:
+      context: .
+      dockerfile: Dockerfile.up
+    volumes:
+    - ./test/docker_up:/var/lib/lidi-up
+    environment:
+      RUST_LOG: warn
+    networks:
+      diode:
+        ipv4_address: 10.42.42.100
+
+  lidi-down:
+    build:
+      context: .
+      dockerfile: Dockerfile.down
+    volumes:
+    - ./test/docker_down:/var/lib/lidi-down
+    environment:
+      RUST_LOG: warn
+    networks:
+      diode:
+        ipv4_address: 10.42.42.50
+
+networks:
+  diode:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 10.42.42.0/24
