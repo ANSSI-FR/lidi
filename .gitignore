@@ -3,4 +3,4 @@
 /build
 # ignore dpkg-buildpackage artifacts
 packages/lidi-*.*
-test/
+/test
