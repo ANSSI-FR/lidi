@@ -22,7 +22,7 @@ The easiest way for you to get started is to use the test setup, all you need is
 git clone git@github.com:ANSSI-FR/lidi.git
 cd lidi
 mkdir -p test/lidi-{up,down}
-chmod 777 test/lidi-{up,down}
+chmod 744 test/lidi-{up,down}
 docker-compose up -d
 ```
 
