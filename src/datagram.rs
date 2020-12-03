@@ -75,6 +75,7 @@ pub enum Kind<'a> {
     FileHeader {
         queue_name: &'a str,
         metadata: &'a [u8],
+        filename: &'a str,
     },
     DataHeader {
         block_size: u64,
@@ -122,11 +123,14 @@ pub mod ser {
                 Kind::FileHeader {
                     queue_name,
                     metadata,
+                    filename,
                 } => {
                     let out = be_u16(queue_name.len() as u16)(out)?;
                     let out = slice(queue_name.as_bytes())(out)?;
                     let out = be_u16(metadata.len() as u16)(out)?;
-                    slice(metadata)(out)?
+                    let out = slice(metadata)(out)?;
+                    let out = be_u16(filename.len() as u16)(out)?;
+                    slice(filename)(out)?
                 }
                 Kind::DataHeader { block_size } => be_u64(*block_size)(out)?,
                 Kind::Data(payload) => {
@@ -171,8 +175,19 @@ pub mod de {
             DATAGRAM_TYPE_FILE_HEADER => {
                 let (input, queue_name_slice) = length_data(be_u16)(input)?;
                 let (input, metadata) = length_data(be_u16)(input)?;
+                let (input, filename_slice) = length_data(be_u16)(input)?;
 
                 let queue_name = match std::str::from_utf8(queue_name_slice) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        return Err(nom::Err::Error(nom::error::make_error(
+                            input,
+                            nom::error::ErrorKind::MapRes,
+                        )));
+                    }
+                };
+
+                let filename = match std::str::from_utf8(filename_slice) {
                     Ok(s) => s,
                     Err(e) => {
                         return Err(nom::Err::Error(nom::error::make_error(
@@ -185,6 +200,7 @@ pub mod de {
                 Kind::FileHeader {
                     queue_name,
                     metadata,
+                    filename,
                 }
             }
             DATAGRAM_TYPE_DATA_HEADER => {

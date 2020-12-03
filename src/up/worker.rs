@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0
 
 use bincode::serialize_into;
-use log::{error, warn, info, trace};
+use log::{error, info, trace, warn};
 use nix::{
     errno::Errno,
     sys::{
@@ -194,7 +194,10 @@ impl<'a> Worker<'a> {
             if let Some(mut t) = self.current_transfers.get_mut(&datagram.random_id) {
                 match datagram.kind {
                     Kind::FileHeader { metadata, .. } => {
-                        trace!("received redundant [file_header]: random_id={}", &datagram.random_id);
+                        trace!(
+                            "received redundant [file_header]: random_id={}",
+                            &datagram.random_id
+                        );
                         if let State::FileHeader = t.machine.state {
                             t.last_seen = Instant::now();
                         }
@@ -209,7 +212,10 @@ impl<'a> Worker<'a> {
                                 t.machine.transition_to_data_header(new_block_size);
                             }
                             State::DataHeader { .. } => {
-                                trace!("received redundant [data_header]: random_id={}", &datagram.random_id);
+                                trace!(
+                                    "received redundant [data_header]: random_id={}",
+                                    &datagram.random_id
+                                );
                                 t.last_seen = Instant::now();
                             }
                             State::Data {
@@ -297,6 +303,7 @@ impl<'a> Worker<'a> {
                     Kind::FileHeader {
                         queue_name,
                         metadata,
+                        filename,
                     } => {
                         if let Some(queue) = self.config.queues.get(queue_name) {
                             info!(
@@ -309,6 +316,10 @@ impl<'a> Worker<'a> {
 
                             if !metadata.is_empty() {
                                 file.set_xattr("user.diode_metadata", &metadata)?;
+                            }
+
+                            if filename.len() != 0 {
+                                file.set_xattr("user.diode_filename", filename.as_bytes())?;
                             }
 
                             self.current_transfers.insert(

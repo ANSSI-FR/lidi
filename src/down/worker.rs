@@ -300,6 +300,11 @@ impl<'a> Worker<'a> {
                                                     .metadata
                                                     .clone()
                                                     .unwrap_or_default(),
+                                                filename: &transfer
+                                                    .filename
+                                                    .clone()
+                                                    .unwrap_or_default()
+                                                    .to_string_lossy(),
                                             },
                                         ) {
                                             Ok(_) => {

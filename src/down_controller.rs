@@ -28,11 +28,11 @@ use crate::{
 fn main() {
     crate::utils::setup_logger("controller".to_string());
 
-    let config_filename = std::env::var("CONFIG_FILE_PATH")
-        .unwrap_or("/etc/lidi/down.toml".to_owned());
+    let config_filename =
+        std::env::var("CONFIG_FILE_PATH").unwrap_or("/etc/lidi/down.toml".to_owned());
     info!("Loading configuration from file {}.", config_filename);
-    let config_file = std::fs::read_to_string(config_filename)
-        .expect("Failed opening queues config file.");
+    let config_file =
+        std::fs::read_to_string(config_filename).expect("Failed opening queues config file.");
     let external_config: ExternalConfig =
         toml::from_str(&config_file).expect("Failed parsing queues.");
     let config: Config = external_config.into();

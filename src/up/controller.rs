@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0
 
 use bincode::{deserialize_from, serialize_into};
-use log::{error, warn, info, trace};
+use log::{error, info, trace, warn};
 use nix::{
     errno::Errno,
     fcntl::{open, OFlag},
@@ -157,73 +157,71 @@ impl<'a> Controller<'a> {
                     if let Ok(nread) = self.socket.recv(&mut buffer) {
                         if let Ok((_, datagram)) = de::deserialize(&buffer[..nread]) {
                             // -- if !self.dropped_transfers.contains_key(&datagram.random_id) {
-                                match self.current_transfers.get(&datagram.random_id) {
-                                    Some(transfer) => {
-                                        if let Err(e) = transfer
-                                            .worker
-                                            .write()
-                                            .map(|mut w| w.socket.write_all(&buffer[..nread]))
-                                        {
-                                            error!(
-                                                "Failed sending buffer to corresponding worker: {}",
-                                                e
-                                            );
-                                        }
+                            match self.current_transfers.get(&datagram.random_id) {
+                                Some(transfer) => {
+                                    if let Err(e) = transfer
+                                        .worker
+                                        .write()
+                                        .map(|mut w| w.socket.write_all(&buffer[..nread]))
+                                    {
+                                        error!(
+                                            "Failed sending buffer to corresponding worker: {}",
+                                            e
+                                        );
                                     }
-                                    None => {
-                                        if let Kind::FileHeader { queue_name, .. } = datagram.kind {
-                                            if let Some(queue) = self.config.queues.get(queue_name)
-                                            {
-                                                if let Ok(fd) = open(
-                                                    &queue
-                                                        .dirs
-                                                        .transfer
-                                                        .join(&datagram.random_id.to_string()),
-                                                    OFlag::O_CREAT | OFlag::O_RDWR,
-                                                    Mode::S_IRUSR | Mode::S_IWUSR | Mode::S_IRGRP,
-                                                ) {
-                                                    let worker =
-                                                        self.workers[self.next_worker].clone();
+                                }
+                                None => {
+                                    if let Kind::FileHeader { queue_name, .. } = datagram.kind {
+                                        if let Some(queue) = self.config.queues.get(queue_name) {
+                                            if let Ok(fd) = open(
+                                                &queue
+                                                    .dirs
+                                                    .transfer
+                                                    .join(&datagram.random_id.to_string()),
+                                                OFlag::O_CREAT | OFlag::O_RDWR,
+                                                Mode::S_IRUSR | Mode::S_IWUSR | Mode::S_IRGRP,
+                                            ) {
+                                                let worker = self.workers[self.next_worker].clone();
 
-                                                    info!("New file is being received: {}; transmitting it to worker #{}", datagram.random_id, self.next_worker);
-                                                    self.current_transfers.insert(
-                                                        datagram.random_id,
-                                                        Transfer {
-                                                            worker: worker.clone(),
-                                                        },
-                                                    );
+                                                info!("New file is being received: {}; transmitting it to worker #{}", datagram.random_id, self.next_worker);
+                                                self.current_transfers.insert(
+                                                    datagram.random_id,
+                                                    Transfer {
+                                                        worker: worker.clone(),
+                                                    },
+                                                );
 
-                                                    self.next_worker = (self.next_worker + 1)
-                                                        % self.config.workers.len();
+                                                self.next_worker = (self.next_worker + 1)
+                                                    % self.config.workers.len();
 
-                                                    if let Ok(w) = worker.clone().write() {
-                                                        if let Err(e) = sendfd(
-                                                            w.socket.as_raw_fd(),
-                                                            &buffer[..nread],
-                                                            fd,
-                                                        ) {
-                                                            error!("Failed sending newly created fd to worker: {}", e);
-                                                        }
-                                                    } else {
-                                                        error!("poisoned mutex");
+                                                if let Ok(w) = worker.clone().write() {
+                                                    if let Err(e) = sendfd(
+                                                        w.socket.as_raw_fd(),
+                                                        &buffer[..nread],
+                                                        fd,
+                                                    ) {
+                                                        error!("Failed sending newly created fd to worker: {}", e);
                                                     }
                                                 } else {
-                                                    error!(
-                                                        "Failed creating file for new transfer: {}",
-                                                        &datagram.random_id
-                                                    );
+                                                    error!("poisoned mutex");
                                                 }
                                             } else {
                                                 error!(
-                                                    "Received datagram with unknown queue: {}",
-                                                    queue_name
+                                                    "Failed creating file for new transfer: {}",
+                                                    &datagram.random_id
                                                 );
                                             }
                                         } else {
-                                            trace!("Receiving a new packet from a transfer that has never been registered.");
+                                            error!(
+                                                "Received datagram with unknown queue: {}",
+                                                queue_name
+                                            );
                                         }
+                                    } else {
+                                        trace!("Receiving a new packet from a transfer that has never been registered.");
                                     }
-                                };
+                                }
+                            };
                             /*} else {
                                 warn!("Receiving a packet from a transfer that has already been dropped.");
                             }*/

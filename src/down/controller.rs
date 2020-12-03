@@ -69,7 +69,7 @@ struct WorkerState {
 
 impl<'a> Controller<'a> {
     pub fn new(config: &'a Config) -> Result<Self> {
-        // We remove the socket if it already exists from a previous invocation. 
+        // We remove the socket if it already exists from a previous invocation.
         let _ = std::fs::remove_file(&config.socket);
 
         Ok(Self {
@@ -272,10 +272,7 @@ impl<'a> Controller<'a> {
                 ),
             )?;
 
-            let socket_path = format!(
-                "/tmp/lidi-down-worker-{}-{}.socket",
-                queue_name, queue_id,
-            );
+            let socket_path = format!("/tmp/lidi-down-worker-{}-{}.socket", queue_name, queue_id,);
 
             info!("Setting up unix socket @ {}.", socket_path);
             let listener = UnixListener::bind(&socket_path)?;
