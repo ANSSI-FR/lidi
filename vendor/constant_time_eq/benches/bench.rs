@@ -1,29 +1,50 @@
-#![feature(test)]
+use constant_time_eq::{constant_time_eq, constant_time_eq_n};
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
-extern crate constant_time_eq;
-extern crate test;
+fn bench_array(c: &mut Criterion) {
+    let mut group = c.benchmark_group("constant_time_eq_n");
 
-use constant_time_eq::constant_time_eq;
-use test::{Bencher, black_box};
+    let input = (&[1; 16], &[2; 16]);
+    group.throughput(Throughput::Bytes(16));
+    group.bench_with_input(BenchmarkId::from_parameter(16), &input, |b, &(x, y)| {
+        b.iter(|| constant_time_eq_n(x, y))
+    });
 
-fn bench(b: &mut Bencher, left: &[u8], right: &[u8]) {
-    b.bytes = (left.len() + right.len()) as u64;
-    b.iter(|| {
-        constant_time_eq(black_box(left), black_box(right))
-    })
+    let input = (&[1; 20], &[2; 20]);
+    group.throughput(Throughput::Bytes(20));
+    group.bench_with_input(BenchmarkId::from_parameter(20), &input, |b, &(x, y)| {
+        b.iter(|| constant_time_eq_n(x, y))
+    });
+
+    let input = (&[1; 32], &[2; 32]);
+    group.throughput(Throughput::Bytes(32));
+    group.bench_with_input(BenchmarkId::from_parameter(32), &input, |b, &(x, y)| {
+        b.iter(|| constant_time_eq_n(x, y))
+    });
+
+    let input = (&[1; 64], &[2; 64]);
+    group.throughput(Throughput::Bytes(64));
+    group.bench_with_input(BenchmarkId::from_parameter(64), &input, |b, &(x, y)| {
+        b.iter(|| constant_time_eq_n(x, y))
+    });
+
+    group.finish();
 }
 
-#[bench]
-fn bench_16(b: &mut Bencher) {
-    bench(b, &[0; 16], &[0; 16])
+fn bench_slice(c: &mut Criterion) {
+    let mut group = c.benchmark_group("constant_time_eq");
+
+    let input = (&[1; 65536], &[2; 65536]);
+    for &size in &[16, 20, 32, 64, 4 * 1024, 16 * 1024, 64 * 1024] {
+        let input = (&input.0[..size], &input.1[..size]);
+        group.throughput(Throughput::Bytes(size as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(size), &input, |b, &(x, y)| {
+            b.iter(|| constant_time_eq(x, y))
+        });
+    }
+
+    group.finish();
 }
 
-#[bench]
-fn bench_4096(b: &mut Bencher) {
-    bench(b, &[0; 4096], &[0; 4096])
-}
-
-#[bench]
-fn bench_65536(b: &mut Bencher) {
-    bench(b, &[0; 65536], &[0; 65536])
-}
+criterion_group!(benches, bench_array, bench_slice);
+criterion_main!(benches);

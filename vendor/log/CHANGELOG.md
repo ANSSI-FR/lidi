@@ -2,6 +2,55 @@
 
 ## [Unreleased]
 
+## [0.4.17] - 2022-04-29
+
+* Update `kv_unstable` internal dependencies.
+
+## [0.4.16] - 2022-03-22
+
+* Fix a conflict with unqualified `Option` use in macros.
+
+## [0.4.15] - 2022-02-23
+
+* Silence a warning about the deprecated `spin_loop_hint`.
+* Relax ordering in the atomic `set_max_level` call.
+* Add thumbv4t-none-eabi to targets that don't support atomics
+* Allow levels to be iterated over.
+* Implement `Log` on some common wrapper types.
+* Improvements to test coverage.
+* Improvements to documentation.
+* Add key-value support to the `log!` macros.
+* Tighten `kv_unstable` internal dependencies so they don't bump past their current alpha.
+* Add a simple visit API to `kv_unstable`.
+* Support `NonZero*` integers as values in structured logging
+* Support static strings as keys in structured logging
+
+## [0.4.14] - 2021-01-27
+
+* Remove the `__private_api_log_lit` special case.
+* Fixed incorrect combination of `kv_unstable` and `std` features causing compile failures.
+* Remove unstable `Value::to_*` conversions that were incorrectly using `as`.
+* Rename unstable `Value::to_error` to `Value::to_borrowed_error`.
+
+## [0.4.13] - 2021-01-11
+
+* This is the same as `0.4.11`, except with a `kv_unstable_std` feature added to aid migrating current dependents to `0.4.14` (which was originally going to be `0.4.13` until it was decided to create a patch from `0.4.11` to minimize disruption).
+
+## [0.4.12] - 2020-12-24
+
+### New
+
+* Support platforms without atomics by racing instead of failing to compile
+* Implement `Log` for `Box<T: Log>`
+* Update `cfg-if` to `1.0`
+* Internal reworks of the structured logging API. Removed the `Fill` API
+and added `source::as_map` and `source::as_list` to easily serialize a `Source`
+as either a map of `{key: value, ..}` or as a list of `[(key, value), ..]`.
+
+### Fixed
+
+* Fixed deserialization of `LevelFilter` to use their `u64` index variants
+
 ## [0.4.11] - 2020-07-09
 
 ### New
@@ -170,7 +219,13 @@ version using log 0.4.x to avoid losing module and file information.
 
 Look at the [release tags] for information about older releases.
 
-[Unreleased]: https://github.com/rust-lang-nursery/log/compare/0.4.11...HEAD
+[Unreleased]: https://github.com/rust-lang-nursery/log/compare/0.4.17...HEAD
+[0.4.17]: https://github.com/rust-lang-nursery/log/compare/0.4.16...0.4.17
+[0.4.16]: https://github.com/rust-lang-nursery/log/compare/0.4.15...0.4.16
+[0.4.15]: https://github.com/rust-lang-nursery/log/compare/0.4.13...0.4.15
+[0.4.14]: https://github.com/rust-lang-nursery/log/compare/0.4.13...0.4.14
+[0.4.13]: https://github.com/rust-lang-nursery/log/compare/0.4.11...0.4.13
+[0.4.12]: https://github.com/rust-lang-nursery/log/compare/0.4.11...0.4.12
 [0.4.11]: https://github.com/rust-lang-nursery/log/compare/0.4.10...0.4.11
 [0.4.10]: https://github.com/rust-lang-nursery/log/compare/0.4.9...0.4.10
 [0.4.9]: https://github.com/rust-lang-nursery/log/compare/0.4.8...0.4.9

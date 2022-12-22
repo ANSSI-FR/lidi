@@ -1,131 +1,131 @@
-use std::collections::HashMap;
 use std::default::Default;
+use syn::{Ident, LitStr, Variant};
 
-use crate::helpers::case_style::{CaseStyle, CaseStyleHelpers};
-use crate::helpers::has_metadata::HasMetadata;
-use crate::helpers::{LitHelpers, MetaHelpers, NestedMetaHelpers};
+use super::case_style::{CaseStyle, CaseStyleHelpers};
+use super::metadata::{kw, VariantExt, VariantMeta};
+use super::occurrence_error;
 
 pub trait HasStrumVariantProperties {
-    fn get_variant_properties(&self) -> StrumVariantProperties;
+    fn get_variant_properties(&self) -> syn::Result<StrumVariantProperties>;
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct StrumVariantProperties {
-    pub is_disabled: bool,
-    pub default: bool,
-    pub message: Option<String>,
-    pub detailed_message: Option<String>,
-    pub string_props: HashMap<String, String>,
-    serialize: Vec<String>,
-    to_string: Option<String>,
-    ident: Option<syn::Ident>,
+    pub disabled: Option<kw::disabled>,
+    pub default: Option<kw::default>,
+    pub ascii_case_insensitive: Option<bool>,
+    pub message: Option<LitStr>,
+    pub detailed_message: Option<LitStr>,
+    pub string_props: Vec<(LitStr, LitStr)>,
+    serialize: Vec<LitStr>,
+    to_string: Option<LitStr>,
+    ident: Option<Ident>,
 }
 
 impl StrumVariantProperties {
-    pub fn get_preferred_name(&self, case_style: Option<CaseStyle>) -> String {
-        if let Some(ref to_string) = self.to_string {
+    fn ident_as_str(&self, case_style: Option<CaseStyle>) -> LitStr {
+        let ident = self.ident.as_ref().expect("identifier");
+        LitStr::new(&ident.convert_case(case_style), ident.span())
+    }
+
+    pub fn get_preferred_name(&self, case_style: Option<CaseStyle>) -> LitStr {
+        if let Some(to_string) = &self.to_string {
             to_string.clone()
         } else {
             let mut serialized = self.serialize.clone();
-            serialized.sort_by_key(|s| s.len());
+            serialized.sort_by_key(|s| s.value().len());
             if let Some(n) = serialized.pop() {
                 n
             } else {
-                self.ident
-                    .as_ref()
-                    .expect("identifier")
-                    .convert_case(case_style)
+                self.ident_as_str(case_style)
             }
         }
     }
 
-    pub fn get_serializations(&self, case_style: Option<CaseStyle>) -> Vec<String> {
+    pub fn get_serializations(&self, case_style: Option<CaseStyle>) -> Vec<LitStr> {
         let mut attrs = self.serialize.clone();
-        if let Some(ref to_string) = self.to_string {
+        if let Some(to_string) = &self.to_string {
             attrs.push(to_string.clone());
         }
 
         if attrs.is_empty() {
-            attrs.push(
-                self.ident
-                    .as_ref()
-                    .expect("identifier")
-                    .convert_case(case_style),
-            );
+            attrs.push(self.ident_as_str(case_style));
         }
 
         attrs
     }
 }
 
-impl HasStrumVariantProperties for syn::Variant {
-    fn get_variant_properties(&self) -> StrumVariantProperties {
+impl HasStrumVariantProperties for Variant {
+    fn get_variant_properties(&self) -> syn::Result<StrumVariantProperties> {
         let mut output = StrumVariantProperties::default();
         output.ident = Some(self.ident.clone());
 
-        for meta in self.get_metadata("strum") {
+        let mut message_kw = None;
+        let mut detailed_message_kw = None;
+        let mut to_string_kw = None;
+        let mut disabled_kw = None;
+        let mut default_kw = None;
+        let mut ascii_case_insensitive_kw = None;
+        for meta in self.get_metadata()? {
             match meta {
-                syn::Meta::NameValue(syn::MetaNameValue { path, lit, .. }) => {
-                    if path.is_ident("message") {
-                        if output.message.is_some() {
-                            panic!("message is set twice on the same variant");
-                        }
-
-                        output.message = Some(lit.expect_string("expected string"));
-                    } else if path.is_ident("detailed_message") {
-                        if output.detailed_message.is_some() {
-                            panic!("detailed message set twice on the same variant");
-                        }
-
-                        output.detailed_message = Some(lit.expect_string("expected string"));
-                    } else if path.is_ident("serialize") {
-                        output.serialize.push(lit.expect_string("expected string"));
-                    } else if path.is_ident("to_string") {
-                        if output.to_string.is_some() {
-                            panic!("to_string is set twice on the same variant");
-                        }
-
-                        output.to_string = Some(lit.expect_string("expected string"));
-                    } else if path.is_ident("disabled") {
-                        panic!("this method is deprecated. Prefer #[strum(disabled)] instead of #[strum(disabled=\"true\")]");
-                    } else if path.is_ident("default") {
-                        panic!("this method is deprecated. Prefer #[strum(default)] instead of #[strum(default=\"true\")]");
-                    } else {
-                        panic!("unrecognized value in strum(..) attribute");
+                VariantMeta::Message { value, kw } => {
+                    if let Some(fst_kw) = message_kw {
+                        return Err(occurrence_error(fst_kw, kw, "message"));
                     }
+
+                    message_kw = Some(kw);
+                    output.message = Some(value);
                 }
-                syn::Meta::Path(p) => {
-                    if p.is_ident("disabled") {
-                        output.is_disabled = true;
-                    } else if p.is_ident("default") {
-                        output.default = true;
-                    } else {
-                        panic!("unrecognized value in strum(..) attribute");
+                VariantMeta::DetailedMessage { value, kw } => {
+                    if let Some(fst_kw) = detailed_message_kw {
+                        return Err(occurrence_error(fst_kw, kw, "detailed_message"));
                     }
+
+                    detailed_message_kw = Some(kw);
+                    output.detailed_message = Some(value);
                 }
-                syn::Meta::List(syn::MetaList { path, nested, .. }) => {
-                    if path.is_ident("props") {
-                        for p in nested {
-                            let p = p
-                                .expect_meta("unexpected literal found in props")
-                                .expect_namevalue("props must be key-value pairs");
-
-                            let key = p
-                                .path
-                                .get_ident()
-                                .expect("key must be an identifier")
-                                .to_string();
-
-                            let value = p.lit.expect_string("expected string");
-                            output.string_props.insert(key, value);
-                        }
-                    } else {
-                        panic!("unrecognized value in strum(..) attribute");
+                VariantMeta::Serialize { value, .. } => {
+                    output.serialize.push(value);
+                }
+                VariantMeta::ToString { value, kw } => {
+                    if let Some(fst_kw) = to_string_kw {
+                        return Err(occurrence_error(fst_kw, kw, "to_string"));
                     }
+
+                    to_string_kw = Some(kw);
+                    output.to_string = Some(value);
+                }
+                VariantMeta::Disabled(kw) => {
+                    if let Some(fst_kw) = disabled_kw {
+                        return Err(occurrence_error(fst_kw, kw, "disabled"));
+                    }
+
+                    disabled_kw = Some(kw);
+                    output.disabled = Some(kw);
+                }
+                VariantMeta::Default(kw) => {
+                    if let Some(fst_kw) = default_kw {
+                        return Err(occurrence_error(fst_kw, kw, "default"));
+                    }
+
+                    default_kw = Some(kw);
+                    output.default = Some(kw);
+                }
+                VariantMeta::AsciiCaseInsensitive { kw, value } => {
+                    if let Some(fst_kw) = ascii_case_insensitive_kw {
+                        return Err(occurrence_error(fst_kw, kw, "ascii_case_insensitive"));
+                    }
+
+                    ascii_case_insensitive_kw = Some(kw);
+                    output.ascii_case_insensitive = Some(value);
+                }
+                VariantMeta::Props { props, .. } => {
+                    output.string_props.extend(props);
                 }
             }
         }
 
-        output
+        Ok(output)
     }
 }

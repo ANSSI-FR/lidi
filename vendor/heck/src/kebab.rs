@@ -1,3 +1,5 @@
+use crate::{lowercase, transform};
+
 /// This trait defines a kebab case conversion.
 ///
 /// In kebab-case, word boundaries are indicated by hyphens.
@@ -5,14 +7,10 @@
 /// ## Example:
 ///
 /// ```rust
-/// extern crate heck;
-/// fn main() {
-///     
-///     use heck::KebabCase;
+/// use heck::KebabCase;
 ///
-///     let sentence = "We are going to inherit the earth.";
-///     assert_eq!(sentence.to_kebab_case(), "we-are-going-to-inherit-the-earth");
-/// }
+/// let sentence = "We are going to inherit the earth.";
+/// assert_eq!(sentence.to_kebab_case(), "we-are-going-to-inherit-the-earth");
 /// ```
 pub trait KebabCase: ToOwned {
     /// Convert this type to kebab case.
@@ -21,7 +19,7 @@ pub trait KebabCase: ToOwned {
 
 impl KebabCase for str {
     fn to_kebab_case(&self) -> Self::Owned {
-        ::transform(self, ::lowercase, |s| s.push('-'))
+        transform(self, lowercase, |s| s.push('-'))
     }
 }
 
@@ -35,7 +33,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_kebab_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "CamelCase" => "camel-case");

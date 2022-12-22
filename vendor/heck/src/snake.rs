@@ -1,18 +1,16 @@
-/// This trait defines a camel case conversion.
+use crate::{lowercase, transform};
+
+/// This trait defines a snake case conversion.
 ///
 /// In snake_case, word boundaries are indicated by underscores.
 ///
 /// ## Example:
 ///
 /// ```rust
-/// extern crate heck;
-/// fn main() {
+/// use heck::SnakeCase;
 ///
-///     use heck::SnakeCase;
-///
-///     let sentence = "We carry a new world here, in our hearts.";
-///     assert_eq!(sentence.to_snake_case(), "we_carry_a_new_world_here_in_our_hearts");
-/// }
+/// let sentence = "We carry a new world here, in our hearts.";
+/// assert_eq!(sentence.to_snake_case(), "we_carry_a_new_world_here_in_our_hearts");
 /// ```
 pub trait SnakeCase: ToOwned {
     /// Convert this type to snake case.
@@ -34,7 +32,7 @@ impl<T: ?Sized + SnakeCase> SnekCase for T {
 
 impl SnakeCase for str {
     fn to_snake_case(&self) -> String {
-        ::transform(self, ::lowercase, |s| s.push('_'))
+        transform(self, lowercase, |s| s.push('_'))
     }
 }
 
@@ -48,7 +46,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_snake_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "CamelCase" => "camel_case");

@@ -99,6 +99,10 @@ fn output_ok() {
     assert!(lib.libs.contains(&"gcc".to_string()));
     assert!(lib.libs.contains(&"coregrind-amd64-linux".to_string()));
     assert!(lib.link_paths.contains(&PathBuf::from("/usr/lib/valgrind")));
+    assert!(lib
+        .include_paths
+        .contains(&PathBuf::from("/usr/include/valgrind")));
+    assert!(lib.include_paths.contains(&PathBuf::from("/usr/foo")));
 }
 
 #[test]
@@ -306,4 +310,14 @@ fn range_version_full() {
         .range_version(..)
         .probe("escape")
         .unwrap();
+}
+
+#[test]
+fn rpath() {
+    let _g = LOCK.lock();
+    reset();
+    let lib = find("rpath").unwrap();
+    assert!(lib
+        .ld_args
+        .contains(&vec!["-rpath".to_string(), "/usr/local/lib".to_string(),]));
 }

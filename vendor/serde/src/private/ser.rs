@@ -51,7 +51,6 @@ enum Unsupported {
     String,
     ByteArray,
     Optional,
-    Unit,
     #[cfg(any(feature = "std", feature = "alloc"))]
     UnitStruct,
     Sequence,
@@ -70,7 +69,6 @@ impl Display for Unsupported {
             Unsupported::String => formatter.write_str("a string"),
             Unsupported::ByteArray => formatter.write_str("a byte array"),
             Unsupported::Optional => formatter.write_str("an optional"),
-            Unsupported::Unit => formatter.write_str("unit"),
             #[cfg(any(feature = "std", feature = "alloc"))]
             Unsupported::UnitStruct => formatter.write_str("unit struct"),
             Unsupported::Sequence => formatter.write_str("a sequence"),
@@ -184,7 +182,9 @@ where
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        Err(self.bad_type(Unsupported::Unit))
+        let mut map = try!(self.delegate.serialize_map(Some(1)));
+        try!(map.serialize_entry(self.tag, self.variant_name));
+        map.end()
     }
 
     fn serialize_unit_struct(self, _: &'static str) -> Result<Self::Ok, Self::Error> {
@@ -335,33 +335,6 @@ where
     }
 }
 
-/// Used only by Serde doc tests. Not public API.
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct Error;
-
-impl ser::Error for Error {
-    fn custom<T>(_: T) -> Self
-    where
-        T: Display,
-    {
-        unimplemented!()
-    }
-}
-
-#[cfg(feature = "std")]
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        unimplemented!()
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
-        unimplemented!()
-    }
-}
-
 #[cfg(any(feature = "std", feature = "alloc"))]
 mod content {
     use lib::*;
@@ -452,7 +425,6 @@ mod content {
         }
     }
 
-    #[derive(Debug)]
     pub enum Content {
         Bool(bool),
 
@@ -553,7 +525,7 @@ mod content {
                 Content::Map(ref entries) => {
                     use ser::SerializeMap;
                     let mut map = try!(serializer.serialize_map(Some(entries.len())));
-                    for &(ref k, ref v) in entries {
+                    for (k, v) in entries {
                         try!(map.serialize_entry(k, v));
                     }
                     map.end()

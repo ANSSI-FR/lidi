@@ -1,6 +1,3 @@
-extern crate tempfile;
-extern crate xattr;
-
 use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use xattr::FileExt;
@@ -98,14 +95,16 @@ fn test_multi() {
         OsStr::new("user.test1"),
         OsStr::new("user.test2"),
         OsStr::new("user.test3"),
-    ].iter()
-        .cloned()
-        .collect();
+    ]
+    .iter()
+    .cloned()
+    .collect();
 
     for it in &items {
         tmp.set_xattr(it, b"value").unwrap();
     }
-    for it in tmp.list_xattr()
+    for it in tmp
+        .list_xattr()
         .unwrap()
         .filter(|x| x.as_bytes().starts_with(&*b"user."))
     {

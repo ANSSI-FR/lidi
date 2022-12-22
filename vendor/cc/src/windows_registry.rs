@@ -3,8 +3,8 @@
 // http://rust-lang.org/COPYRIGHT.
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
-// http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-// <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
+// https://www.apache.org/licenses/LICENSE-2.0> or the MIT license
+// <LICENSE-MIT or https://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
@@ -14,6 +14,11 @@
 use std::process::Command;
 
 use crate::Tool;
+#[cfg(windows)]
+use crate::ToolFamily;
+
+#[cfg(windows)]
+const MSVC_FAMILY: ToolFamily = ToolFamily::Msvc { clang_cl: false };
 
 /// Attempts to find a tool within an MSVC installation using the Windows
 /// registry as a point to search from.
@@ -42,8 +47,6 @@ pub fn find_tool(_target: &str, _tool: &str) -> Option<Tool> {
 /// Documented above.
 #[cfg(windows)]
 pub fn find_tool(target: &str, tool: &str) -> Option<Tool> {
-    use std::env;
-
     // This logic is all tailored for MSVC, if we're not that then bail out
     // early.
     if !target.contains("msvc") {
@@ -61,18 +64,6 @@ pub fn find_tool(target: &str, tool: &str) -> Option<Tool> {
         return impl_::find_devenv(target);
     }
 
-    // If VCINSTALLDIR is set, then someone's probably already run vcvars and we
-    // should just find whatever that indicates.
-    if env::var_os("VCINSTALLDIR").is_some() {
-        return env::var_os("PATH")
-            .and_then(|path| {
-                env::split_paths(&path)
-                    .map(|p| p.join(tool))
-                    .find(|p| p.exists())
-            })
-            .map(|path| Tool::new(path.into()));
-    }
-
     // Ok, if we're here, now comes the fun part of the probing. Default shells
     // or shells like MSYS aren't really configured to execute `cl.exe` and the
     // various compiler tools shipped as part of Visual Studio. Here we try to
@@ -80,7 +71,8 @@ pub fn find_tool(target: &str, tool: &str) -> Option<Tool> {
     // environment variables like `LIB`, `INCLUDE`, and `PATH` to ensure that
     // the tool is actually usable.
 
-    return impl_::find_msvc_15(tool, target)
+    return impl_::find_msvc_environment(tool, target)
+        .or_else(|| impl_::find_msvc_15plus(tool, target))
         .or_else(|| impl_::find_msvc_14(tool, target))
         .or_else(|| impl_::find_msvc_12(tool, target))
         .or_else(|| impl_::find_msvc_11(tool, target));
@@ -97,6 +89,8 @@ pub enum VsVers {
     Vs15,
     /// Visual Studio 16 (2019)
     Vs16,
+    /// Visual Studio 17 (2022)
+    Vs17,
 
     /// Hidden variant that should not be matched on. Callers that want to
     /// handle an enumeration of `VsVers` instances should always have a default
@@ -122,6 +116,7 @@ pub fn find_vs_version() -> Result<VsVers, String> {
 
     match env::var("VisualStudioVersion") {
         Ok(version) => match &version[..] {
+            "17.0" => Ok(VsVers::Vs17),
             "16.0" => Ok(VsVers::Vs16),
             "15.0" => Ok(VsVers::Vs15),
             "14.0" => Ok(VsVers::Vs14),
@@ -137,9 +132,11 @@ pub fn find_vs_version() -> Result<VsVers, String> {
             )),
         },
         _ => {
-            // Check for the presense of a specific registry key
+            // Check for the presence of a specific registry key
             // that indicates visual studio is installed.
-            if impl_::has_msbuild_version("16.0") {
+            if impl_::has_msbuild_version("17.0") {
+                Ok(VsVers::Vs17)
+            } else if impl_::has_msbuild_version("16.0") {
                 Ok(VsVers::Vs16)
             } else if impl_::has_msbuild_version("15.0") {
                 Ok(VsVers::Vs15)
@@ -165,7 +162,9 @@ pub fn find_vs_version() -> Result<VsVers, String> {
 mod impl_ {
     use crate::com;
     use crate::registry::{RegistryKey, LOCAL_MACHINE};
-    use crate::setup_config::{EnumSetupInstances, SetupConfiguration, SetupInstance};
+    use crate::setup_config::SetupConfiguration;
+    use crate::vs_instances::{VsInstances, VswhereInstance};
+    use std::convert::TryFrom;
     use std::env;
     use std::ffi::OsString;
     use std::fs::File;
@@ -173,7 +172,10 @@ mod impl_ {
     use std::iter;
     use std::mem;
     use std::path::{Path, PathBuf};
+    use std::process::Command;
+    use std::str::FromStr;
 
+    use super::MSVC_FAMILY;
     use crate::Tool;
 
     struct MsvcTool {
@@ -200,7 +202,7 @@ mod impl_ {
                 path,
                 include,
             } = self;
-            let mut tool = Tool::new(tool.into());
+            let mut tool = Tool::with_family(tool.into(), MSVC_FAMILY);
             add_env(&mut tool, "LIB", libs);
             add_env(&mut tool, "PATH", path);
             add_env(&mut tool, "INCLUDE", include);
@@ -208,34 +210,84 @@ mod impl_ {
         }
     }
 
+    /// Checks to see if the `VSCMD_ARG_TGT_ARCH` environment variable matches the
+    /// given target's arch. Returns `None` if the variable does not exist.
+    #[cfg(windows)]
+    fn is_vscmd_target(target: &str) -> Option<bool> {
+        let vscmd_arch = env::var("VSCMD_ARG_TGT_ARCH").ok()?;
+        // Convert the Rust target arch to its VS arch equivalent.
+        let arch = match target.split("-").next() {
+            Some("x86_64") => "x64",
+            Some("aarch64") => "arm64",
+            Some("i686") | Some("i586") => "x86",
+            Some("thumbv7a") => "arm",
+            // An unrecognized arch.
+            _ => return Some(false),
+        };
+        Some(vscmd_arch == arch)
+    }
+
+    /// Attempt to find the tool using environment variables set by vcvars.
+    pub fn find_msvc_environment(tool: &str, target: &str) -> Option<Tool> {
+        // Early return if the environment doesn't contain a VC install.
+        if env::var_os("VCINSTALLDIR").is_none() {
+            return None;
+        }
+        let vs_install_dir = env::var_os("VSINSTALLDIR")?.into();
+
+        // If the vscmd target differs from the requested target then
+        // attempt to get the tool using the VS install directory.
+        if is_vscmd_target(target) == Some(false) {
+            // We will only get here with versions 15+.
+            tool_from_vs15plus_instance(tool, target, &vs_install_dir)
+        } else {
+            // Fallback to simply using the current environment.
+            env::var_os("PATH")
+                .and_then(|path| {
+                    env::split_paths(&path)
+                        .map(|p| p.join(tool))
+                        .find(|p| p.exists())
+                })
+                .map(|path| Tool::with_family(path.into(), MSVC_FAMILY))
+        }
+    }
+
+    fn find_msbuild_vs17(target: &str) -> Option<Tool> {
+        find_tool_in_vs16plus_path(r"MSBuild\Current\Bin\MSBuild.exe", target, "17")
+    }
+
     #[allow(bare_trait_objects)]
-    fn vs16_instances() -> Box<Iterator<Item = PathBuf>> {
-        let instances = if let Some(instances) = vs15_instances() {
+    fn vs16plus_instances(target: &str, version: &'static str) -> Box<Iterator<Item = PathBuf>> {
+        let instances = if let Some(instances) = vs15plus_instances(target) {
             instances
         } else {
             return Box::new(iter::empty());
         };
-        Box::new(instances.filter_map(|instance| {
-            let instance = instance.ok()?;
-            let installation_name = instance.installation_name().ok()?;
-            if installation_name.to_str()?.starts_with("VisualStudio/16.") {
-                Some(PathBuf::from(instance.installation_path().ok()?))
+        Box::new(instances.into_iter().filter_map(move |instance| {
+            let installation_name = instance.installation_name()?;
+            if installation_name.starts_with(&format!("VisualStudio/{}.", version)) {
+                Some(instance.installation_path()?)
+            } else if installation_name.starts_with(&format!("VisualStudioPreview/{}.", version)) {
+                Some(instance.installation_path()?)
             } else {
                 None
             }
         }))
     }
 
-    fn find_tool_in_vs16_path(tool: &str, target: &str) -> Option<Tool> {
-        vs16_instances()
+    fn find_tool_in_vs16plus_path(tool: &str, target: &str, version: &'static str) -> Option<Tool> {
+        vs16plus_instances(target, version)
             .filter_map(|path| {
                 let path = path.join(tool);
                 if !path.is_file() {
                     return None;
                 }
-                let mut tool = Tool::new(path);
+                let mut tool = Tool::with_family(path, MSVC_FAMILY);
                 if target.contains("x86_64") {
                     tool.env.push(("Platform".into(), "X64".into()));
+                }
+                if target.contains("aarch64") {
+                    tool.env.push(("Platform".into(), "ARM64".into()));
                 }
                 Some(tool)
             })
@@ -243,7 +295,7 @@ mod impl_ {
     }
 
     fn find_msbuild_vs16(target: &str) -> Option<Tool> {
-        find_tool_in_vs16_path(r"MSBuild\Current\Bin\MSBuild.exe", target)
+        find_tool_in_vs16plus_path(r"MSBuild\Current\Bin\MSBuild.exe", target, "16")
     }
 
     // In MSVC 15 (2017) MS once again changed the scheme for locating
@@ -253,24 +305,86 @@ mod impl_ {
     // Note that much of this logic can be found [online] wrt paths, COM, etc.
     //
     // [online]: https://blogs.msdn.microsoft.com/vcblog/2017/03/06/finding-the-visual-c-compiler-tools-in-visual-studio-2017/
-    fn vs15_instances() -> Option<EnumSetupInstances> {
+    //
+    // Returns MSVC 15+ instances (15, 16 right now), the order should be consider undefined.
+    //
+    // However, on ARM64 this method doesn't work because VS Installer fails to register COM component on ARM64.
+    // Hence, as the last resort we try to use vswhere.exe to list available instances.
+    fn vs15plus_instances(target: &str) -> Option<VsInstances> {
+        vs15plus_instances_using_com().or_else(|| vs15plus_instances_using_vswhere(target))
+    }
+
+    fn vs15plus_instances_using_com() -> Option<VsInstances> {
         com::initialize().ok()?;
 
         let config = SetupConfiguration::new().ok()?;
-        config.enum_all_instances().ok()
+        let enum_setup_instances = config.enum_all_instances().ok()?;
+
+        Some(VsInstances::ComBased(enum_setup_instances))
     }
 
-    pub fn find_msvc_15(tool: &str, target: &str) -> Option<Tool> {
-        let iter = vs15_instances()?;
-        for instance in iter {
-            let instance = instance.ok()?;
-            let tool = tool_from_vs15_instance(tool, target, &instance);
-            if tool.is_some() {
-                return tool;
-            }
+    fn vs15plus_instances_using_vswhere(target: &str) -> Option<VsInstances> {
+        let program_files_path: PathBuf = env::var("ProgramFiles(x86)")
+            .or_else(|_| env::var("ProgramFiles"))
+            .ok()?
+            .into();
+
+        let vswhere_path =
+            program_files_path.join(r"Microsoft Visual Studio\Installer\vswhere.exe");
+
+        if !vswhere_path.exists() {
+            return None;
         }
 
-        None
+        let arch = target.split('-').next().unwrap();
+        let tools_arch = match arch {
+            "i586" | "i686" | "x86_64" => Some("x86.x64"),
+            "arm" | "thumbv7a" => Some("ARM"),
+            "aarch64" => Some("ARM64"),
+            _ => None,
+        };
+
+        let vswhere_output = Command::new(vswhere_path)
+            .args(&[
+                "-latest",
+                "-products",
+                "*",
+                "-requires",
+                &format!("Microsoft.VisualStudio.Component.VC.Tools.{}", tools_arch?),
+                "-format",
+                "text",
+                "-nologo",
+            ])
+            .stderr(std::process::Stdio::inherit())
+            .output()
+            .ok()?;
+
+        let vs_instances =
+            VsInstances::VswhereBased(VswhereInstance::try_from(&vswhere_output.stdout).ok()?);
+
+        Some(vs_instances)
+    }
+
+    // Inspired from official microsoft/vswhere ParseVersionString
+    // i.e. at most four u16 numbers separated by '.'
+    fn parse_version(version: &str) -> Option<Vec<u16>> {
+        version
+            .split('.')
+            .map(|chunk| u16::from_str(chunk).ok())
+            .collect()
+    }
+
+    pub fn find_msvc_15plus(tool: &str, target: &str) -> Option<Tool> {
+        let iter = vs15plus_instances(target)?;
+        iter.into_iter()
+            .filter_map(|instance| {
+                let version = parse_version(&instance.installation_version()?)?;
+                let instance_path = instance.installation_path()?;
+                let tool = tool_from_vs15plus_instance(tool, target, &instance_path)?;
+                Some((version, tool))
+            })
+            .max_by(|(a_version, _), (b_version, _)| a_version.cmp(b_version))
+            .map(|(_version, tool)| tool)
     }
 
     // While the paths to Visual Studio 2017's devenv and MSBuild could
@@ -279,16 +393,13 @@ mod impl_ {
     // according to Microsoft. To help head off potential regressions though,
     // we keep the registry method as a fallback option.
     //
-    // [more reliable]: https://github.com/alexcrichton/cc-rs/pull/331
+    // [more reliable]: https://github.com/rust-lang/cc-rs/pull/331
     fn find_tool_in_vs15_path(tool: &str, target: &str) -> Option<Tool> {
-        let mut path = match vs15_instances() {
+        let mut path = match vs15plus_instances(target) {
             Some(instances) => instances
-                .filter_map(|instance| {
-                    instance
-                        .ok()
-                        .and_then(|instance| instance.installation_path().ok())
-                })
-                .map(|path| PathBuf::from(path).join(tool))
+                .into_iter()
+                .filter_map(|instance| instance.installation_path())
+                .map(|path| path.join(tool))
                 .find(|ref path| path.is_file()),
             None => None,
         };
@@ -304,27 +415,36 @@ mod impl_ {
         }
 
         path.map(|path| {
-            let mut tool = Tool::new(path);
+            let mut tool = Tool::with_family(path, MSVC_FAMILY);
             if target.contains("x86_64") {
                 tool.env.push(("Platform".into(), "X64".into()));
+            }
+            if target.contains("aarch64") {
+                tool.env.push(("Platform".into(), "ARM64".into()));
             }
             tool
         })
     }
 
-    fn tool_from_vs15_instance(tool: &str, target: &str, instance: &SetupInstance) -> Option<Tool> {
-        let (bin_path, host_dylib_path, lib_path, include_path) = vs15_vc_paths(target, instance)?;
+    fn tool_from_vs15plus_instance(
+        tool: &str,
+        target: &str,
+        instance_path: &PathBuf,
+    ) -> Option<Tool> {
+        let (root_path, bin_path, host_dylib_path, lib_path, include_path) =
+            vs15plus_vc_paths(target, instance_path)?;
         let tool_path = bin_path.join(tool);
         if !tool_path.exists() {
             return None;
         };
 
         let mut tool = MsvcTool::new(tool_path);
+        tool.path.push(bin_path.clone());
         tool.path.push(host_dylib_path);
         tool.libs.push(lib_path);
         tool.include.push(include_path);
 
-        if let Some((atl_lib_path, atl_include_path)) = atl_paths(target, &bin_path) {
+        if let Some((atl_lib_path, atl_include_path)) = atl_paths(target, &root_path) {
             tool.libs.push(atl_lib_path);
             tool.include.push(atl_include_path);
         }
@@ -334,11 +454,10 @@ mod impl_ {
         Some(tool.into_tool())
     }
 
-    fn vs15_vc_paths(
+    fn vs15plus_vc_paths(
         target: &str,
-        instance: &SetupInstance,
-    ) -> Option<(PathBuf, PathBuf, PathBuf, PathBuf)> {
-        let instance_path: PathBuf = instance.installation_path().ok()?.into();
+        instance_path: &PathBuf,
+    ) -> Option<(PathBuf, PathBuf, PathBuf, PathBuf, PathBuf)> {
         let version_path =
             instance_path.join(r"VC\Auxiliary\Build\Microsoft.VCToolsVersion.default.txt");
         let mut version_file = File::open(version_path).ok()?;
@@ -348,6 +467,9 @@ mod impl_ {
         let host = match host_arch() {
             X86 => "X86",
             X86_64 => "X64",
+            // There is no natively hosted compiler on ARM64.
+            // Instead, use the x86 toolchain under emulation (there is no x64 emulation).
+            AARCH64 => "X86",
             _ => return None,
         };
         let target = lib_subdir(target)?;
@@ -368,11 +490,11 @@ mod impl_ {
             .join(&host.to_lowercase());
         let lib_path = path.join("lib").join(&target);
         let include_path = path.join("include");
-        Some((bin_path, host_dylib_path, lib_path, include_path))
+        Some((path, bin_path, host_dylib_path, lib_path, include_path))
     }
 
     fn atl_paths(target: &str, path: &Path) -> Option<(PathBuf, PathBuf)> {
-        let atl_path = path.join("atlfmc");
+        let atl_path = path.join("atlmfc");
         let sub = lib_subdir(target)?;
         if atl_path.exists() {
             Some((atl_path.join("lib").join(sub), atl_path.join("include")))
@@ -394,8 +516,15 @@ mod impl_ {
         let sub = lib_subdir(target)?;
         let (ucrt, ucrt_version) = get_ucrt_dir()?;
 
+        let host = match host_arch() {
+            X86 => "x86",
+            X86_64 => "x64",
+            AARCH64 => "arm64",
+            _ => return None,
+        };
+
         tool.path
-            .push(ucrt.join("bin").join(&ucrt_version).join(sub));
+            .push(ucrt.join("bin").join(&ucrt_version).join(host));
 
         let ucrt_include = ucrt.join("include").join(&ucrt_version);
         tool.include.push(ucrt_include.join("ucrt"));
@@ -404,7 +533,7 @@ mod impl_ {
         tool.libs.push(ucrt_lib.join("ucrt").join(sub));
 
         if let Some((sdk, version)) = get_sdk10_dir() {
-            tool.path.push(sdk.join("bin").join(sub));
+            tool.path.push(sdk.join("bin").join(host));
             let sdk_lib = sdk.join("lib").join(&version);
             tool.libs.push(sdk_lib.join("um").join(sub));
             let sdk_include = sdk.join("include").join(&version);
@@ -413,7 +542,7 @@ mod impl_ {
             tool.include.push(sdk_include.join("winrt"));
             tool.include.push(sdk_include.join("shared"));
         } else if let Some(sdk) = get_sdk81_dir() {
-            tool.path.push(sdk.join("bin").join(sub));
+            tool.path.push(sdk.join("bin").join(host));
             let sdk_lib = sdk.join("lib").join("winv6.3");
             tool.libs.push(sdk_lib.join("um").join(sub));
             let sdk_include = sdk.join("include");
@@ -540,7 +669,15 @@ mod impl_ {
     // only need to bother checking x64, making this code a tiny bit simpler.
     // Like we do for the Universal CRT, we sort the possibilities
     // asciibetically to find the newest one as that is what vcvars does.
+    // Before doing that, we check the "WindowsSdkDir" and "WindowsSDKVersion"
+    // environment variables set by vcvars to use the environment sdk version
+    // if one is already configured.
     fn get_sdk10_dir() -> Option<(PathBuf, String)> {
+        if let (Ok(root), Ok(version)) = (env::var("WindowsSdkDir"), env::var("WindowsSDKVersion"))
+        {
+            return Some((root.into(), version.trim_end_matches('\\').to_string()));
+        }
+
         let key = r"SOFTWARE\Microsoft\Microsoft SDKs\Windows\v10.0";
         let key = LOCAL_MACHINE.open(key.as_ref()).ok()?;
         let root = key.query_str("InstallationFolder").ok()?;
@@ -562,7 +699,7 @@ mod impl_ {
 
     // Interestingly there are several subdirectories, `win7` `win8` and
     // `winv6.3`. Vcvars seems to only care about `winv6.3` though, so the same
-    // applies to us. Note that if we were targetting kernel mode drivers
+    // applies to us. Note that if we were targeting kernel mode drivers
     // instead of user mode applications, we would care.
     fn get_sdk81_dir() -> Option<PathBuf> {
         let key = r"SOFTWARE\Microsoft\Microsoft SDKs\Windows\v8.1";
@@ -580,8 +717,10 @@ mod impl_ {
 
     const PROCESSOR_ARCHITECTURE_INTEL: u16 = 0;
     const PROCESSOR_ARCHITECTURE_AMD64: u16 = 9;
+    const PROCESSOR_ARCHITECTURE_ARM64: u16 = 12;
     const X86: u16 = PROCESSOR_ARCHITECTURE_INTEL;
     const X86_64: u16 = PROCESSOR_ARCHITECTURE_AMD64;
+    const AARCH64: u16 = PROCESSOR_ARCHITECTURE_ARM64;
 
     // When choosing the tool to use, we have to choose the one which matches
     // the target architecture. Otherwise we end up in situations where someone
@@ -691,13 +830,20 @@ mod impl_ {
 
     pub fn has_msbuild_version(version: &str) -> bool {
         match version {
+            "17.0" => {
+                find_msbuild_vs17("x86_64-pc-windows-msvc").is_some()
+                    || find_msbuild_vs17("i686-pc-windows-msvc").is_some()
+                    || find_msbuild_vs17("aarch64-pc-windows-msvc").is_some()
+            }
             "16.0" => {
                 find_msbuild_vs16("x86_64-pc-windows-msvc").is_some()
                     || find_msbuild_vs16("i686-pc-windows-msvc").is_some()
+                    || find_msbuild_vs16("aarch64-pc-windows-msvc").is_some()
             }
             "15.0" => {
                 find_msbuild_vs15("x86_64-pc-windows-msvc").is_some()
                     || find_msbuild_vs15("i686-pc-windows-msvc").is_some()
+                    || find_msbuild_vs15("aarch64-pc-windows-msvc").is_some()
             }
             "12.0" | "14.0" => LOCAL_MACHINE
                 .open(&OsString::from(format!(
@@ -744,7 +890,7 @@ mod impl_ {
             .map(|path| {
                 let mut path = PathBuf::from(path);
                 path.push("MSBuild.exe");
-                let mut tool = Tool::new(path);
+                let mut tool = Tool::with_family(path, MSVC_FAMILY);
                 if target.contains("x86_64") {
                     tool.env.push(("Platform".into(), "X64".into()));
                 }

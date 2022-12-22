@@ -13,7 +13,7 @@
 [package]
 edition = "2018"
 name = "cookie-factory"
-version = "0.3.1"
+version = "0.3.2"
 authors = ["Geoffroy Couprie <geo.couprie@gmail.com>", "Pierre Chifflier <chifflier@wzdftpd.net>"]
 include = ["Cargo.toml", "LICENSE", "README.md", ".gitignore", "src/*.rs", "src/combinator/*.rs", "example/*.rs"]
 description = "nom inspired serialization library"
@@ -31,6 +31,11 @@ debug = true
 [[example]]
 name = "http"
 path = "examples/http.rs"
+required-features = ["std"]
+
+[[example]]
+name = "cursor"
+path = "examples/cursor.rs"
 required-features = ["std"]
 
 [[test]]

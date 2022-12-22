@@ -1,7 +1,7 @@
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 mod linux;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 use self::linux::*;
 
 #[cfg(target_os = "macos")]
@@ -19,7 +19,7 @@ use std::path::Path;
 
 use libc::{c_char, c_void, size_t};
 
-use util::{allocate_loop, name_to_c, path_to_c};
+use crate::util::{allocate_loop, name_to_c, path_to_c};
 
 /// An iterator over a set of extended attributes names.
 pub struct XAttrs {

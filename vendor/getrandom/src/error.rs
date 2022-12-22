@@ -43,16 +43,19 @@ impl Error {
     pub const FAILED_RDRAND: Error = internal_error(5);
     /// RDRAND instruction unsupported on this target.
     pub const NO_RDRAND: Error = internal_error(6);
-    /// The browser does not have support for `self.crypto`.
+    /// The environment does not support the Web Crypto API.
     pub const WEB_CRYPTO: Error = internal_error(7);
-    /// The browser does not have support for `crypto.getRandomValues`.
+    /// Calling Web Crypto API `crypto.getRandomValues` failed.
     pub const WEB_GET_RANDOM_VALUES: Error = internal_error(8);
     /// On VxWorks, call to `randSecure` failed (random number generator is not yet initialized).
     pub const VXWORKS_RAND_SECURE: Error = internal_error(11);
-    /// NodeJS does not have support for the `crypto` module.
+    /// Node.js does not have the `crypto` CommonJS module.
     pub const NODE_CRYPTO: Error = internal_error(12);
-    /// NodeJS does not have support for `crypto.randomFillSync`.
+    /// Calling Node.js function `crypto.randomFillSync` failed.
     pub const NODE_RANDOM_FILL_SYNC: Error = internal_error(13);
+    /// Called from an ES module on Node.js. This is unsupported, see:
+    /// <https://docs.rs/getrandom#nodejs-es-module-support>.
+    pub const NODE_ES_MODULE: Error = internal_error(14);
 
     /// Codes below this point represent OS Errors (i.e. positive i32 values).
     /// Codes at or above this point, but below [`Error::CUSTOM_START`] are
@@ -73,7 +76,14 @@ impl Error {
     #[inline]
     pub fn raw_os_error(self) -> Option<i32> {
         if self.0.get() < Self::INTERNAL_START {
-            Some(self.0.get() as i32)
+            match () {
+                #[cfg(target_os = "solid_asp3")]
+                // On SOLID, negate the error code again to obtain the original
+                // error code.
+                () => Some(-(self.0.get() as i32)),
+                #[cfg(not(target_os = "solid_asp3"))]
+                () => Some(self.0.get() as i32),
+            }
         } else {
             None
         }
@@ -101,10 +111,6 @@ cfg_if! {
             let n = buf.len();
             let idx = buf.iter().position(|&b| b == 0).unwrap_or(n);
             core::str::from_utf8(&buf[..idx]).ok()
-        }
-    } else if #[cfg(target_os = "wasi")] {
-        fn os_err(errno: i32, _buf: &mut [u8]) -> Option<wasi::Error> {
-            wasi::Error::from_raw_error(errno as _)
         }
     } else {
         fn os_err(_errno: i32, _buf: &mut [u8]) -> Option<&str> {
@@ -162,11 +168,12 @@ fn internal_desc(error: Error) -> Option<&'static str> {
         Error::WINDOWS_RTL_GEN_RANDOM => Some("RtlGenRandom: Windows system function failure"),
         Error::FAILED_RDRAND => Some("RDRAND: failed multiple times: CPU issue likely"),
         Error::NO_RDRAND => Some("RDRAND: instruction not supported"),
-        Error::WEB_CRYPTO => Some("Web API self.crypto is unavailable"),
-        Error::WEB_GET_RANDOM_VALUES => Some("Web API crypto.getRandomValues is unavailable"),
+        Error::WEB_CRYPTO => Some("Web Crypto API is unavailable"),
+        Error::WEB_GET_RANDOM_VALUES => Some("Calling Web API crypto.getRandomValues failed"),
         Error::VXWORKS_RAND_SECURE => Some("randSecure: VxWorks RNG module is not initialized"),
-        Error::NODE_CRYPTO => Some("Node.js crypto module is unavailable"),
-        Error::NODE_RANDOM_FILL_SYNC => Some("Node.js API crypto.randomFillSync is unavailable"),
+        Error::NODE_CRYPTO => Some("Node.js crypto CommonJS module is unavailable"),
+        Error::NODE_RANDOM_FILL_SYNC => Some("Calling Node.js API crypto.randomFillSync failed"),
+        Error::NODE_ES_MODULE => Some("Node.js ES modules are not directly supported, see https://docs.rs/getrandom#nodejs-es-module-support"),
         _ => None,
     }
 }

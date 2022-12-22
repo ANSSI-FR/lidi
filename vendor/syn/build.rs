@@ -15,6 +15,18 @@ fn main() {
         println!("cargo:rustc-cfg=syn_omit_await_from_token_macro");
     }
 
+    if compiler.minor < 39 {
+        println!("cargo:rustc-cfg=syn_no_const_vec_new");
+    }
+
+    if compiler.minor < 40 {
+        println!("cargo:rustc-cfg=syn_no_non_exhaustive");
+    }
+
+    if compiler.minor < 56 {
+        println!("cargo:rustc-cfg=syn_no_negative_literal_parse");
+    }
+
     if !compiler.nightly {
         println!("cargo:rustc-cfg=syn_disable_nightly_tests");
     }
@@ -34,6 +46,6 @@ fn rustc_version() -> Option<Compiler> {
         return None;
     }
     let minor = pieces.next()?.parse().ok()?;
-    let nightly = version.contains("nightly");
+    let nightly = version.contains("nightly") || version.ends_with("-dev");
     Some(Compiler { minor, nightly })
 }

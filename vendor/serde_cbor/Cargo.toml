@@ -13,8 +13,8 @@
 [package]
 edition = "2018"
 name = "serde_cbor"
-version = "0.11.1"
-authors = ["Pyfisch <pyfisch@gmail.com>", "Steven Fackler <sfackler@gmail.com>"]
+version = "0.11.2"
+authors = ["Pyfisch <pyfisch@posteo.org>", "Steven Fackler <sfackler@gmail.com>"]
 description = "CBOR support for serde."
 readme = "README.md"
 keywords = ["serde", "cbor", "serialization", "no_std"]
@@ -38,7 +38,7 @@ std = ["serde/std"]
 tags = []
 unsealed_read_write = []
 [badges.maintenance]
-status = "passively-maintained"
+status = "as-is"
 
 [badges.travis-ci]
 repository = "pyfisch/cbor"

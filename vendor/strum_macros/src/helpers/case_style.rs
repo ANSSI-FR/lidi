@@ -1,4 +1,9 @@
 use heck::{CamelCase, KebabCase, MixedCase, ShoutySnakeCase, SnakeCase, TitleCase};
+use std::str::FromStr;
+use syn::{
+    parse::{Parse, ParseStream},
+    Ident, LitStr,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CaseStyle {
@@ -14,9 +19,41 @@ pub enum CaseStyle {
     PascalCase,
 }
 
-impl<'s> From<&'s str> for CaseStyle {
-    fn from(text: &'s str) -> CaseStyle {
-        match text {
+const VALID_CASE_STYLES: &[&str] = &[
+    "camelCase",
+    "PascalCase",
+    "kebab-case",
+    "snake_case",
+    "SCREAMING_SNAKE_CASE",
+    "SCREAMING-KEBAB-CASE",
+    "lowercase",
+    "UPPERCASE",
+    "title_case",
+    "mixed_case",
+];
+
+impl Parse for CaseStyle {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let text = input.parse::<LitStr>()?;
+        let val = text.value();
+
+        val.as_str().parse().map_err(|_| {
+            syn::Error::new_spanned(
+                &text,
+                format!(
+                    "Unexpected case style for serialize_all: `{}`. Valid values are: `{:?}`",
+                    val, VALID_CASE_STYLES
+                ),
+            )
+        })
+    }
+}
+
+impl FromStr for CaseStyle {
+    type Err = ();
+
+    fn from_str(text: &str) -> Result<CaseStyle, ()> {
+        Ok(match text {
             "camel_case" | "PascalCase" => CaseStyle::PascalCase,
             "camelCase" => CaseStyle::CamelCase,
             "snake_case" | "snek_case" => CaseStyle::SnakeCase,
@@ -29,23 +66,8 @@ impl<'s> From<&'s str> for CaseStyle {
             "mixed_case" => CaseStyle::MixedCase,
             "lowercase" => CaseStyle::LowerCase,
             "UPPERCASE" => CaseStyle::UpperCase,
-            _ => panic!(
-                "Unexpected case style for serialize_all: `{}`. Valid values are: `{:?}`",
-                text,
-                [
-                    "camelCase",
-                    "PascalCase",
-                    "kebab-case",
-                    "snake_case",
-                    "SCREAMING_SNAKE_CASE",
-                    "SCREAMING-KEBAB-CASE",
-                    "lowercase",
-                    "UPPERCASE",
-                    "title_case",
-                    "mixed_case",
-                ]
-            ),
-        }
+            _ => return Err(()),
+        })
     }
 }
 
@@ -53,7 +75,7 @@ pub trait CaseStyleHelpers {
     fn convert_case(&self, case_style: Option<CaseStyle>) -> String;
 }
 
-impl CaseStyleHelpers for syn::Ident {
+impl CaseStyleHelpers for Ident {
     fn convert_case(&self, case_style: Option<CaseStyle>) -> String {
         let ident_string = self.to_string();
         if let Some(case_style) = case_style {
@@ -86,7 +108,7 @@ impl CaseStyleHelpers for syn::Ident {
 
 #[test]
 fn test_convert_case() {
-    let id = syn::Ident::new("test_me", proc_macro2::Span::call_site());
+    let id = Ident::new("test_me", proc_macro2::Span::call_site());
     assert_eq!("testMe", id.convert_case(Some(CaseStyle::CamelCase)));
     assert_eq!("TestMe", id.convert_case(Some(CaseStyle::PascalCase)));
 }

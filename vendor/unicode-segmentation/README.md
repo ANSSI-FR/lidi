@@ -6,13 +6,11 @@ to the [Unicode Standard Annex #29](http://www.unicode.org/reports/tr29/) rules.
 [Documentation](https://unicode-rs.github.io/unicode-segmentation/unicode_segmentation/index.html)
 
 ```rust
-extern crate unicode_segmentation;
-
 use unicode_segmentation::UnicodeSegmentation;
 
 fn main() {
     let s = "a̐éö̲\r\n";
-    let g = UnicodeSegmentation::graphemes(s, true).collect::<Vec<&str>>();
+    let g = s.graphemes(true).collect::<Vec<&str>>();
     let b: &[_] = &["a̐", "é", "ö̲", "\r\n"];
     assert_eq!(g, b);
 
@@ -40,10 +38,32 @@ to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-unicode-segmentation = "1.3.0"
+unicode-segmentation = "1.9.0"
 ```
 
 # Change Log
+
+## 1.7.1
+
+* Update docs on version number
+
+## 1.7.0
+
+* [#87](https://github.com/unicode-rs/unicode-segmentation/pull/87) Upgrade to Unicode 13
+* [#79](https://github.com/unicode-rs/unicode-segmentation/pull/79) Implement a special-case lookup for ascii grapheme categories
+* [#77](https://github.com/unicode-rs/unicode-segmentation/pull/77) Optimization for grapheme iteration
+
+## 1.6.0
+
+* [#72](https://github.com/unicode-rs/unicode-segmentation/pull/72) Upgrade to Unicode 12
+
+## 1.5.0
+
+* [#68](https://github.com/unicode-rs/unicode-segmentation/pull/68) Upgrade to Unicode 11
+
+## 1.4.0
+
+* [#56](https://github.com/unicode-rs/unicode-segmentation/pull/56) Upgrade to Unicode 10
 
 ## 1.3.0
 

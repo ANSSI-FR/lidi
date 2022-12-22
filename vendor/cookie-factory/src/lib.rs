@@ -29,7 +29,7 @@ pub mod lib {
         pub use core::fmt;
 
         pub mod io {
-            pub use io_compat::*;
+            pub use crate::io_compat::*;
         }
     }
 }

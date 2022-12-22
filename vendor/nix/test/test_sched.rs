@@ -1,4 +1,4 @@
-use nix::sched::{sched_getaffinity, sched_setaffinity, CpuSet};
+use nix::sched::{sched_getaffinity, sched_getcpu, sched_setaffinity, CpuSet};
 use nix::unistd::Pid;
 
 #[test]
@@ -24,8 +24,15 @@ fn test_sched_affinity() {
     let updated_affinity = sched_getaffinity(Pid::from_raw(0)).unwrap();
     for field in 0..CpuSet::count() {
         // Should be set only for the CPU we set previously
-        assert_eq!(updated_affinity.is_set(field).unwrap(), field==last_valid_cpu)
+        assert_eq!(
+            updated_affinity.is_set(field).unwrap(),
+            field == last_valid_cpu
+        )
     }
+
+    // Now check that we're also currently running on the CPU in question.
+    let cur_cpu = sched_getcpu().unwrap();
+    assert_eq!(cur_cpu, last_valid_cpu);
 
     // Finally, reset the initial CPU set
     sched_setaffinity(Pid::from_raw(0), &initial_affinity).unwrap();

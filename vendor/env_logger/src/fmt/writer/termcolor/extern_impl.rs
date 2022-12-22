@@ -3,11 +3,12 @@ use std::cell::RefCell;
 use std::fmt;
 use std::io::{self, Write};
 use std::rc::Rc;
+use std::sync::Mutex;
 
 use log::Level;
 use termcolor::{self, ColorChoice, ColorSpec, WriteColor};
 
-use crate::fmt::{Formatter, Target, WriteStyle};
+use crate::fmt::{Formatter, WritableTarget, WriteStyle};
 
 pub(in crate::fmt::writer) mod glob {
     pub use super::*;
@@ -51,8 +52,8 @@ impl Formatter {
     pub fn default_level_style(&self, level: Level) -> Style {
         let mut level_style = self.style();
         match level {
-            Level::Trace => level_style.set_color(Color::Black).set_intense(true),
-            Level::Debug => level_style.set_color(Color::White),
+            Level::Trace => level_style.set_color(Color::Cyan),
+            Level::Debug => level_style.set_color(Color::Blue),
             Level::Info => level_style.set_color(Color::Green),
             Level::Warn => level_style.set_color(Color::Yellow),
             Level::Error => level_style.set_color(Color::Red).set_bold(true),
@@ -70,46 +71,66 @@ impl Formatter {
 
 pub(in crate::fmt::writer) struct BufferWriter {
     inner: termcolor::BufferWriter,
-    test_target: Option<Target>,
+    uncolored_target: Option<WritableTarget>,
 }
 
 pub(in crate::fmt) struct Buffer {
     inner: termcolor::Buffer,
-    test_target: Option<Target>,
+    has_uncolored_target: bool,
 }
 
 impl BufferWriter {
     pub(in crate::fmt::writer) fn stderr(is_test: bool, write_style: WriteStyle) -> Self {
         BufferWriter {
             inner: termcolor::BufferWriter::stderr(write_style.into_color_choice()),
-            test_target: if is_test { Some(Target::Stderr) } else { None },
+            uncolored_target: if is_test {
+                Some(WritableTarget::Stderr)
+            } else {
+                None
+            },
         }
     }
 
     pub(in crate::fmt::writer) fn stdout(is_test: bool, write_style: WriteStyle) -> Self {
         BufferWriter {
             inner: termcolor::BufferWriter::stdout(write_style.into_color_choice()),
-            test_target: if is_test { Some(Target::Stdout) } else { None },
+            uncolored_target: if is_test {
+                Some(WritableTarget::Stdout)
+            } else {
+                None
+            },
+        }
+    }
+
+    pub(in crate::fmt::writer) fn pipe(
+        write_style: WriteStyle,
+        pipe: Box<Mutex<dyn io::Write + Send + 'static>>,
+    ) -> Self {
+        BufferWriter {
+            // The inner Buffer is never printed from, but it is still needed to handle coloring and other formatting
+            inner: termcolor::BufferWriter::stderr(write_style.into_color_choice()),
+            uncolored_target: Some(WritableTarget::Pipe(pipe)),
         }
     }
 
     pub(in crate::fmt::writer) fn buffer(&self) -> Buffer {
         Buffer {
             inner: self.inner.buffer(),
-            test_target: self.test_target,
+            has_uncolored_target: self.uncolored_target.is_some(),
         }
     }
 
     pub(in crate::fmt::writer) fn print(&self, buf: &Buffer) -> io::Result<()> {
-        if let Some(target) = self.test_target {
+        if let Some(target) = &self.uncolored_target {
             // This impl uses the `eprint` and `print` macros
             // instead of `termcolor`'s buffer.
             // This is so their output can be captured by `cargo test`
             let log = String::from_utf8_lossy(buf.bytes());
 
             match target {
-                Target::Stderr => eprint!("{}", log),
-                Target::Stdout => print!("{}", log),
+                WritableTarget::Stderr => eprint!("{}", log),
+                WritableTarget::Stdout => print!("{}", log),
+                WritableTarget::Pipe(pipe) => write!(pipe.lock().unwrap(), "{}", log)?,
             }
 
             Ok(())
@@ -138,7 +159,7 @@ impl Buffer {
 
     fn set_color(&mut self, spec: &ColorSpec) -> io::Result<()> {
         // Ignore styles for test captured logs because they can't be printed
-        if self.test_target.is_none() {
+        if !self.has_uncolored_target {
             self.inner.set_color(spec)
         } else {
             Ok(())
@@ -147,7 +168,7 @@ impl Buffer {
 
     fn reset(&mut self) -> io::Result<()> {
         // Ignore styles for test captured logs because they can't be printed
-        if self.test_target.is_none() {
+        if !self.has_uncolored_target {
             self.inner.reset()
         } else {
             Ok(())
@@ -255,7 +276,7 @@ impl Style {
     /// });
     /// ```
     pub fn set_color(&mut self, color: Color) -> &mut Style {
-        self.spec.set_fg(color.into_termcolor());
+        self.spec.set_fg(Some(color.into_termcolor()));
         self
     }
 
@@ -313,6 +334,33 @@ impl Style {
         self
     }
 
+    /// Set whether the text is dimmed.
+    ///
+    /// If `yes` is true then text will be written in a dimmer color.
+    /// If `yes` is false then text will be written in the default color.
+    ///
+    /// # Examples
+    ///
+    /// Create a style with dimmed text:
+    ///
+    /// ```
+    /// use std::io::Write;
+    ///
+    /// let mut builder = env_logger::Builder::new();
+    ///
+    /// builder.format(|buf, record| {
+    ///     let mut style = buf.style();
+    ///
+    ///     style.set_dimmed(true);
+    ///
+    ///     writeln!(buf, "{}", style.value(record.args()))
+    /// });
+    /// ```
+    pub fn set_dimmed(&mut self, yes: bool) -> &mut Style {
+        self.spec.set_dimmed(yes);
+        self
+    }
+
     /// Set the background color.
     ///
     /// # Examples
@@ -334,7 +382,7 @@ impl Style {
     /// });
     /// ```
     pub fn set_bg(&mut self, color: Color) -> &mut Style {
-        self.spec.set_bg(color.into_termcolor());
+        self.spec.set_bg(Some(color.into_termcolor()));
         self
     }
 
@@ -370,9 +418,9 @@ impl Style {
     }
 
     /// Wrap a value in the style by taking ownership of it.
-    pub(crate) fn into_value<T>(&mut self, value: T) -> StyledValue<'static, T> {
+    pub(crate) fn into_value<T>(self, value: T) -> StyledValue<'static, T> {
         StyledValue {
-            style: Cow::Owned(self.clone()),
+            style: Cow::Owned(self),
             value,
         }
     }
@@ -427,7 +475,7 @@ impl_styled_value_fmt!(
     fmt::LowerExp
 );
 
-// The `Color` type is copied from https://github.com/BurntSushi/ripgrep/tree/master/termcolor
+// The `Color` type is copied from https://github.com/BurntSushi/termcolor
 
 /// The set of available colors for the terminal foreground/background.
 ///
@@ -451,6 +499,7 @@ impl_styled_value_fmt!(
 ///
 /// Hexadecimal numbers are written with a `0x` prefix.
 #[allow(missing_docs)]
+#[non_exhaustive]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Color {
     Black,
@@ -463,24 +512,21 @@ pub enum Color {
     White,
     Ansi256(u8),
     Rgb(u8, u8, u8),
-    #[doc(hidden)]
-    __Nonexhaustive,
 }
 
 impl Color {
-    fn into_termcolor(self) -> Option<termcolor::Color> {
+    fn into_termcolor(self) -> termcolor::Color {
         match self {
-            Color::Black => Some(termcolor::Color::Black),
-            Color::Blue => Some(termcolor::Color::Blue),
-            Color::Green => Some(termcolor::Color::Green),
-            Color::Red => Some(termcolor::Color::Red),
-            Color::Cyan => Some(termcolor::Color::Cyan),
-            Color::Magenta => Some(termcolor::Color::Magenta),
-            Color::Yellow => Some(termcolor::Color::Yellow),
-            Color::White => Some(termcolor::Color::White),
-            Color::Ansi256(value) => Some(termcolor::Color::Ansi256(value)),
-            Color::Rgb(r, g, b) => Some(termcolor::Color::Rgb(r, g, b)),
-            _ => None,
+            Color::Black => termcolor::Color::Black,
+            Color::Blue => termcolor::Color::Blue,
+            Color::Green => termcolor::Color::Green,
+            Color::Red => termcolor::Color::Red,
+            Color::Cyan => termcolor::Color::Cyan,
+            Color::Magenta => termcolor::Color::Magenta,
+            Color::Yellow => termcolor::Color::Yellow,
+            Color::White => termcolor::Color::White,
+            Color::Ansi256(value) => termcolor::Color::Ansi256(value),
+            Color::Rgb(r, g, b) => termcolor::Color::Rgb(r, g, b),
         }
     }
 }

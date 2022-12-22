@@ -4,12 +4,11 @@ use nix::{
     cmsg_space,
     sys::socket::{
         bind, recvmsg, sendmsg, socket, AddressFamily, ControlMessage, ControlMessageOwned,
-        InetAddr, MsgFlags, SockAddr, SockFlag, SockProtocol, SockType,
+        MsgFlags, SockFlag, SockProtocol, SockType, SockaddrLike, SockaddrStorage,
     },
-    sys::uio::IoVec,
     Error,
 };
-use std::{net::SocketAddr, os::unix::io::RawFd};
+use std::{io::IoSlice, io::IoSliceMut, net::SocketAddr, os::unix::io::RawFd};
 
 pub fn bind_udp_socket(addr: SocketAddr) -> Result<RawFd, Error> {
     let sock = socket(
@@ -19,7 +18,7 @@ pub fn bind_udp_socket(addr: SocketAddr) -> Result<RawFd, Error> {
         SockProtocol::Udp,
     )?;
 
-    let sockaddr = SockAddr::new_inet(InetAddr::from_std(&addr));
+    let sockaddr = SockaddrStorage::from(addr);
     bind(sock, &sockaddr)?;
 
     Ok(sock)
@@ -30,9 +29,9 @@ pub fn sendfd(socket: RawFd, buffer: &[u8], fd: RawFd) -> Result<usize, Error> {
     let fds = [fd];
     let cmsg = ControlMessage::ScmRights(&fds);
 
-    sendmsg(
+    sendmsg::<()>(
         socket,
-        &[IoVec::from_slice(buffer)],
+        &[IoSlice::new(buffer)],
         &[cmsg],
         MsgFlags::empty(),
         None,
@@ -41,9 +40,9 @@ pub fn sendfd(socket: RawFd, buffer: &[u8], fd: RawFd) -> Result<usize, Error> {
 
 pub fn recvfd(socket: RawFd, buffer: &mut [u8]) -> Result<(Option<RawFd>, isize), Error> {
     let mut cmsgspace = cmsg_space!(RawFd);
-    let msg = recvmsg(
+    let msg = recvmsg::<()>(
         socket,
-        &[IoVec::from_mut_slice(buffer)],
+        &mut [IoSliceMut::new(buffer)],
         Some(&mut cmsgspace),
         MsgFlags::empty(),
     )?;

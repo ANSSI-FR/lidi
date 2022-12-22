@@ -221,7 +221,7 @@ impl<'a> Worker<'a> {
                             State::Data {
                                 data,
                                 block_size: old_block_size,
-                                nb_packets_received: nb_packets_received,
+                                nb_packets_received,
                                 ..
                             } => {
                                 t.last_seen = Instant::now();
@@ -353,13 +353,11 @@ impl<'a> Worker<'a> {
             let mut events = [EpollEvent::empty(); 64];
             let nb_events = match epoll_wait(self.epoll, &mut events, 64) {
                 Ok(nb) => nb,
-                Err(e) => match e.as_errno() {
-                    Some(Errno::EINTR) => {
-                        error!("Received EINTR while waiting for epoll events.");
-                        0
-                    }
-                    _ => panic!("Failed waiting for epoll events: {}", e),
-                },
+                Err(Errno::EINTR) => {
+                    error!("Received EINTR while waiting for epoll events.");
+                    0
+                }
+                Err(e) => panic!("Failed waiting for epoll events: {}", e),
             };
 
             for event in events.iter().take(nb_events) {

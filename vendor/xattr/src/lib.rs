@@ -1,10 +1,11 @@
+#![allow(clippy::comparison_chain)]
 //! A pure-Rust library to manage extended attributes.
 //!
 //! It provides support for manipulating extended attributes
 //! (`xattrs`) on modern Unix filesystems. See the `attr(5)`
 //! manpage for more details.
 //!
-//! An extension trait [`FileExt`](::FileExt) is provided to directly work with
+//! An extension trait [`FileExt`] is provided to directly work with
 //! standard `File` objects and file descriptors.
 //!
 //! NOTE: In case of a symlink as path argument, all methods
@@ -24,8 +25,6 @@
 //!     println!(" - {:?}", attr);
 //! }
 //! ```
-
-extern crate libc;
 
 mod error;
 mod sys;

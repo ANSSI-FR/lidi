@@ -1,3 +1,5 @@
+#![allow(clippy::assertions_on_result_states, clippy::too_many_lines)]
+
 #[macro_use]
 mod macros;
 
@@ -46,7 +48,7 @@ fn test_struct() {
                         },
                     ],
                 },
-                tokens: TokenStream(`( Debug , Clone )`),
+                tokens: TokenStream(`(Debug , Clone)`),
             },
         ],
         vis: Visibility::Public,
@@ -378,7 +380,7 @@ fn test_attr_with_path() {
                         },
                     ],
                 },
-                tokens: TokenStream(`fn main ( ) { assert_eq ! ( foo ( ) , "Hello, world!" ) ; }`),
+                tokens: TokenStream(`fn main () { assert_eq ! (foo () , "Hello, world!") ; }`),
             },
         ],
         vis: Inherited,

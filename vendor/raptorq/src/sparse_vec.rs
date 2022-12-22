@@ -1,9 +1,8 @@
 use crate::octet::Octet;
-use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::mem::size_of;
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize, Hash)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct SparseBinaryVec {
     // Kept sorted by the usize (key). Only ones are stored, zeros are implicit
     elements: Vec<u16>,
@@ -64,7 +63,7 @@ impl SparseBinaryVec {
         loop {
             if let Some(self_index) = self_next {
                 if let Some(other_index) = other_next {
-                    match self_index.cmp(&other_index) {
+                    match self_index.cmp(other_index) {
                         Ordering::Less => {
                             result.push(*self_index);
                             self_next = self_iter.next();

@@ -1,3 +1,5 @@
+#![allow(clippy::float_cmp, clippy::non_ascii_literal)]
+
 #[macro_use]
 mod macros;
 
@@ -5,7 +7,7 @@ use proc_macro2::{Delimiter, Group, Literal, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use std::iter::FromIterator;
 use std::str::FromStr;
-use syn::{Lit, LitFloat, LitInt};
+use syn::{Lit, LitFloat, LitInt, LitStr};
 
 fn lit(s: &str) -> Lit {
     match TokenStream::from_str(s)
@@ -43,6 +45,7 @@ fn strings() {
     test_string("\"'\"", "'");
     test_string("\"\"", "");
     test_string("\"\\u{1F415}\"", "\u{1F415}");
+    test_string("\"\\u{1_2__3_}\"", "\u{123}");
     test_string(
         "\"contains\nnewlines\\\nescaped newlines\"",
         "contains\nnewlinesescaped newlines",
@@ -151,6 +154,9 @@ fn ints() {
 
     test_int("5", 5, "");
     test_int("5u32", 5, "u32");
+    test_int("0E", 0, "E");
+    test_int("0ECMA", 0, "ECMA");
+    test_int("0o0A", 0, "A");
     test_int("5_0", 50, "");
     test_int("5_____0_____", 50, "");
     test_int("0x7f", 127, "");
@@ -167,11 +173,11 @@ fn ints() {
     test_int("0x_7F__u8", 127, "u8");
     test_int("0b__10__0_1i8", 9, "i8");
     test_int("0o__7__________________3u32", 59, "u32");
+    test_int("0e1\u{5c5}", 0, "e1\u{5c5}");
 }
 
 #[test]
 fn floats() {
-    #[cfg_attr(feature = "cargo-clippy", allow(float_cmp))]
     fn test_float(s: &str, value: f64, suffix: &str) {
         match lit(s) {
             Lit::Float(lit) => {
@@ -191,6 +197,9 @@ fn floats() {
     test_float("5.5e12", 5.5e12, "");
     test_float("1.0__3e-12", 1.03e-12, "");
     test_float("1.03e+12", 1.03e12, "");
+    test_float("9e99e99", 9e99, "e99");
+    test_float("1e_0", 1.0, "");
+    test_float("0.0ECMA", 0.0, "ECMA");
 }
 
 #[test]
@@ -245,4 +254,13 @@ fn test_deep_group_empty() {
     ))]);
 
     snapshot!(tokens as Lit, @r#""hi""# );
+}
+
+#[test]
+fn test_error() {
+    let err = syn::parse_str::<LitStr>("...").unwrap_err();
+    assert_eq!("expected string literal", err.to_string());
+
+    let err = syn::parse_str::<LitStr>("5").unwrap_err();
+    assert_eq!("expected string literal", err.to_string());
 }

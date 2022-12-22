@@ -12,7 +12,7 @@ pub struct CapacityError<T = ()> {
 
 impl<T> CapacityError<T> {
     /// Create a new `CapacityError` from `element`.
-    pub fn new(element: T) -> CapacityError<T> {
+    pub const fn new(element: T) -> CapacityError<T> {
         CapacityError {
             element: element,
         }
@@ -33,11 +33,7 @@ const CAPERROR: &'static str = "insufficient capacity";
 
 #[cfg(feature="std")]
 /// Requires `features="std"`.
-impl<T: Any> Error for CapacityError<T> {
-    fn description(&self) -> &str {
-        CAPERROR
-    }
-}
+impl<T: Any> Error for CapacityError<T> {}
 
 impl<T> fmt::Display for CapacityError<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

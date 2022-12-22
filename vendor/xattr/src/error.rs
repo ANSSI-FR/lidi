@@ -4,7 +4,7 @@ use std::fmt;
 /// The error type returned on unsupported platforms.
 ///
 /// On unsupported platforms, all operations will fail with an `io::Error` with
-/// a kind `io::ErrorKind::Other` and an `UnsupportedPlatformError` error as the inner error.
+/// a kind `io::ErrorKind::Unsupported` and an `UnsupportedPlatformError` error as the inner error.
 /// While you *could* check the inner error, it's probably simpler just to check
 /// `xattr::SUPPORTED_PLATFORM`.
 ///

@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0
 
 use bincode::{deserialize_from, serialize_into};
-use log::{error, info, trace, warn};
+use log::{error, info, trace};
 use nix::{
     errno::Errno,
     fcntl::{open, OFlag},
     sys::{
         epoll::{epoll_create, epoll_ctl, epoll_wait, EpollEvent, EpollFlags, EpollOp},
         stat::Mode,
-        timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
+        timerfd::{ClockId, TimerFd, TimerFlags},
     },
 };
 use std::{
@@ -140,13 +140,11 @@ impl<'a> Controller<'a> {
             let mut events = [EpollEvent::empty(); 10];
             let nb_events = match epoll_wait(self.epoll, &mut events, 0) {
                 Ok(nb) => nb,
-                Err(e) => match e.as_errno() {
-                    Some(Errno::EINTR) => {
-                        error!("Received EINTR while waiting for epoll events.");
-                        0
-                    }
-                    _ => panic!("Failed waiting for epoll events: {}", e),
+                Err(Errno::EINTR) => {
+                    error!("Received EINTR while waiting for epoll events.");
+                    0
                 },
+                Err(e) => panic!("Failed waiting for epoll events: {}", e),
             };
 
             for event in events.iter().take(nb_events) {

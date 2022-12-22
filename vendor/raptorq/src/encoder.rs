@@ -16,11 +16,13 @@ use crate::systematic_constants::num_lt_symbols;
 use crate::systematic_constants::num_pi_symbols;
 use crate::systematic_constants::{calculate_p1, systematic_index};
 use crate::ObjectTransmissionInformation;
+#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 
 pub const SPARSE_MATRIX_THRESHOLD: u32 = 250;
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct EncoderBuilder {
     decoder_memory_requirement: u64,
     max_packet_size: u16,
@@ -75,13 +77,11 @@ pub fn calculate_block_offsets(
     if zs > 0 {
         for _ in zl..(zl + zs) {
             let offset = ks as usize * config.symbol_size() as usize;
-            if data_index + offset <= data.len() {
-                blocks.push((data_index, (data_index + offset)));
-            } else {
+            if data_index + offset > data.len() {
                 // Should only be possible when Kt * T > F. See third to last paragraph in section 4.4.1.2
                 assert!(kt as usize * config.symbol_size() as usize > data.len());
-                blocks.push((data_index, (data_index + offset)));
             }
+            blocks.push((data_index, (data_index + offset)));
             data_index += offset;
         }
     }
@@ -89,14 +89,15 @@ pub fn calculate_block_offsets(
     blocks
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct Encoder {
     config: ObjectTransmissionInformation,
     blocks: Vec<SourceBlockEncoder>,
 }
 
 impl Encoder {
-    fn new(data: &[u8], config: ObjectTransmissionInformation) -> Encoder {
+    pub fn new(data: &[u8], config: ObjectTransmissionInformation) -> Encoder {
         let mut block_encoders = vec![];
         let mut cached_plan: Option<SourceBlockEncodingPlan> = None;
         for (i, (start, end)) in calculate_block_offsets(data, &config).drain(..).enumerate() {
@@ -120,7 +121,7 @@ impl Encoder {
             block_encoders.push(SourceBlockEncoder::with_encoding_plan2(
                 i as u8,
                 &config,
-                &block,
+                block,
                 cached_plan.as_ref().unwrap(),
             ));
         }
@@ -141,7 +142,7 @@ impl Encoder {
     }
 
     pub fn get_config(&self) -> ObjectTransmissionInformation {
-        self.config.clone()
+        self.config
     }
 
     pub fn get_encoded_packets(&self, repair_packets_per_block: u32) -> Vec<EncodingPacket> {
@@ -158,7 +159,8 @@ impl Encoder {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct SourceBlockEncodingPlan {
     operations: Vec<SymbolOps>,
     source_symbol_count: u16,
@@ -178,7 +180,8 @@ impl SourceBlockEncodingPlan {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct SourceBlockEncoder {
     source_block_id: u8,
     source_symbols: Vec<Symbol>,

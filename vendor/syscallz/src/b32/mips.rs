@@ -1,3 +1,4 @@
+/// An enum of all syscalls
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumString)]
 #[allow(non_camel_case_types)]
 #[non_exhaustive]
@@ -416,4 +417,14 @@ close_range = 436,
 openat2 = 437,
 pidfd_getfd = 438,
 faccessat2 = 439,
+process_madvise = 440,
+epoll_pwait2 = 441,
+mount_setattr = 442,
+quotactl_fd = 443,
+landlock_create_ruleset = 444,
+landlock_add_rule = 445,
+landlock_restrict_self = 446,
+process_mrelease = 448,
+futex_waitv = 449,
+set_mempolicy_home_node = 450,
 }

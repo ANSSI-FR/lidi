@@ -1,19 +1,21 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
+use syn::{Data, DeriveInput, Ident};
 
-use crate::helpers::HasStrumVariantProperties;
+use crate::helpers::{non_enum_error, HasStrumVariantProperties};
 
-pub fn enum_iter_inner(ast: &syn::DeriveInput) -> TokenStream {
+pub fn enum_iter_inner(ast: &DeriveInput) -> syn::Result<TokenStream> {
     let name = &ast.ident;
     let gen = &ast.generics;
     let (impl_generics, ty_generics, where_clause) = gen.split_for_impl();
     let vis = &ast.vis;
 
     if gen.lifetimes().count() > 0 {
-        panic!(
-            "Enum Iterator isn't supported on Enums with lifetimes. The resulting enums would \
-             be unbounded."
-        );
+        return Err(syn::Error::new(
+            Span::call_site(),
+            "This macro doesn't support enums with lifetimes. \
+             The resulting enums would be unbounded.",
+        ));
     }
 
     let phantom_data = if gen.type_params().count() > 0 {
@@ -23,47 +25,51 @@ pub fn enum_iter_inner(ast: &syn::DeriveInput) -> TokenStream {
         quote! { < () > }
     };
 
-    let variants = match ast.data {
-        syn::Data::Enum(ref v) => &v.variants,
-        _ => panic!("EnumIter only works on Enums"),
+    let variants = match &ast.data {
+        Data::Enum(v) => &v.variants,
+        _ => return Err(non_enum_error()),
     };
 
     let mut arms = Vec::new();
-    let enabled = variants
-        .iter()
-        .filter(|variant| !variant.get_variant_properties().is_disabled);
-
-    for (idx, variant) in enabled.enumerate() {
+    let mut idx = 0usize;
+    for variant in variants {
         use syn::Fields::*;
+
+        if variant.get_variant_properties()?.disabled.is_some() {
+            continue;
+        }
+
         let ident = &variant.ident;
-        let params = match variant.fields {
+        let params = match &variant.fields {
             Unit => quote! {},
-            Unnamed(ref fields) => {
-                let defaults = ::std::iter::repeat(quote!(::std::default::Default::default()))
+            Unnamed(fields) => {
+                let defaults = ::std::iter::repeat(quote!(::core::default::Default::default()))
                     .take(fields.unnamed.len());
                 quote! { (#(#defaults),*) }
             }
-            Named(ref fields) => {
+            Named(fields) => {
                 let fields = fields
                     .named
                     .iter()
                     .map(|field| field.ident.as_ref().unwrap());
-                quote! { {#(#fields: ::std::default::Default::default()),*} }
+                quote! { {#(#fields: ::core::default::Default::default()),*} }
             }
         };
 
-        arms.push(quote! {#idx => ::std::option::Option::Some(#name::#ident #params)});
+        arms.push(quote! {#idx => ::core::option::Option::Some(#name::#ident #params)});
+        idx += 1;
     }
 
     let variant_count = arms.len();
-    arms.push(quote! { _ => ::std::option::Option::None });
-    let iter_name = syn::parse_str::<syn::Ident>(&format!("{}Iter", name)).unwrap();
-    quote! {
+    arms.push(quote! { _ => ::core::option::Option::None });
+    let iter_name = syn::parse_str::<Ident>(&format!("{}Iter", name)).unwrap();
+
+    Ok(quote! {
         #[allow(missing_docs)]
         #vis struct #iter_name #ty_generics {
             idx: usize,
             back_idx: usize,
-            marker: ::std::marker::PhantomData #phantom_data,
+            marker: ::core::marker::PhantomData #phantom_data,
         }
 
         impl #impl_generics #iter_name #ty_generics #where_clause {
@@ -80,7 +86,7 @@ pub fn enum_iter_inner(ast: &syn::DeriveInput) -> TokenStream {
                 #iter_name {
                     idx: 0,
                     back_idx: 0,
-                    marker: ::std::marker::PhantomData,
+                    marker: ::core::marker::PhantomData,
                 }
             }
         }
@@ -144,5 +150,5 @@ pub fn enum_iter_inner(ast: &syn::DeriveInput) -> TokenStream {
                 }
             }
         }
-    }
+    })
 }

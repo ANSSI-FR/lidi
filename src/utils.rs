@@ -6,15 +6,13 @@ use std::path::Path;
 pub fn create_dirs_if_not_exists(dirs: &[&Path]) {
     for dir in dirs.iter() {
         match mkdir(*dir, Mode::S_IRWXU) {
-            Ok(_) => {}
-            Err(e) => match e.as_errno() {
-                Some(Errno::EEXIST) => {}
-                _ => panic!(
-                    "Creation of directory {} failed with error: {}",
-                    dir.display(),
-                    e
-                ),
-            },
+            Ok(_) => (),
+            Err(Errno::EEXIST) => (),
+            Err(e) => panic!(
+                "Creation of directory {} failed with error: {}",
+                dir.display(),
+                e
+            ),
         }
     }
 }

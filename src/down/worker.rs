@@ -14,6 +14,7 @@ use std::{
     fs::rename,
     mem::ManuallyDrop,
     net::{SocketAddr, UdpSocket},
+    num::NonZeroUsize,
     os::unix::{
         io::{AsRawFd, RawFd},
         net::UnixStream,
@@ -93,9 +94,9 @@ impl<'a> Worker<'a> {
         let (opt_memfd, _) = recvfd(controller.as_raw_fd(), &mut memfd_buffer)?;
         Ok(unsafe {
             let pointer = mmap(
-                std::ptr::null_mut(),
+                None, //std::ptr::null_mut(),
                 // std::mem::size_of::<usize>(),
-                256,
+                NonZeroUsize::new_unchecked(256),
                 ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
                 MapFlags::MAP_SHARED,
                 opt_memfd.unwrap(),
@@ -150,13 +151,11 @@ impl<'a> Worker<'a> {
             let mut events = [EpollEvent::empty(); 10];
             let nb_events = match epoll_wait(self.epoll, &mut events, 0) {
                 Ok(nb) => nb,
-                Err(e) => match e.as_errno() {
-                    Some(Errno::EINTR) => {
-                        error!("Received EINTR while waiting for epoll events.");
-                        0
-                    }
-                    _ => panic!("Failed waiting for epoll events: {}", e),
-                },
+                Err(Errno::EINTR) => {
+                    error!("Received EINTR while waiting for epoll events.");
+                    0
+                }
+                Err(e) => panic!("Failed waiting for epoll events: {}", e),
             };
 
             //

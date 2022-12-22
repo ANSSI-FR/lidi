@@ -6,6 +6,7 @@ mod constraint_matrix;
 mod decoder;
 mod encoder;
 mod gf2;
+mod graph;
 mod iterators;
 mod matrix;
 mod octet;
@@ -22,6 +23,7 @@ mod symbol;
 mod systematic_constants;
 mod util;
 
+pub use crate::base::partition;
 pub use crate::base::EncodingPacket;
 pub use crate::base::ObjectTransmissionInformation;
 pub use crate::base::PayloadId;
@@ -40,6 +42,7 @@ pub use crate::python::raptorq;
 pub use crate::python::Decoder;
 #[cfg(feature = "python")]
 pub use crate::python::Encoder;
+pub use crate::systematic_constants::extended_source_block_symbols;
 
 #[cfg(feature = "benchmarking")]
 pub use crate::constraint_matrix::generate_constraint_matrix;
@@ -55,5 +58,3 @@ pub use crate::pi_solver::IntermediateSymbolDecoder;
 pub use crate::sparse_matrix::SparseBinaryMatrix;
 #[cfg(feature = "benchmarking")]
 pub use crate::symbol::Symbol;
-#[cfg(feature = "benchmarking")]
-pub use crate::systematic_constants::extended_source_block_symbols;

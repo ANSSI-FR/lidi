@@ -1,3 +1,5 @@
+use crate::{capitalize, transform};
+
 /// This trait defines a title case conversion.
 ///
 /// In Title Case, word boundaries are indicated by spaces, and every word is
@@ -6,14 +8,10 @@
 /// ## Example:
 ///
 /// ```rust
-/// extern crate heck;
-/// fn main() {
-///     
-///     use heck::TitleCase;
+/// use heck::TitleCase;
 ///
-///     let sentence = "We have always lived in slums and holes in the wall.";
-///     assert_eq!(sentence.to_title_case(), "We Have Always Lived In Slums And Holes In The Wall");
-/// }
+/// let sentence = "We have always lived in slums and holes in the wall.";
+/// assert_eq!(sentence.to_title_case(), "We Have Always Lived In Slums And Holes In The Wall");
 /// ```
 pub trait TitleCase: ToOwned {
     /// Convert this type to title case.
@@ -22,7 +20,7 @@ pub trait TitleCase: ToOwned {
 
 impl TitleCase for str {
     fn to_title_case(&self) -> String {
-        ::transform(self, ::capitalize, |s| s.push(' '))
+        transform(self, capitalize, |s| s.push(' '))
     }
 }
 
@@ -36,7 +34,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_title_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "CamelCase" => "Camel Case");

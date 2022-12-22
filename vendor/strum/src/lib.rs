@@ -16,11 +16,11 @@
 //!
 //! ```toml
 //! [dependencies]
-//! strum = "0.19"
-//! strum_macros = "0.19"
+//! strum = "0.21"
+//! strum_macros = "0.21"
 //!
 //! # You can also access strum_macros exports directly through strum using the "derive" feature
-//! strum = { version = "0.19", features = ["derive"] }
+//! strum = { version = "0.21", features = ["derive"] }
 //! ```
 //!
 
@@ -118,9 +118,9 @@ pub trait IntoEnumIterator: Sized {
 /// assert_eq!("I have a dog", my_pet.get_message().unwrap());
 /// ```
 pub trait EnumMessage {
-    fn get_message(&self) -> Option<&str>;
-    fn get_detailed_message(&self) -> Option<&str>;
-    fn get_serializations(&self) -> &[&str];
+    fn get_message(&self) -> Option<&'static str>;
+    fn get_detailed_message(&self) -> Option<&'static str>;
+    fn get_serializations(&self) -> &'static [&'static str];
 }
 
 /// EnumProperty is a trait that makes it possible to store additional information
@@ -187,7 +187,7 @@ pub trait VariantNames {
 #[cfg(feature = "derive")]
 pub use strum_macros::*;
 
-macro_rules! DefineMacroRexports {
+macro_rules! DocumentMacroRexports {
     ($($export:ident),+) => {
         $(
             #[cfg(all(docsrs, feature = "derive"))]
@@ -201,7 +201,7 @@ macro_rules! DefineMacroRexports {
 // for docsrs. You can do a weird thing where you rename the macro
 // and then reference it through strum. The renaming feature should be deprecated now that
 // 2018 edition is almost 2 years old, but we'll need to give people some time to do that.
-DefineMacroRexports!{
+DocumentMacroRexports! {
     AsRefStr,
     AsStaticStr,
     Display,

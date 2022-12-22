@@ -1,3 +1,5 @@
+use crate::{capitalize, transform};
+
 /// This trait defines a camel case conversion.
 ///
 /// In CamelCase, word boundaries are indicated by capital letters, including
@@ -6,14 +8,10 @@
 /// ## Example:
 ///
 /// ```rust
-/// extern crate heck;
-/// fn main() {
-///     
-///     use heck::CamelCase;
+/// use heck::CamelCase;
 ///
-///     let sentence = "We are not in the least afraid of ruins.";
-///     assert_eq!(sentence.to_camel_case(), "WeAreNotInTheLeastAfraidOfRuins");
-/// }
+/// let sentence = "We are not in the least afraid of ruins.";
+/// assert_eq!(sentence.to_camel_case(), "WeAreNotInTheLeastAfraidOfRuins");
 /// ```
 pub trait CamelCase: ToOwned {
     /// Convert this type to camel case.
@@ -22,7 +20,7 @@ pub trait CamelCase: ToOwned {
 
 impl CamelCase for str {
     fn to_camel_case(&self) -> String {
-        ::transform(self, ::capitalize, |_| {})
+        transform(self, capitalize, |_| {})
     }
 }
 
@@ -36,7 +34,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_camel_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "CamelCase" => "CamelCase");

@@ -10,9 +10,15 @@
 
 use core::cmp;
 
-use tables::grapheme::GraphemeCat;
+use crate::tables::grapheme::GraphemeCat;
 
 /// External iterator for grapheme clusters and byte offsets.
+///
+/// This struct is created by the [`grapheme_indices`] method on the [`UnicodeSegmentation`]
+/// trait. See its documentation for more.
+///
+/// [`grapheme_indices`]: trait.UnicodeSegmentation.html#tymethod.grapheme_indices
+/// [`UnicodeSegmentation`]: trait.UnicodeSegmentation.html
 #[derive(Clone)]
 pub struct GraphemeIndices<'a> {
     start_offset: usize,
@@ -43,7 +49,9 @@ impl<'a> Iterator for GraphemeIndices<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(usize, &'a str)> {
-        self.iter.next().map(|s| (s.as_ptr() as usize - self.start_offset, s))
+        self.iter
+            .next()
+            .map(|s| (s.as_ptr() as usize - self.start_offset, s))
     }
 
     #[inline]
@@ -55,13 +63,21 @@ impl<'a> Iterator for GraphemeIndices<'a> {
 impl<'a> DoubleEndedIterator for GraphemeIndices<'a> {
     #[inline]
     fn next_back(&mut self) -> Option<(usize, &'a str)> {
-        self.iter.next_back().map(|s| (s.as_ptr() as usize - self.start_offset, s))
+        self.iter
+            .next_back()
+            .map(|s| (s.as_ptr() as usize - self.start_offset, s))
     }
 }
 
 /// External iterator for a string's
 /// [grapheme clusters](http://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries).
-#[derive(Clone)]
+///
+/// This struct is created by the [`graphemes`] method on the [`UnicodeSegmentation`] trait. See its
+/// documentation for more.
+///
+/// [`graphemes`]: trait.UnicodeSegmentation.html#tymethod.graphemes
+/// [`UnicodeSegmentation`]: trait.UnicodeSegmentation.html
+#[derive(Clone, Debug)]
 pub struct Graphemes<'a> {
     string: &'a str,
     cursor: GraphemeCursor,
@@ -114,7 +130,11 @@ impl<'a> DoubleEndedIterator for Graphemes<'a> {
         if end == self.cursor.cur_cursor() {
             return None;
         }
-        let prev = self.cursor_back.prev_boundary(self.string, 0).unwrap().unwrap();
+        let prev = self
+            .cursor_back
+            .prev_boundary(self.string, 0)
+            .unwrap()
+            .unwrap();
         Some(&self.string[prev..end])
     }
 }
@@ -131,12 +151,15 @@ pub fn new_graphemes<'b>(s: &'b str, is_extended: bool) -> Graphemes<'b> {
 
 #[inline]
 pub fn new_grapheme_indices<'b>(s: &'b str, is_extended: bool) -> GraphemeIndices<'b> {
-    GraphemeIndices { start_offset: s.as_ptr() as usize, iter: new_graphemes(s, is_extended) }
+    GraphemeIndices {
+        start_offset: s.as_ptr() as usize,
+        iter: new_graphemes(s, is_extended),
+    }
 }
 
 // maybe unify with PairResult?
 // An enum describing information about a potential boundary.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 enum GraphemeState {
     // No information is known.
     Unknown,
@@ -147,13 +170,16 @@ enum GraphemeState {
     // The codepoint after is a Regional Indicator Symbol, so a boundary iff
     // it is preceded by an even number of RIS codepoints. (GB12, GB13)
     Regional,
-    // The codepoint after is in the E_Modifier category, so whether it's a boundary
-    // depends on pre-context according to GB10.
+    // The codepoint after is Extended_Pictographic,
+    // so whether it's a boundary depends on pre-context according to GB11.
     Emoji,
 }
 
 /// Cursor-based segmenter for grapheme clusters.
-#[derive(Clone)]
+///
+/// This allows working with ropes and other datastructures where the string is not contiguous or
+/// fully known at initialization time.
+#[derive(Clone, Debug)]
 pub struct GraphemeCursor {
     // Current cursor position.
     offset: usize,
@@ -178,6 +204,8 @@ pub struct GraphemeCursor {
     // Set if a call to `prev_boundary` or `next_boundary` was suspended due
     // to needing more input.
     resuming: bool,
+    // Cached grapheme category and associated scalar value range.
+    grapheme_cat_cache: (u32, u32, GraphemeCat),
 }
 
 /// An error return indicating that not enough content was available in the
@@ -198,7 +226,7 @@ pub enum GraphemeIncomplete {
     /// current chunk, so the chunk after that is requested. This will only be
     /// returned if the chunk ends before the `len` parameter provided on
     /// creation of the cursor.
-    NextChunk,  // requesting chunk following the one given
+    NextChunk, // requesting chunk following the one given
 
     /// An error returned when the chunk given does not contain the cursor position.
     InvalidOffset,
@@ -207,45 +235,42 @@ pub enum GraphemeIncomplete {
 // An enum describing the result from lookup of a pair of categories.
 #[derive(PartialEq, Eq)]
 enum PairResult {
-    NotBreak,  // definitely not a break
-    Break,  // definitely a break
-    Extended,  // a break iff not in extended mode
-    Regional,  // a break if preceded by an even number of RIS
-    Emoji,  // a break if preceded by emoji base and (Extend)*
+    NotBreak, // definitely not a break
+    Break,    // definitely a break
+    Extended, // a break iff not in extended mode
+    Regional, // a break if preceded by an even number of RIS
+    Emoji,    // a break if preceded by emoji base and (Extend)*
 }
 
+#[inline]
 fn check_pair(before: GraphemeCat, after: GraphemeCat) -> PairResult {
-    use tables::grapheme::GraphemeCat::*;
     use self::PairResult::*;
+    use crate::tables::grapheme::GraphemeCat::*;
     match (before, after) {
-        (GC_CR, GC_LF) => NotBreak,  // GB3
-        (GC_Control, _) => Break,  // GB4
-        (GC_CR, _) => Break,  // GB4
-        (GC_LF, _) => Break,  // GB4
-        (_, GC_Control) => Break,  // GB5
-        (_, GC_CR) => Break,  // GB5
-        (_, GC_LF) => Break,  // GB5
-        (GC_L, GC_L) => NotBreak,  // GB6
-        (GC_L, GC_V) => NotBreak,  // GB6
-        (GC_L, GC_LV) => NotBreak,  // GB6
-        (GC_L, GC_LVT) => NotBreak,  // GB6
-        (GC_LV, GC_V) => NotBreak,  // GB7
-        (GC_LV, GC_T) => NotBreak,  // GB7
-        (GC_V, GC_V) => NotBreak,  // GB7
-        (GC_V, GC_T) => NotBreak,  // GB7
-        (GC_LVT, GC_T) => NotBreak,  // GB8
-        (GC_T, GC_T) => NotBreak,  // GB8
-        (_, GC_Extend) => NotBreak, // GB9
-        (_, GC_ZWJ) => NotBreak,  // GB9
-        (_, GC_SpacingMark) => Extended,  // GB9a
-        (GC_Prepend, _) => Extended,  // GB9b
-        (GC_E_Base, GC_E_Modifier) => NotBreak,  // GB10
-        (GC_E_Base_GAZ, GC_E_Modifier) => NotBreak,  // GB10
-        (GC_Extend, GC_E_Modifier) => Emoji,  // GB10
-        (GC_ZWJ, GC_Glue_After_Zwj) => NotBreak,  // GB11
-        (GC_ZWJ, GC_E_Base_GAZ) => NotBreak,  // GB11
-        (GC_Regional_Indicator, GC_Regional_Indicator) => Regional,  // GB12, GB13
-        (_, _) => Break,  // GB999
+        (GC_CR, GC_LF) => NotBreak,                                 // GB3
+        (GC_Control, _) => Break,                                   // GB4
+        (GC_CR, _) => Break,                                        // GB4
+        (GC_LF, _) => Break,                                        // GB4
+        (_, GC_Control) => Break,                                   // GB5
+        (_, GC_CR) => Break,                                        // GB5
+        (_, GC_LF) => Break,                                        // GB5
+        (GC_L, GC_L) => NotBreak,                                   // GB6
+        (GC_L, GC_V) => NotBreak,                                   // GB6
+        (GC_L, GC_LV) => NotBreak,                                  // GB6
+        (GC_L, GC_LVT) => NotBreak,                                 // GB6
+        (GC_LV, GC_V) => NotBreak,                                  // GB7
+        (GC_LV, GC_T) => NotBreak,                                  // GB7
+        (GC_V, GC_V) => NotBreak,                                   // GB7
+        (GC_V, GC_T) => NotBreak,                                   // GB7
+        (GC_LVT, GC_T) => NotBreak,                                 // GB8
+        (GC_T, GC_T) => NotBreak,                                   // GB8
+        (_, GC_Extend) => NotBreak,                                 // GB9
+        (_, GC_ZWJ) => NotBreak,                                    // GB9
+        (_, GC_SpacingMark) => Extended,                            // GB9a
+        (GC_Prepend, _) => Extended,                                // GB9b
+        (GC_ZWJ, GC_Extended_Pictographic) => Emoji,                // GB11
+        (GC_Regional_Indicator, GC_Regional_Indicator) => Regional, // GB12, GB13
+        (_, _) => Break,                                            // GB999
     }
 }
 
@@ -280,6 +305,35 @@ impl GraphemeCursor {
             pre_context_offset: None,
             ris_count: None,
             resuming: false,
+            grapheme_cat_cache: (0, 0, GraphemeCat::GC_Control),
+        }
+    }
+
+    fn grapheme_category(&mut self, ch: char) -> GraphemeCat {
+        use crate::tables::grapheme as gr;
+        use crate::tables::grapheme::GraphemeCat::*;
+
+        if ch <= '\u{7e}' {
+            // Special-case optimization for ascii, except U+007F.  This
+            // improves performance even for many primarily non-ascii texts,
+            // due to use of punctuation and white space characters from the
+            // ascii range.
+            if ch >= '\u{20}' {
+                GC_Any
+            } else if ch == '\n' {
+                GC_LF
+            } else if ch == '\r' {
+                GC_CR
+            } else {
+                GC_Control
+            }
+        } else {
+            // If this char isn't within the cached range, update the cache to the
+            // range that includes it.
+            if (ch as u32) < self.grapheme_cat_cache.0 || (ch as u32) > self.grapheme_cat_cache.1 {
+                self.grapheme_cat_cache = gr::grapheme_category(ch);
+            }
+            self.grapheme_cat_cache.2
         }
     }
 
@@ -310,6 +364,7 @@ impl GraphemeCursor {
         }
     }
 
+    #[inline]
     /// The current offset of the cursor. Equal to the last value provided to
     /// `new()` or `set_cursor()`, or returned from `next_boundary()` or
     /// `prev_boundary()`.
@@ -347,26 +402,29 @@ impl GraphemeCursor {
     /// assert_eq!(cursor.is_boundary(&flags[8..], 8), Ok(true));
     /// ```
     pub fn provide_context(&mut self, chunk: &str, chunk_start: usize) {
-        use tables::grapheme as gr;
+        use crate::tables::grapheme as gr;
         assert!(chunk_start + chunk.len() == self.pre_context_offset.unwrap());
         self.pre_context_offset = None;
         if self.is_extended && chunk_start + chunk.len() == self.offset {
             let ch = chunk.chars().rev().next().unwrap();
-            if gr::grapheme_category(ch) == gr::GC_Prepend {
-                self.decide(false);  // GB9b
+            if self.grapheme_category(ch) == gr::GC_Prepend {
+                self.decide(false); // GB9b
                 return;
             }
         }
         match self.state {
             GraphemeState::Regional => self.handle_regional(chunk, chunk_start),
             GraphemeState::Emoji => self.handle_emoji(chunk, chunk_start),
-            _ => if self.cat_before.is_none() && self.offset == chunk.len() + chunk_start {
-                let ch = chunk.chars().rev().next().unwrap();
-                self.cat_before = Some(gr::grapheme_category(ch));
-            },
+            _ => {
+                if self.cat_before.is_none() && self.offset == chunk.len() + chunk_start {
+                    let ch = chunk.chars().rev().next().unwrap();
+                    self.cat_before = Some(self.grapheme_category(ch));
+                }
+            }
         }
     }
 
+    #[inline]
     fn decide(&mut self, is_break: bool) {
         self.state = if is_break {
             GraphemeState::Break
@@ -375,11 +433,13 @@ impl GraphemeCursor {
         };
     }
 
+    #[inline]
     fn decision(&mut self, is_break: bool) -> Result<bool, GraphemeIncomplete> {
         self.decide(is_break);
         Ok(is_break)
     }
 
+    #[inline]
     fn is_boundary_result(&self) -> Result<bool, GraphemeIncomplete> {
         if self.state == GraphemeState::Break {
             Ok(true)
@@ -392,11 +452,12 @@ impl GraphemeCursor {
         }
     }
 
+    #[inline]
     fn handle_regional(&mut self, chunk: &str, chunk_start: usize) {
-        use tables::grapheme as gr;
+        use crate::tables::grapheme as gr;
         let mut ris_count = self.ris_count.unwrap_or(0);
         for ch in chunk.chars().rev() {
-            if gr::grapheme_category(ch) != gr::GC_Regional_Indicator {
+            if self.grapheme_category(ch) != gr::GC_Regional_Indicator {
                 self.ris_count = Some(ris_count);
                 self.decide((ris_count % 2) == 0);
                 return;
@@ -412,12 +473,20 @@ impl GraphemeCursor {
         self.state = GraphemeState::Regional;
     }
 
+    #[inline]
     fn handle_emoji(&mut self, chunk: &str, chunk_start: usize) {
-        use tables::grapheme as gr;
-        for ch in chunk.chars().rev() {
-            match gr::grapheme_category(ch) {
+        use crate::tables::grapheme as gr;
+        let mut iter = chunk.chars().rev();
+        if let Some(ch) = iter.next() {
+            if self.grapheme_category(ch) != gr::GC_ZWJ {
+                self.decide(true);
+                return;
+            }
+        }
+        for ch in iter {
+            match self.grapheme_category(ch) {
                 gr::GC_Extend => (),
-                gr::GC_E_Base | gr::GC_E_Base_GAZ => {
+                gr::GC_Extended_Pictographic => {
                     self.decide(false);
                     return;
                 }
@@ -435,6 +504,7 @@ impl GraphemeCursor {
         self.state = GraphemeState::Emoji;
     }
 
+    #[inline]
     /// Determine whether the current cursor location is a grapheme cluster boundary.
     /// Only a part of the string need be supplied. If `chunk_start` is nonzero or
     /// the length of `chunk` is not equal to `len` on creation, then this method
@@ -458,17 +528,21 @@ impl GraphemeCursor {
     /// cursor.set_cursor(12);
     /// assert_eq!(cursor.is_boundary(flags, 0), Ok(false));
     /// ```
-    pub fn is_boundary(&mut self, chunk: &str, chunk_start: usize) -> Result<bool, GraphemeIncomplete> {
-        use tables::grapheme as gr;
+    pub fn is_boundary(
+        &mut self,
+        chunk: &str,
+        chunk_start: usize,
+    ) -> Result<bool, GraphemeIncomplete> {
+        use crate::tables::grapheme as gr;
         if self.state == GraphemeState::Break {
-            return Ok(true)
+            return Ok(true);
         }
         if self.state == GraphemeState::NotBreak {
-            return Ok(false)
+            return Ok(false);
         }
         if self.offset < chunk_start || self.offset >= chunk_start + chunk.len() {
             if self.offset > chunk_start + chunk.len() || self.cat_after.is_none() {
-                return Err(GraphemeIncomplete::InvalidOffset)
+                return Err(GraphemeIncomplete::InvalidOffset);
             }
         }
         if let Some(pre_context_offset) = self.pre_context_offset {
@@ -477,13 +551,13 @@ impl GraphemeCursor {
         let offset_in_chunk = self.offset - chunk_start;
         if self.cat_after.is_none() {
             let ch = chunk[offset_in_chunk..].chars().next().unwrap();
-            self.cat_after = Some(gr::grapheme_category(ch));
+            self.cat_after = Some(self.grapheme_category(ch));
         }
         if self.offset == chunk_start {
             let mut need_pre_context = true;
             match self.cat_after.unwrap() {
                 gr::GC_Regional_Indicator => self.state = GraphemeState::Regional,
-                gr::GC_E_Modifier => self.state = GraphemeState::Emoji,
+                gr::GC_Extended_Pictographic => self.state = GraphemeState::Emoji,
                 _ => need_pre_context = self.cat_before.is_none(),
             }
             if need_pre_context {
@@ -493,7 +567,7 @@ impl GraphemeCursor {
         }
         if self.cat_before.is_none() {
             let ch = chunk[..offset_in_chunk].chars().rev().next().unwrap();
-            self.cat_before = Some(gr::grapheme_category(ch));
+            self.cat_before = Some(self.grapheme_category(ch));
         }
         match check_pair(self.cat_before.unwrap(), self.cat_after.unwrap()) {
             PairResult::NotBreak => return self.decision(false),
@@ -516,6 +590,7 @@ impl GraphemeCursor {
         }
     }
 
+    #[inline]
     /// Find the next boundary after the current cursor position. Only a part of
     /// the string need be supplied. If the chunk is incomplete, then this
     /// method might return `GraphemeIncomplete::PreContext` or
@@ -548,8 +623,11 @@ impl GraphemeCursor {
     /// assert_eq!(cursor.next_boundary(&s[2..4], 2), Ok(Some(4)));
     /// assert_eq!(cursor.next_boundary(&s[2..4], 2), Ok(None));
     /// ```
-    pub fn next_boundary(&mut self, chunk: &str, chunk_start: usize) -> Result<Option<usize>, GraphemeIncomplete> {
-        use tables::grapheme as gr;
+    pub fn next_boundary(
+        &mut self,
+        chunk: &str,
+        chunk_start: usize,
+    ) -> Result<Option<usize>, GraphemeIncomplete> {
         if self.offset == self.len {
             return Ok(None);
         }
@@ -558,14 +636,14 @@ impl GraphemeCursor {
         loop {
             if self.resuming {
                 if self.cat_after.is_none() {
-                    self.cat_after = Some(gr::grapheme_category(ch));
+                    self.cat_after = Some(self.grapheme_category(ch));
                 }
             } else {
                 self.offset += ch.len_utf8();
                 self.state = GraphemeState::Unknown;
                 self.cat_before = self.cat_after.take();
                 if self.cat_before.is_none() {
-                    self.cat_before = Some(gr::grapheme_category(ch));
+                    self.cat_before = Some(self.grapheme_category(ch));
                 }
                 if self.cat_before.unwrap() == GraphemeCat::GC_Regional_Indicator {
                     self.ris_count = self.ris_count.map(|c| c + 1);
@@ -574,7 +652,7 @@ impl GraphemeCursor {
                 }
                 if let Some(next_ch) = iter.next() {
                     ch = next_ch;
-                    self.cat_after = Some(gr::grapheme_category(ch));
+                    self.cat_after = Some(self.grapheme_category(ch));
                 } else if self.offset == self.len {
                     self.decide(true);
                 } else {
@@ -624,8 +702,11 @@ impl GraphemeCursor {
     /// assert_eq!(cursor.prev_boundary(&s[0..2], 0), Ok(Some(0)));
     /// assert_eq!(cursor.prev_boundary(&s[0..2], 0), Ok(None));
     /// ```
-    pub fn prev_boundary(&mut self, chunk: &str, chunk_start: usize) -> Result<Option<usize>, GraphemeIncomplete> {
-        use tables::grapheme as gr;
+    pub fn prev_boundary(
+        &mut self,
+        chunk: &str,
+        chunk_start: usize,
+    ) -> Result<Option<usize>, GraphemeIncomplete> {
         if self.offset == 0 {
             return Ok(None);
         }
@@ -640,22 +721,26 @@ impl GraphemeCursor {
                 return Err(GraphemeIncomplete::PrevChunk);
             }
             if self.resuming {
-                self.cat_before = Some(gr::grapheme_category(ch));
+                self.cat_before = Some(self.grapheme_category(ch));
             } else {
                 self.offset -= ch.len_utf8();
                 self.cat_after = self.cat_before.take();
                 self.state = GraphemeState::Unknown;
                 if let Some(ris_count) = self.ris_count {
-                    self.ris_count = if ris_count > 0 { Some(ris_count - 1) } else { None };
+                    self.ris_count = if ris_count > 0 {
+                        Some(ris_count - 1)
+                    } else {
+                        None
+                    };
                 }
                 if let Some(prev_ch) = iter.next() {
                     ch = prev_ch;
-                    self.cat_before = Some(gr::grapheme_category(ch));
+                    self.cat_before = Some(self.grapheme_category(ch));
                 } else if self.offset == 0 {
                     self.decide(true);
                 } else {
                     self.resuming = true;
-                    self.cat_after = Some(gr::grapheme_category(ch));
+                    self.cat_after = Some(self.grapheme_category(ch));
                     return Err(GraphemeIncomplete::PrevChunk);
                 }
             }
@@ -673,7 +758,10 @@ impl GraphemeCursor {
 fn test_grapheme_cursor_ris_precontext() {
     let s = "\u{1f1fa}\u{1f1f8}\u{1f1fa}\u{1f1f8}\u{1f1fa}\u{1f1f8}";
     let mut c = GraphemeCursor::new(8, s.len(), true);
-    assert_eq!(c.is_boundary(&s[4..], 4), Err(GraphemeIncomplete::PreContext(4)));
+    assert_eq!(
+        c.is_boundary(&s[4..], 4),
+        Err(GraphemeIncomplete::PreContext(4))
+    );
     c.provide_context(&s[..4], 0);
     assert_eq!(c.is_boundary(&s[4..], 4), Ok(true));
 }
@@ -682,7 +770,10 @@ fn test_grapheme_cursor_ris_precontext() {
 fn test_grapheme_cursor_chunk_start_require_precontext() {
     let s = "\r\n";
     let mut c = GraphemeCursor::new(1, s.len(), true);
-    assert_eq!(c.is_boundary(&s[1..], 1), Err(GraphemeIncomplete::PreContext(1)));
+    assert_eq!(
+        c.is_boundary(&s[1..], 1),
+        Err(GraphemeIncomplete::PreContext(1))
+    );
     c.provide_context(&s[..1], 0);
     assert_eq!(c.is_boundary(&s[1..], 1), Ok(false));
 }
@@ -691,7 +782,10 @@ fn test_grapheme_cursor_chunk_start_require_precontext() {
 fn test_grapheme_cursor_prev_boundary() {
     let s = "abcd";
     let mut c = GraphemeCursor::new(3, s.len(), true);
-    assert_eq!(c.prev_boundary(&s[2..], 2), Err(GraphemeIncomplete::PrevChunk));
+    assert_eq!(
+        c.prev_boundary(&s[2..], 2),
+        Err(GraphemeIncomplete::PrevChunk)
+    );
     assert_eq!(c.prev_boundary(&s[..2], 0), Ok(Some(2)));
 }
 
@@ -699,6 +793,9 @@ fn test_grapheme_cursor_prev_boundary() {
 fn test_grapheme_cursor_prev_boundary_chunk_start() {
     let s = "abcd";
     let mut c = GraphemeCursor::new(2, s.len(), true);
-    assert_eq!(c.prev_boundary(&s[2..], 2), Err(GraphemeIncomplete::PrevChunk));
+    assert_eq!(
+        c.prev_boundary(&s[2..], 2),
+        Err(GraphemeIncomplete::PrevChunk)
+    );
     assert_eq!(c.prev_boundary(&s[..2], 0), Ok(Some(1)));
 }

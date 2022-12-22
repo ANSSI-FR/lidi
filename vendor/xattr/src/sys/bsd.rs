@@ -7,8 +7,15 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::io::RawFd;
 use std::path::Path;
 
-use libc::{c_char, c_int, c_void, size_t, ssize_t, EPERM};
-use util::{allocate_loop, path_to_c};
+use libc::{c_int, c_void, size_t, EPERM};
+
+use libc::{
+    extattr_delete_fd, extattr_delete_link, extattr_get_fd, extattr_get_link, extattr_list_fd,
+    extattr_list_link, extattr_set_fd, extattr_set_link, EXTATTR_NAMESPACE_SYSTEM,
+    EXTATTR_NAMESPACE_USER,
+};
+
+use crate::util::{allocate_loop, path_to_c};
 
 const EXTATTR_NAMESPACE_USER_STRING: &'static str = "user";
 const EXTATTR_NAMESPACE_SYSTEM_STRING: &'static str = "system";
@@ -17,58 +24,6 @@ const EXTATTR_NAMESPACE_NAMES: [&'static str; 3] = [
     EXTATTR_NAMESPACE_USER_STRING,
     EXTATTR_NAMESPACE_SYSTEM_STRING,
 ];
-const EXTATTR_NAMESPACE_USER: c_int = 1;
-const EXTATTR_NAMESPACE_SYSTEM: c_int = 2;
-
-extern "C" {
-    pub fn extattr_list_fd(
-        fd: c_int,
-        attrnamespace: c_int,
-        data: *mut c_void,
-        nbytes: size_t,
-    ) -> ssize_t;
-    pub fn extattr_get_fd(
-        fd: c_int,
-        attrnamespace: c_int,
-        attrname: *const c_char,
-        data: *mut c_void,
-        nbytes: size_t,
-    ) -> ssize_t;
-    pub fn extattr_delete_fd(fd: c_int, attrname: c_int, attrname: *const c_char) -> c_int;
-    pub fn extattr_set_fd(
-        fd: c_int,
-        attrname: c_int,
-        attrname: *const c_char,
-        data: *const c_void,
-        nbytes: size_t,
-    ) -> ssize_t;
-
-    pub fn extattr_list_link(
-        path: *const c_char,
-        attrnamespace: c_int,
-        data: *mut c_void,
-        nbytes: size_t,
-    ) -> ssize_t;
-    pub fn extattr_get_link(
-        path: *const c_char,
-        attrnamespace: c_int,
-        attrname: *const c_char,
-        data: *mut c_void,
-        nbytes: size_t,
-    ) -> ssize_t;
-    pub fn extattr_delete_link(
-        path: *const c_char,
-        attrname: c_int,
-        attrname: *const c_char,
-    ) -> c_int;
-    pub fn extattr_set_link(
-        path: *const c_char,
-        attrname: c_int,
-        attrname: *const c_char,
-        data: *const c_void,
-        nbytes: size_t,
-    ) -> ssize_t;
-}
 
 /// An iterator over a set of extended attributes names.
 pub struct XAttrs {
@@ -141,6 +96,8 @@ impl Iterator for XAttrs {
     }
 }
 
+// This could use libc::extattr_string_to_namespace, but it's awkward because
+// that requires nul-terminated strings, which Rust's std is loathe to provide.
 fn name_to_ns(name: &OsStr) -> io::Result<(c_int, CString)> {
     let mut groups = name.as_bytes().splitn(2, |&b| b == b'.').take(2);
     let nsname = match groups.next() {

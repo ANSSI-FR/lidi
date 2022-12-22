@@ -1,11 +1,11 @@
 xattr
 =====
 
-[![Build Status](https://travis-ci.org/Stebalien/xattr.svg?branch=master)](https://travis-ci.org/Stebalien/xattr)
+[![Build Status](https://api.cirrus-ci.com/github/Stebalien/xattr.svg)](https://cirrus-ci.com/github/Stebalien/xattr)
 
 A small library for setting, getting, and listing extended attributes.
 
-Supported Platforms: Linux, MacOS, FreeBSD, and NetBSD.
+Supported Platforms: Android, Linux, MacOS, FreeBSD, and NetBSD.
 
 API Documentation: https://stebalien.github.com/xattr/xattr/
 

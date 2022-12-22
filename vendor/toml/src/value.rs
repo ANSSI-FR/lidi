@@ -13,10 +13,9 @@ use serde::de::IntoDeserializer;
 use serde::ser;
 
 use crate::datetime::{self, DatetimeFromString};
-#[doc(no_inline)]
-pub use crate::datetime::{Datetime, DatetimeParseError};
+pub use crate::datetime::{Date, Datetime, DatetimeParseError, Offset, Time};
 
-pub use crate::map::Map;
+pub use crate::map::{Entry, Map};
 
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]
@@ -527,12 +526,13 @@ impl<'de> de::Deserialize<'de> for Value {
                 }
                 let mut map = Map::new();
                 map.insert(key, visitor.next_value()?);
-                while let Some(key) = visitor.next_key()? {
-                    if map.contains_key(&key) {
+                while let Some(key) = visitor.next_key::<String>()? {
+                    if let Entry::Vacant(vacant) = map.entry(&key) {
+                        vacant.insert(visitor.next_value()?);
+                    } else {
                         let msg = format!("duplicate key: `{}`", key);
                         return Err(de::Error::custom(msg));
                     }
-                    map.insert(key, visitor.next_value()?);
                 }
                 Ok(Value::Table(map))
             }

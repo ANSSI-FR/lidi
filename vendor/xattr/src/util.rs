@@ -10,7 +10,7 @@ use libc::{ssize_t, ERANGE};
 // Need to use this one as libc only defines this on supported platforms. Given
 // that we want to at least compile on unsupported platforms, we define this in
 // our platform-specific modules.
-use sys::ENOATTR;
+use crate::sys::ENOATTR;
 
 #[allow(dead_code)]
 pub fn name_to_c(name: &OsStr) -> io::Result<CString> {

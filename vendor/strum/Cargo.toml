@@ -13,7 +13,7 @@
 [package]
 edition = "2018"
 name = "strum"
-version = "0.19.5"
+version = "0.21.0"
 authors = ["Peter Glotfelty <peter.glotfelty@microsoft.com>"]
 description = "Helpful macros for working with enums and strings"
 homepage = "https://github.com/Peternator7/strum"
@@ -27,10 +27,10 @@ repository = "https://github.com/Peternator7/strum"
 features = ["derive"]
 rustdoc-args = ["--cfg", "docsrs"]
 [dependencies.strum_macros]
-version = "0.19"
+version = "0.21"
 optional = true
 [dev-dependencies.strum_macros]
-version = "0.19"
+version = "0.21"
 
 [features]
 derive = ["strum_macros"]

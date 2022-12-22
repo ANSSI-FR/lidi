@@ -1,7 +1,8 @@
 use quote::quote;
-use std::net::Ipv4Addr;
+
+struct Ipv4Addr;
 
 fn main() {
-    let ip = Ipv4Addr::LOCALHOST;
-    let _ = quote! { #(#ip)* };
+    let ip = Ipv4Addr;
+    _ = quote! { #(#ip)* };
 }

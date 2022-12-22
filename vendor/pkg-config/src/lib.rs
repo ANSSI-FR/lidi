@@ -9,10 +9,15 @@
 //! A number of environment variables are available to globally configure how
 //! this crate will invoke `pkg-config`:
 //!
-//! * `PKG_CONFIG_ALLOW_CROSS` - if this variable is not set, then `pkg-config`
-//!   will automatically be disabled for all cross compiles.
 //! * `FOO_NO_PKG_CONFIG` - if set, this will disable running `pkg-config` when
 //!   probing for the library named `foo`.
+//!
+//! * `PKG_CONFIG_ALLOW_CROSS` - The `pkg-config` command usually doesn't
+//!   support cross-compilation, and this crate prevents it from selecting
+//!   incompatible versions of libraries.
+//!   Setting `PKG_CONFIG_ALLOW_CROSS=1` disables this protection, which is
+//!   likely to cause linking errors, unless `pkg-config` has been configured
+//!   to use appropriate sysroot and search paths for the target platform.
 //!
 //! There are also a number of environment variables which can configure how a
 //! library is linked to (dynamically vs statically). These variables control
@@ -33,8 +38,6 @@
 //! Find the system library named `foo`, with minimum version 1.2.3:
 //!
 //! ```no_run
-//! extern crate pkg_config;
-//!
 //! fn main() {
 //!     pkg_config::Config::new().atleast_version("1.2.3").probe("foo").unwrap();
 //! }
@@ -44,8 +47,6 @@
 //! recommended):
 //!
 //! ```no_run
-//! extern crate pkg_config;
-//!
 //! fn main() {
 //!     pkg_config::probe_library("foo").unwrap();
 //! }
@@ -54,8 +55,6 @@
 //! Configure how library `foo` is linked to.
 //!
 //! ```no_run
-//! extern crate pkg_config;
-//!
 //! fn main() {
 //!     pkg_config::Config::new().atleast_version("1.2.3").statik(true).probe("foo").unwrap();
 //! }
@@ -70,7 +69,7 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::io;
 use std::ops::{Bound, RangeBounds};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::str;
 
@@ -88,27 +87,41 @@ pub struct Config {
 
 #[derive(Clone, Debug)]
 pub struct Library {
+    /// Libraries specified by -l
     pub libs: Vec<String>,
+    /// Library search paths specified by -L
     pub link_paths: Vec<PathBuf>,
+    /// Library file paths specified without -l
+    pub link_files: Vec<PathBuf>,
+    /// Darwin frameworks specified by -framework
     pub frameworks: Vec<String>,
+    /// Darwin framework search paths specified by -F
     pub framework_paths: Vec<PathBuf>,
+    /// C/C++ header include paths specified by -I
     pub include_paths: Vec<PathBuf>,
+    /// Linker options specified by -Wl
+    pub ld_args: Vec<Vec<String>>,
+    /// C/C++ definitions specified by -D
     pub defines: HashMap<String, Option<String>>,
+    /// Version specified by .pc file's Version field
     pub version: String,
+    /// Ensure that this struct can only be created via its private `[Library::new]` constructor.
+    /// Users of this crate can only access the struct via `[Config::probe]`.
     _priv: (),
 }
 
 /// Represents all reasons `pkg-config` might not succeed or be run at all.
-#[derive(Debug)]
 pub enum Error {
     /// Aborted because of `*_NO_PKG_CONFIG` environment variable.
     ///
     /// Contains the name of the responsible environment variable.
     EnvNoPkgConfig(String),
 
-    /// Cross compilation detected.
+    /// Detected cross compilation without a custom sysroot.
     ///
-    /// Override with `PKG_CONFIG_ALLOW_CROSS=1`.
+    /// Ignore the error with `PKG_CONFIG_ALLOW_CROSS=1`,
+    /// which may let `pkg-config` select libraries
+    /// for the host's architecture instead of the target's.
     CrossCompilation,
 
     /// Failed to run `pkg-config`.
@@ -116,35 +129,31 @@ pub enum Error {
     /// Contains the command and the cause.
     Command { command: String, cause: io::Error },
 
-    /// `pkg-config` did not exit sucessfully.
+    /// `pkg-config` did not exit sucessfully after probing a library.
     ///
     /// Contains the command and output.
     Failure { command: String, output: Output },
+
+    /// `pkg-config` did not exit sucessfully on the first attempt to probe a library.
+    ///
+    /// Contains the command and output.
+    ProbeFailure {
+        name: String,
+        command: String,
+        output: Output,
+    },
 
     #[doc(hidden)]
     // please don't match on this, we're likely to add more variants over time
     __Nonexhaustive,
 }
 
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::EnvNoPkgConfig(_) => "pkg-config requested to be aborted",
-            Error::CrossCompilation => {
-                "pkg-config doesn't handle cross compilation. \
-                 Use PKG_CONFIG_ALLOW_CROSS=1 to override"
-            }
-            Error::Command { .. } => "failed to run pkg-config",
-            Error::Failure { .. } => "pkg-config did not exit sucessfully",
-            Error::__Nonexhaustive => panic!(),
-        }
-    }
+impl error::Error for Error {}
 
-    fn cause(&self) -> Option<&dyn error::Error> {
-        match *self {
-            Error::Command { ref cause, .. } => Some(cause),
-            _ => None,
-        }
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        // Failed `unwrap()` prints Debug representation, but the default debug format lacks helpful instructions for the end users
+        <Error as fmt::Display>::fmt(self, f)
     }
 }
 
@@ -152,37 +161,86 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             Error::EnvNoPkgConfig(ref name) => write!(f, "Aborted because {} is set", name),
-            Error::CrossCompilation => write!(
-                f,
-                "Cross compilation detected. \
-                 Use PKG_CONFIG_ALLOW_CROSS=1 to override"
+            Error::CrossCompilation => f.write_str(
+                "pkg-config has not been configured to support cross-compilation.\n\
+                \n\
+                Install a sysroot for the target platform and configure it via\n\
+                PKG_CONFIG_SYSROOT_DIR and PKG_CONFIG_PATH, or install a\n\
+                cross-compiling wrapper for pkg-config and set it via\n\
+                PKG_CONFIG environment variable.",
             ),
             Error::Command {
                 ref command,
                 ref cause,
-            } => write!(f, "Failed to run `{}`: {}", command, cause),
+            } => {
+                match cause.kind() {
+                    io::ErrorKind::NotFound => {
+                        let crate_name =
+                            std::env::var("CARGO_PKG_NAME").unwrap_or_else(|_| "sys".to_owned());
+                        let instructions = if cfg!(target_os = "macos") || cfg!(target_os = "ios") {
+                            "Try `brew install pkg-config` if you have Homebrew.\n"
+                        } else if cfg!(unix) {
+                            "Try `apt install pkg-config`, or `yum install pkg-config`,\n\
+                            or `pkg install pkg-config`, or `apk add pkgconfig` \
+                            depending on your distribution.\n"
+                        } else {
+                            "" // There's no easy fix for Windows users
+                        };
+                        write!(f, "Could not run `{command}`\n\
+                        The pkg-config command could not be found.\n\
+                        \n\
+                        Most likely, you need to install a pkg-config package for your OS.\n\
+                        {instructions}\
+                        \n\
+                        If you've already installed it, ensure the pkg-config command is one of the\n\
+                        directories in the PATH environment variable.\n\
+                        \n\
+                        If you did not expect this build to link to a pre-installed system library,\n\
+                        then check documentation of the {crate_name} crate for an option to\n\
+                        build the library from source, or disable features or dependencies\n\
+                        that require pkg-config.", command = command, instructions = instructions, crate_name = crate_name)
+                    }
+                    _ => write!(f, "Failed to run command `{}`, because: {}", command, cause),
+                }
+            }
+            Error::ProbeFailure {
+                ref name,
+                ref command,
+                ref output,
+            } => {
+                write!(
+                    f,
+                    "`{}` did not exit successfully: {}\nerror: could not find system library '{}' required by the '{}' crate\n",
+                    command, output.status, name, env::var("CARGO_PKG_NAME").unwrap_or_default(),
+                )?;
+                format_output(output, f)
+            }
             Error::Failure {
                 ref command,
                 ref output,
             } => {
-                let stdout = str::from_utf8(&output.stdout).unwrap();
-                let stderr = str::from_utf8(&output.stderr).unwrap();
                 write!(
                     f,
                     "`{}` did not exit successfully: {}",
                     command, output.status
                 )?;
-                if !stdout.is_empty() {
-                    write!(f, "\n--- stdout\n{}", stdout)?;
-                }
-                if !stderr.is_empty() {
-                    write!(f, "\n--- stderr\n{}", stderr)?;
-                }
-                Ok(())
+                format_output(output, f)
             }
             Error::__Nonexhaustive => panic!(),
         }
     }
+}
+
+fn format_output(output: &Output, f: &mut fmt::Formatter) -> fmt::Result {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if !stdout.is_empty() {
+        write!(f, "\n--- stdout\n{}", stdout)?;
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stderr.is_empty() {
+        write!(f, "\n--- stderr\n{}", stderr)?;
+    }
+    Ok(())
 }
 
 /// Deprecated in favor of the probe_library function
@@ -196,8 +254,19 @@ pub fn probe_library(name: &str) -> Result<Library, Error> {
     Config::new().probe(name)
 }
 
+#[doc(hidden)]
+#[deprecated(note = "use config.target_supported() instance method instead")]
+pub fn target_supported() -> bool {
+    Config::new().target_supported()
+}
+
 /// Run `pkg-config` to get the value of a variable from a package using
-/// --variable.
+/// `--variable`.
+///
+/// The content of `PKG_CONFIG_SYSROOT_DIR` is not injected in paths that are
+/// returned by `pkg-config --variable`, which makes them unsuitable to use
+/// during cross-compilation unless specifically designed to be used
+/// at that time.
 pub fn get_variable(package: &str, variable: &str) -> Result<String, Error> {
     let arg = format!("--variable={}", variable);
     let cfg = Config::new();
@@ -217,7 +286,7 @@ impl Config {
             print_system_cflags: true,
             print_system_libs: true,
             cargo_metadata: true,
-            env_metadata: false,
+            env_metadata: true,
         }
     }
 
@@ -279,7 +348,7 @@ impl Config {
 
     /// Define whether metadata should be emitted for cargo allowing to
     /// automatically rebuild when environment variables change. Defaults to
-    /// `false`.
+    /// `true`.
     pub fn env_metadata(&mut self, env_metadata: bool) -> &mut Config {
         self.env_metadata = env_metadata;
         self
@@ -323,7 +392,14 @@ impl Config {
 
         let mut library = Library::new();
 
-        let output = run(self.command(name, &["--libs", "--cflags"]))?;
+        let output = run(self.command(name, &["--libs", "--cflags"])).map_err(|e| match e {
+            Error::Failure { command, output } => Error::ProbeFailure {
+                name: name.to_owned(),
+                command,
+                output,
+            },
+            other => other,
+        })?;
         library.parse_libs_cflags(name, &output, self);
 
         let output = run(self.command(name, &["--modversion"]))?;
@@ -332,9 +408,10 @@ impl Config {
         Ok(library)
     }
 
+    /// True if pkg-config is used for the host system, or configured for cross-compilation
     pub fn target_supported(&self) -> bool {
-        let target = env::var("TARGET").unwrap_or_default();
-        let host = env::var("HOST").unwrap_or_default();
+        let target = env::var_os("TARGET").unwrap_or_default();
+        let host = env::var_os("HOST").unwrap_or_default();
 
         // Only use pkg-config in host == target situations by default (allowing an
         // override).
@@ -346,13 +423,13 @@ impl Config {
         // a wrapper script that sets up platform-specific prefixes.
         match self.targetted_env_var("PKG_CONFIG_ALLOW_CROSS") {
             // don't use pkg-config if explicitly disabled
-            Ok(ref val) if val == "0" => false,
-            Ok(_) => true,
-            Err(_) => {
+            Some(ref val) if val == "0" => false,
+            Some(_) => true,
+            None => {
                 // if not disabled, and pkg-config is customized,
                 // then assume it's prepared for cross-compilation
-                self.targetted_env_var("PKG_CONFIG").is_ok()
-                    || self.targetted_env_var("PKG_CONFIG_SYSROOT_DIR").is_ok()
+                self.targetted_env_var("PKG_CONFIG").is_some()
+                    || self.targetted_env_var("PKG_CONFIG_SYSROOT_DIR").is_some()
             }
         }
     }
@@ -363,26 +440,27 @@ impl Config {
         get_variable(package, variable).map_err(|e| e.to_string())
     }
 
-    fn targetted_env_var(&self, var_base: &str) -> Result<String, env::VarError> {
-        if let Ok(target) = env::var("TARGET") {
-            let host = env::var("HOST")?;
-            let kind = if host == target { "HOST" } else { "TARGET" };
-            let target_u = target.replace("-", "_");
+    fn targetted_env_var(&self, var_base: &str) -> Option<OsString> {
+        match (env::var("TARGET"), env::var("HOST")) {
+            (Ok(target), Ok(host)) => {
+                let kind = if host == target { "HOST" } else { "TARGET" };
+                let target_u = target.replace("-", "_");
 
-            self.env_var(&format!("{}_{}", var_base, target))
-                .or_else(|_| self.env_var(&format!("{}_{}", var_base, target_u)))
-                .or_else(|_| self.env_var(&format!("{}_{}", kind, var_base)))
-                .or_else(|_| self.env_var(var_base))
-        } else {
-            self.env_var(var_base)
+                self.env_var_os(&format!("{}_{}", var_base, target))
+                    .or_else(|| self.env_var_os(&format!("{}_{}", var_base, target_u)))
+                    .or_else(|| self.env_var_os(&format!("{}_{}", kind, var_base)))
+                    .or_else(|| self.env_var_os(var_base))
+            }
+            (Err(env::VarError::NotPresent), _) | (_, Err(env::VarError::NotPresent)) => {
+                self.env_var_os(var_base)
+            }
+            (Err(env::VarError::NotUnicode(s)), _) | (_, Err(env::VarError::NotUnicode(s))) => {
+                panic!(
+                    "HOST or TARGET environment variable is not valid unicode: {:?}",
+                    s
+                )
+            }
         }
-    }
-
-    fn env_var(&self, name: &str) -> Result<String, env::VarError> {
-        if self.env_metadata {
-            println!("cargo:rerun-if-env-changed={}", name);
-        }
-        env::var(name)
     }
 
     fn env_var_os(&self, name: &str) -> Option<OsString> {
@@ -398,21 +476,21 @@ impl Config {
 
     fn command(&self, name: &str, args: &[&str]) -> Command {
         let exe = self
-            .env_var("PKG_CONFIG")
-            .unwrap_or_else(|_| String::from("pkg-config"));
+            .targetted_env_var("PKG_CONFIG")
+            .unwrap_or_else(|| OsString::from("pkg-config"));
         let mut cmd = Command::new(exe);
         if self.is_static(name) {
             cmd.arg("--static");
         }
         cmd.args(args).args(&self.extra_args);
 
-        if let Ok(value) = self.targetted_env_var("PKG_CONFIG_PATH") {
+        if let Some(value) = self.targetted_env_var("PKG_CONFIG_PATH") {
             cmd.env("PKG_CONFIG_PATH", value);
         }
-        if let Ok(value) = self.targetted_env_var("PKG_CONFIG_LIBDIR") {
+        if let Some(value) = self.targetted_env_var("PKG_CONFIG_LIBDIR") {
             cmd.env("PKG_CONFIG_LIBDIR", value);
         }
-        if let Ok(value) = self.targetted_env_var("PKG_CONFIG_SYSROOT_DIR") {
+        if let Some(value) = self.targetted_env_var("PKG_CONFIG_SYSROOT_DIR") {
             cmd.env("PKG_CONFIG_SYSROOT_DIR", value);
         }
         if self.print_system_libs {
@@ -486,7 +564,9 @@ impl Library {
         Library {
             libs: Vec::new(),
             link_paths: Vec::new(),
+            link_files: Vec::new(),
             include_paths: Vec::new(),
+            ld_args: Vec::new(),
             frameworks: Vec::new(),
             framework_paths: Vec::new(),
             defines: HashMap::new(),
@@ -495,24 +575,102 @@ impl Library {
         }
     }
 
+    /// Extract the &str to pass to cargo:rustc-link-lib from a filename (just the file name, not including directories)
+    /// using target-specific logic.
+    fn extract_lib_from_filename<'a>(target: &str, filename: &'a str) -> Option<&'a str> {
+        fn test_suffixes<'b>(filename: &'b str, suffixes: &[&str]) -> Option<&'b str> {
+            for suffix in suffixes {
+                if filename.ends_with(suffix) {
+                    return Some(&filename[..filename.len() - suffix.len()]);
+                }
+            }
+            None
+        }
+
+        let prefix = "lib";
+        if target.contains("msvc") {
+            // According to link.exe documentation:
+            // https://learn.microsoft.com/en-us/cpp/build/reference/link-input-files?view=msvc-170
+            //
+            //   LINK doesn't use file extensions to make assumptions about the contents of a file.
+            //   Instead, LINK examines each input file to determine what kind of file it is.
+            //
+            // However, rustc appends `.lib` to the string it receives from the -l command line argument,
+            // which it receives from Cargo via cargo:rustc-link-lib:
+            // https://github.com/rust-lang/rust/blob/657f246812ab2684e3c3954b1c77f98fd59e0b21/compiler/rustc_codegen_ssa/src/back/linker.rs#L828
+            // https://github.com/rust-lang/rust/blob/657f246812ab2684e3c3954b1c77f98fd59e0b21/compiler/rustc_codegen_ssa/src/back/linker.rs#L843
+            // So the only file extension that works for MSVC targets is `.lib`
+            return test_suffixes(filename, &[".lib"]);
+        } else if target.contains("windows") && target.contains("gnu") {
+            // GNU targets for Windows, including gnullvm, use `LinkerFlavor::Gcc` internally in rustc,
+            // which tells rustc to use the GNU linker. rustc does not prepend/append to the string it
+            // receives via the -l command line argument before passing it to the linker:
+            // https://github.com/rust-lang/rust/blob/657f246812ab2684e3c3954b1c77f98fd59e0b21/compiler/rustc_codegen_ssa/src/back/linker.rs#L446
+            // https://github.com/rust-lang/rust/blob/657f246812ab2684e3c3954b1c77f98fd59e0b21/compiler/rustc_codegen_ssa/src/back/linker.rs#L457
+            // GNU ld can work with more types of files than just the .lib files that MSVC's link.exe needs.
+            // GNU ld will prepend the `lib` prefix to the filename if necessary, so it is okay to remove
+            // the `lib` prefix from the filename. The `.a` suffix *requires* the `lib` prefix.
+            // https://sourceware.org/binutils/docs-2.39/ld.html#index-direct-linking-to-a-dll
+            if filename.starts_with(prefix) {
+                let filename = &filename[prefix.len()..];
+                return test_suffixes(filename, &[".dll.a", ".dll", ".lib", ".a"]);
+            } else {
+                return test_suffixes(filename, &[".dll.a", ".dll", ".lib"]);
+            }
+        } else if target.contains("apple") {
+            if filename.starts_with(prefix) {
+                let filename = &filename[prefix.len()..];
+                return test_suffixes(filename, &[".a", ".so", ".dylib"]);
+            }
+            return None;
+        } else {
+            if filename.starts_with(prefix) {
+                let filename = &filename[prefix.len()..];
+                return test_suffixes(filename, &[".a", ".so"]);
+            }
+            return None;
+        }
+    }
+
     fn parse_libs_cflags(&mut self, name: &str, output: &[u8], config: &Config) {
         let mut is_msvc = false;
-        if let Ok(target) = env::var("TARGET") {
+        let target = env::var("TARGET");
+        if let Ok(target) = &target {
             if target.contains("msvc") {
                 is_msvc = true;
             }
         }
 
-        let words = split_flags(output);
-        let parts = words
-            .iter()
-            .filter(|l| l.len() > 2)
-            .map(|arg| (&arg[0..2], &arg[2..]))
-            .collect::<Vec<_>>();
+        let system_roots = if cfg!(target_os = "macos") {
+            vec![PathBuf::from("/Library"), PathBuf::from("/System")]
+        } else {
+            let sysroot = config
+                .env_var_os("PKG_CONFIG_SYSROOT_DIR")
+                .or_else(|| config.env_var_os("SYSROOT"))
+                .map(PathBuf::from);
+
+            if cfg!(target_os = "windows") {
+                if let Some(sysroot) = sysroot {
+                    vec![sysroot]
+                } else {
+                    vec![]
+                }
+            } else {
+                vec![sysroot.unwrap_or_else(|| PathBuf::from("/usr"))]
+            }
+        };
 
         let mut dirs = Vec::new();
         let statik = config.is_static(name);
-        for &(flag, val) in &parts {
+
+        let words = split_flags(output);
+
+        // Handle single-character arguments like `-I/usr/include`
+        let parts = words
+            .iter()
+            .filter(|l| l.len() > 2)
+            .map(|arg| (&arg[0..2], &arg[2..]));
+        for (flag, val) in parts {
             match flag {
                 "-L" => {
                     let meta = format!("rustc-link-search=native={}", val);
@@ -534,7 +692,7 @@ impl Library {
                         continue;
                     }
 
-                    if statik && is_static_available(val, &dirs) {
+                    if statik && is_static_available(val, &system_roots, &dirs) {
                         let meta = format!("rustc-link-lib=static={}", val);
                         config.print_metadata(&meta);
                     } else {
@@ -555,6 +713,7 @@ impl Library {
             }
         }
 
+        // Handle multi-character arguments with space-separated value like `-framework foo`
         let mut iter = words.iter().flat_map(|arg| {
             if arg.starts_with("-Wl,") {
                 arg[4..].split(',').collect()
@@ -563,14 +722,75 @@ impl Library {
             }
         });
         while let Some(part) = iter.next() {
-            if part != "-framework" {
-                continue;
+            match part {
+                "-framework" => {
+                    if let Some(lib) = iter.next() {
+                        let meta = format!("rustc-link-lib=framework={}", lib);
+                        config.print_metadata(&meta);
+                        self.frameworks.push(lib.to_string());
+                    }
+                }
+                "-isystem" | "-iquote" | "-idirafter" => {
+                    if let Some(inc) = iter.next() {
+                        self.include_paths.push(PathBuf::from(inc));
+                    }
+                }
+                _ => {
+                    let path = std::path::Path::new(part);
+                    if path.is_file() {
+                        // Cargo doesn't have a means to directly specify a file path to link,
+                        // so split up the path into the parent directory and library name.
+                        // TODO: pass file path directly when link-arg library type is stabilized
+                        // https://github.com/rust-lang/rust/issues/99427
+                        if let (Some(dir), Some(file_name), Ok(target)) =
+                            (path.parent(), path.file_name(), &target)
+                        {
+                            match Self::extract_lib_from_filename(
+                                target,
+                                &file_name.to_string_lossy(),
+                            ) {
+                                Some(lib_basename) => {
+                                    let link_search =
+                                        format!("rustc-link-search={}", dir.display());
+                                    config.print_metadata(&link_search);
+
+                                    let link_lib = format!("rustc-link-lib={}", lib_basename);
+                                    config.print_metadata(&link_lib);
+                                    self.link_files.push(PathBuf::from(path));
+                                }
+                                None => {
+                                    println!("cargo:warning=File path {} found in pkg-config file for {}, but could not extract library base name to pass to linker command line", path.display(), name);
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            if let Some(lib) = iter.next() {
-                let meta = format!("rustc-link-lib=framework={}", lib);
-                config.print_metadata(&meta);
-                self.frameworks.push(lib.to_string());
+        }
+
+        let mut linker_options = words.iter().filter(|arg| arg.starts_with("-Wl,"));
+        while let Some(option) = linker_options.next() {
+            let mut pop = false;
+            let mut ld_option = vec![];
+            for subopt in option[4..].split(',') {
+                if pop {
+                    pop = false;
+                    continue;
+                }
+
+                if subopt == "-framework" {
+                    pop = true;
+                    continue;
+                }
+
+                ld_option.push(subopt);
             }
+
+            let meta = format!("rustc-link-arg=-Wl,{}", ld_option.join(","));
+            config.print_metadata(&meta);
+
+            self.ld_args
+                .push(ld_option.into_iter().map(String::from).collect());
         }
     }
 
@@ -587,13 +807,8 @@ fn envify(name: &str) -> String {
 }
 
 /// System libraries should only be linked dynamically
-fn is_static_available(name: &str, dirs: &[PathBuf]) -> bool {
+fn is_static_available(name: &str, system_roots: &[PathBuf], dirs: &[PathBuf]) -> bool {
     let libname = format!("lib{}.a", name);
-    let system_roots = if cfg!(target_os = "macos") {
-        vec![Path::new("/Library"), Path::new("/System")]
-    } else {
-        vec![Path::new("/usr")]
-    };
 
     dirs.iter().any(|dir| {
         !system_roots.iter().any(|sys| dir.starts_with(sys)) && dir.join(&libname).exists()
@@ -655,47 +870,103 @@ fn split_flags(output: &[u8]) -> Vec<String> {
     words
 }
 
-#[test]
-#[cfg(target_os = "macos")]
-fn system_library_mac_test() {
-    assert!(!is_static_available(
-        "PluginManager",
-        &[PathBuf::from("/Library/Frameworks")]
-    ));
-    assert!(!is_static_available(
-        "python2.7",
-        &[PathBuf::from(
-            "/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config"
-        )]
-    ));
-    assert!(!is_static_available(
-        "ffi_convenience",
-        &[PathBuf::from(
-            "/Library/Ruby/Gems/2.0.0/gems/ffi-1.9.10/ext/ffi_c/libffi-x86_64/.libs"
-        )]
-    ));
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // Homebrew is in /usr/local, and it's not a part of the OS
-    if Path::new("/usr/local/lib/libpng16.a").exists() {
-        assert!(is_static_available(
-            "png16",
-            &[PathBuf::from("/usr/local/lib")]
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn system_library_mac_test() {
+        use std::path::Path;
+
+        let system_roots = vec![PathBuf::from("/Library"), PathBuf::from("/System")];
+
+        assert!(!is_static_available(
+            "PluginManager",
+            &system_roots,
+            &[PathBuf::from("/Library/Frameworks")]
+        ));
+        assert!(!is_static_available(
+            "python2.7",
+            &system_roots,
+            &[PathBuf::from(
+                "/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/config"
+            )]
+        ));
+        assert!(!is_static_available(
+            "ffi_convenience",
+            &system_roots,
+            &[PathBuf::from(
+                "/Library/Ruby/Gems/2.0.0/gems/ffi-1.9.10/ext/ffi_c/libffi-x86_64/.libs"
+            )]
         ));
 
-        let libpng = Config::new()
-            .range_version("1".."99")
-            .probe("libpng16")
-            .unwrap();
-        assert!(libpng.version.find('\n').is_none());
-    }
-}
+        // Homebrew is in /usr/local, and it's not a part of the OS
+        if Path::new("/usr/local/lib/libpng16.a").exists() {
+            assert!(is_static_available(
+                "png16",
+                &system_roots,
+                &[PathBuf::from("/usr/local/lib")]
+            ));
 
-#[test]
-#[cfg(target_os = "linux")]
-fn system_library_linux_test() {
-    assert!(!is_static_available(
-        "util",
-        &[PathBuf::from("/usr/lib/x86_64-linux-gnu")]
-    ));
-    assert!(!is_static_available("dialog", &[PathBuf::from("/usr/lib")]));
+            let libpng = Config::new()
+                .range_version("1".."99")
+                .probe("libpng16")
+                .unwrap();
+            assert!(libpng.version.find('\n').is_none());
+        }
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn system_library_linux_test() {
+        assert!(!is_static_available(
+            "util",
+            &[PathBuf::from("/usr")],
+            &[PathBuf::from("/usr/lib/x86_64-linux-gnu")]
+        ));
+        assert!(!is_static_available(
+            "dialog",
+            &[PathBuf::from("/usr")],
+            &[PathBuf::from("/usr/lib")]
+        ));
+    }
+
+    fn test_library_filename(target: &str, filename: &str) {
+        assert_eq!(
+            Library::extract_lib_from_filename(target, filename),
+            Some("foo")
+        );
+    }
+
+    #[test]
+    fn link_filename_linux() {
+        let target = "x86_64-unknown-linux-gnu";
+        test_library_filename(target, "libfoo.a");
+        test_library_filename(target, "libfoo.so");
+    }
+
+    #[test]
+    fn link_filename_apple() {
+        let target = "x86_64-apple-darwin";
+        test_library_filename(target, "libfoo.a");
+        test_library_filename(target, "libfoo.so");
+        test_library_filename(target, "libfoo.dylib");
+    }
+
+    #[test]
+    fn link_filename_msvc() {
+        let target = "x86_64-pc-windows-msvc";
+        // static and dynamic libraries have the same .lib suffix
+        test_library_filename(target, "foo.lib");
+    }
+
+    #[test]
+    fn link_filename_mingw() {
+        let target = "x86_64-pc-windows-gnu";
+        test_library_filename(target, "foo.lib");
+        test_library_filename(target, "libfoo.a");
+        test_library_filename(target, "foo.dll");
+        test_library_filename(target, "foo.dll.a");
+    }
 }

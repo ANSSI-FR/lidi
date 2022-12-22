@@ -12,13 +12,11 @@ use core::num::NonZeroU32;
 
 /// Register a function to be invoked by `getrandom` on unsupported targets.
 ///
-/// *This API requires the `"custom"` Cargo feature to be activated*.
-///
 /// ## Writing a custom `getrandom` implementation
 ///
 /// The function to register must have the same signature as
 /// [`getrandom::getrandom`](crate::getrandom). The function can be defined
-/// wherever you want, either in root crate or a dependant crate.
+/// wherever you want, either in root crate or a dependent crate.
 ///
 /// For example, if we wanted a `failure-getrandom` crate containing an
 /// implementation that always fails, we would first depend on `getrandom`
@@ -72,15 +70,16 @@ use core::num::NonZeroU32;
 ///
 /// Now any user of `getrandom` (direct or indirect) on this target will use the
 /// registered function. As noted in the
-/// [top-level documentation](index.html#use-a-custom-implementation) this
+/// [top-level documentation](index.html#custom-implementations) this
 /// registration only has an effect on unsupported targets.
 #[macro_export]
+#[cfg_attr(docsrs, doc(cfg(feature = "custom")))]
 macro_rules! register_custom_getrandom {
     ($path:path) => {
         // We use an extern "C" function to get the guarantees of a stable ABI.
         #[no_mangle]
         extern "C" fn __getrandom_custom(dest: *mut u8, len: usize) -> u32 {
-            let f: fn(&mut [u8]) -> Result<(), ::getrandom::Error> = $path;
+            let f: fn(&mut [u8]) -> Result<(), $crate::Error> = $path;
             let slice = unsafe { ::core::slice::from_raw_parts_mut(dest, len) };
             match f(slice) {
                 Ok(()) => 0,

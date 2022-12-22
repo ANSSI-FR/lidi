@@ -10,6 +10,7 @@ release: pre
 	cargo build --release
 
 test: pre
+	cargo build --features benchmarking,python,serde_support
 	cargo test --features benchmarking
 
 test_extended: pre
@@ -22,16 +23,17 @@ profile:
 	RUSTFLAGS='-Cforce-frame-pointers' cargo bench --no-run --features benchmarking
 
 build_py: pre
-	RUSTUP_TOOLCHAIN="nightly" maturin build --cargo-extra-args="--features python"
+	maturin build --cargo-extra-args="--features python"
 
 release_py: pre
-	RUSTUP_TOOLCHAIN="nightly" maturin build --release --cargo-extra-args="--features python"
+	maturin build --release --cargo-extra-args="--features python"
 
 publish_py: test_py
+	docker pull quay.io/pypa/manylinux2014_x86_64
 	docker run -it --rm -v $(shell pwd):/raptorq quay.io/pypa/manylinux2014_x86_64 /raptorq/py_publish.sh
 
 install_py: pre
-	RUSTUP_TOOLCHAIN="nightly" maturin develop --cargo-extra-args="--features python"
+	maturin develop --cargo-extra-args="--features python"
 
 test_py: install_py
 	python3 -m unittest discover

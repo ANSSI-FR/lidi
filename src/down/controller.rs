@@ -21,8 +21,8 @@ use std::{
     fs::File,
     io::Read,
     mem::ManuallyDrop,
-    os::raw::{c_int, c_void},
-    os::unix::io::{AsRawFd, FromRawFd, RawFd},
+    num::NonZeroUsize,
+    os::unix::io::{AsRawFd, RawFd},
     os::unix::net::{UnixListener, UnixStream},
     path::PathBuf,
     pin::Pin,
@@ -91,13 +91,11 @@ impl<'a> Controller<'a> {
 
             let nb_events = match epoll_wait(self.epoll, &mut events, 64) {
                 Ok(nb) => nb,
-                Err(e) => match e.as_errno() {
-                    Some(Errno::EINTR) => {
-                        error!("Received EINTR while waiting for epoll events.");
-                        0
-                    }
-                    _ => panic!("Failed waiting for epoll events: {}", e),
-                },
+                Err(Errno::EINTR) => {
+                    error!("Received EINTR while waiting for epoll events.");
+                    0
+                }
+                Err(e) => panic!("Failed waiting for epoll events: {}", e),
             };
 
             for event in events.iter().take(nb_events) {
@@ -304,9 +302,9 @@ impl<'a> Controller<'a> {
             ftruncate(memfd, 256)?;
             let atomic = unsafe {
                 let pointer = mmap(
-                    std::ptr::null_mut(),
-                    256,
+                    None, //std::ptr::null_mut(),
                     //std::mem::size_of::<usize>(),
+                    NonZeroUsize::new_unchecked(256),
                     ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
                     MapFlags::MAP_SHARED,
                     memfd,

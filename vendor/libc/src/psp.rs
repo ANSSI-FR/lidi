@@ -54,24 +54,18 @@ pub type SceKernelVTimerHandler = unsafe extern "C" fn(
     arg3: *mut c_void,
 ) -> u32;
 
-pub type SceKernelVTimerHandlerWide = unsafe extern "C" fn(
-    uid: SceUid,
-    arg1: i64,
-    arg2: i64,
-    arg3: *mut c_void,
-) -> u32;
+pub type SceKernelVTimerHandlerWide =
+    unsafe extern "C" fn(uid: SceUid, arg1: i64, arg2: i64, arg3: *mut c_void) -> u32;
 
 pub type SceKernelThreadEventHandler =
     unsafe extern "C" fn(mask: i32, thid: SceUid, common: *mut c_void) -> i32;
 
-pub type SceKernelAlarmHandler =
-    unsafe extern "C" fn(common: *mut c_void) -> u32;
+pub type SceKernelAlarmHandler = unsafe extern "C" fn(common: *mut c_void) -> u32;
 
 pub type SceKernelCallbackFunction =
     unsafe extern "C" fn(arg1: i32, arg2: i32, arg: *mut c_void) -> i32;
 
-pub type SceKernelThreadEntry =
-    unsafe extern "C" fn(args: usize, argp: *mut c_void) -> i32;
+pub type SceKernelThreadEntry = unsafe extern "C" fn(args: usize, argp: *mut c_void) -> i32;
 
 pub type PowerCallback = extern "C" fn(unknown: i32, power_info: i32);
 
@@ -79,22 +73,17 @@ pub type IoPermissions = i32;
 
 pub type UmdCallback = fn(unknown: i32, event: i32) -> i32;
 
-pub type SceMpegRingbufferCb = Option<
-    unsafe extern "C" fn(
-        data: *mut c_void,
-        num_packets: i32,
-        param: *mut c_void,
-    ) -> i32,
->;
+pub type SceMpegRingbufferCb =
+    ::Option<unsafe extern "C" fn(data: *mut c_void, num_packets: i32, param: *mut c_void) -> i32>;
 
-pub type GuCallback = Option<extern "C" fn(id: i32, arg: *mut c_void)>;
+pub type GuCallback = ::Option<extern "C" fn(id: i32, arg: *mut c_void)>;
 pub type GuSwapBuffersCallback =
-    Option<extern "C" fn(display: *mut *mut c_void, render: *mut *mut c_void)>;
+    ::Option<extern "C" fn(display: *mut *mut c_void, render: *mut *mut c_void)>;
 
 pub type SceNetAdhocctlHandler =
-    Option<unsafe extern "C" fn(flag: i32, error: i32, unknown: *mut c_void)>;
+    ::Option<unsafe extern "C" fn(flag: i32, error: i32, unknown: *mut c_void)>;
 
-pub type AdhocMatchingCallback = Option<
+pub type AdhocMatchingCallback = ::Option<
     unsafe extern "C" fn(
         matching_id: i32,
         event: i32,
@@ -104,22 +93,15 @@ pub type AdhocMatchingCallback = Option<
     ),
 >;
 
-pub type SceNetApctlHandler = Option<
-    unsafe extern "C" fn(
-        oldState: i32,
-        newState: i32,
-        event: i32,
-        error: i32,
-        pArg: *mut c_void,
-    ),
+pub type SceNetApctlHandler = ::Option<
+    unsafe extern "C" fn(oldState: i32, newState: i32, event: i32, error: i32, pArg: *mut c_void),
 >;
 
-pub type HttpMallocFunction =
-    Option<unsafe extern "C" fn(size: usize) -> *mut c_void>;
+pub type HttpMallocFunction = ::Option<unsafe extern "C" fn(size: usize) -> *mut c_void>;
 pub type HttpReallocFunction =
-    Option<unsafe extern "C" fn(p: *mut c_void, size: usize) -> *mut c_void>;
-pub type HttpFreeFunction = Option<unsafe extern "C" fn(p: *mut c_void)>;
-pub type HttpPasswordCB = Option<
+    ::Option<unsafe extern "C" fn(p: *mut c_void, size: usize) -> *mut c_void>;
+pub type HttpFreeFunction = ::Option<unsafe extern "C" fn(p: *mut c_void)>;
+pub type HttpPasswordCB = ::Option<
     unsafe extern "C" fn(
         request: i32,
         auth_type: HttpAuthType,
@@ -135,1500 +117,1294 @@ pub type HttpPasswordCB = Option<
 
 pub type socklen_t = u32;
 
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum AudioFormat {
-    Stereo = 0,
-    Mono = 0x10,
+e! {
+    #[repr(u32)]
+    pub enum AudioFormat {
+        Stereo = 0,
+        Mono = 0x10,
+    }
+
+    #[repr(u32)]
+    pub enum DisplayMode {
+        Lcd = 0,
+    }
+
+    #[repr(u32)]
+    pub enum DisplayPixelFormat {
+        Psm5650 = 0,
+        Psm5551 = 1,
+        Psm4444 = 2,
+        Psm8888 = 3,
+    }
+
+    #[repr(u32)]
+    pub enum DisplaySetBufSync {
+        Immediate = 0,
+        NextFrame = 1,
+    }
+
+    #[repr(i32)]
+    pub enum AudioOutputFrequency {
+        Khz48 = 48000,
+        Khz44_1 = 44100,
+        Khz32 = 32000,
+        Khz24 = 24000,
+        Khz22_05 = 22050,
+        Khz16 = 16000,
+        Khz12 = 12000,
+        Khz11_025 = 11025,
+        Khz8 = 8000,
+    }
+
+    #[repr(i32)]
+    pub enum AudioInputFrequency {
+        Khz44_1 = 44100,
+        Khz22_05 = 22050,
+        Khz11_025 = 11025,
+    }
+
+    #[repr(u32)]
+    pub enum CtrlMode {
+        Digital = 0,
+        Analog,
+    }
+
+    #[repr(i32)]
+    pub enum GeMatrixType {
+        Bone0 = 0,
+        Bone1,
+        Bone2,
+        Bone3,
+        Bone4,
+        Bone5,
+        Bone6,
+        Bone7,
+        World,
+        View,
+        Projection,
+        TexGen,
+    }
+
+    #[repr(i32)]
+    pub enum GeListState {
+        Done = 0,
+        Queued,
+        DrawingDone,
+        StallReached,
+        CancelDone,
+    }
+
+    #[repr(u8)]
+    pub enum GeCommand {
+        Nop = 0,
+        Vaddr = 0x1,
+        Iaddr = 0x2,
+        Prim = 0x4,
+        Bezier = 0x5,
+        Spline = 0x6,
+        BoundingBox = 0x7,
+        Jump = 0x8,
+        BJump = 0x9,
+        Call = 0xa,
+        Ret = 0xb,
+        End = 0xc,
+        Signal = 0xe,
+        Finish = 0xf,
+        Base = 0x10,
+        VertexType = 0x12,
+        OffsetAddr = 0x13,
+        Origin = 0x14,
+        Region1 = 0x15,
+        Region2 = 0x16,
+        LightingEnable = 0x17,
+        LightEnable0 = 0x18,
+        LightEnable1 = 0x19,
+        LightEnable2 = 0x1a,
+        LightEnable3 = 0x1b,
+        DepthClampEnable = 0x1c,
+        CullFaceEnable = 0x1d,
+        TextureMapEnable = 0x1e,
+        FogEnable = 0x1f,
+        DitherEnable = 0x20,
+        AlphaBlendEnable = 0x21,
+        AlphaTestEnable = 0x22,
+        ZTestEnable = 0x23,
+        StencilTestEnable = 0x24,
+        AntiAliasEnable = 0x25,
+        PatchCullEnable = 0x26,
+        ColorTestEnable = 0x27,
+        LogicOpEnable = 0x28,
+        BoneMatrixNumber = 0x2a,
+        BoneMatrixData = 0x2b,
+        MorphWeight0 = 0x2c,
+        MorphWeight1 = 0x2d,
+        MorphWeight2 = 0x2e,
+        MorphWeight3 = 0x2f,
+        MorphWeight4 = 0x30,
+        MorphWeight5 = 0x31,
+        MorphWeight6 = 0x32,
+        MorphWeight7 = 0x33,
+        PatchDivision = 0x36,
+        PatchPrimitive = 0x37,
+        PatchFacing = 0x38,
+        WorldMatrixNumber = 0x3a,
+        WorldMatrixData = 0x3b,
+        ViewMatrixNumber = 0x3c,
+        ViewMatrixData = 0x3d,
+        ProjMatrixNumber = 0x3e,
+        ProjMatrixData = 0x3f,
+        TGenMatrixNumber = 0x40,
+        TGenMatrixData = 0x41,
+        ViewportXScale = 0x42,
+        ViewportYScale = 0x43,
+        ViewportZScale = 0x44,
+        ViewportXCenter = 0x45,
+        ViewportYCenter = 0x46,
+        ViewportZCenter = 0x47,
+        TexScaleU = 0x48,
+        TexScaleV = 0x49,
+        TexOffsetU = 0x4a,
+        TexOffsetV = 0x4b,
+        OffsetX = 0x4c,
+        OffsetY = 0x4d,
+        ShadeMode = 0x50,
+        ReverseNormal = 0x51,
+        MaterialUpdate = 0x53,
+        MaterialEmissive = 0x54,
+        MaterialAmbient = 0x55,
+        MaterialDiffuse = 0x56,
+        MaterialSpecular = 0x57,
+        MaterialAlpha = 0x58,
+        MaterialSpecularCoef = 0x5b,
+        AmbientColor = 0x5c,
+        AmbientAlpha = 0x5d,
+        LightMode = 0x5e,
+        LightType0 = 0x5f,
+        LightType1 = 0x60,
+        LightType2 = 0x61,
+        LightType3 = 0x62,
+        Light0X = 0x63,
+        Light0Y,
+        Light0Z,
+        Light1X,
+        Light1Y,
+        Light1Z,
+        Light2X,
+        Light2Y,
+        Light2Z,
+        Light3X,
+        Light3Y,
+        Light3Z,
+        Light0DirectionX = 0x6f,
+        Light0DirectionY,
+        Light0DirectionZ,
+        Light1DirectionX,
+        Light1DirectionY,
+        Light1DirectionZ,
+        Light2DirectionX,
+        Light2DirectionY,
+        Light2DirectionZ,
+        Light3DirectionX,
+        Light3DirectionY,
+        Light3DirectionZ,
+        Light0ConstantAtten = 0x7b,
+        Light0LinearAtten,
+        Light0QuadtraticAtten,
+        Light1ConstantAtten,
+        Light1LinearAtten,
+        Light1QuadtraticAtten,
+        Light2ConstantAtten,
+        Light2LinearAtten,
+        Light2QuadtraticAtten,
+        Light3ConstantAtten,
+        Light3LinearAtten,
+        Light3QuadtraticAtten,
+        Light0ExponentAtten = 0x87,
+        Light1ExponentAtten,
+        Light2ExponentAtten,
+        Light3ExponentAtten,
+        Light0CutoffAtten = 0x8b,
+        Light1CutoffAtten,
+        Light2CutoffAtten,
+        Light3CutoffAtten,
+        Light0Ambient = 0x8f,
+        Light0Diffuse,
+        Light0Specular,
+        Light1Ambient,
+        Light1Diffuse,
+        Light1Specular,
+        Light2Ambient,
+        Light2Diffuse,
+        Light2Specular,
+        Light3Ambient,
+        Light3Diffuse,
+        Light3Specular,
+        Cull = 0x9b,
+        FrameBufPtr = 0x9c,
+        FrameBufWidth = 0x9d,
+        ZBufPtr = 0x9e,
+        ZBufWidth = 0x9f,
+        TexAddr0 = 0xa0,
+        TexAddr1,
+        TexAddr2,
+        TexAddr3,
+        TexAddr4,
+        TexAddr5,
+        TexAddr6,
+        TexAddr7,
+        TexBufWidth0 = 0xa8,
+        TexBufWidth1,
+        TexBufWidth2,
+        TexBufWidth3,
+        TexBufWidth4,
+        TexBufWidth5,
+        TexBufWidth6,
+        TexBufWidth7,
+        ClutAddr = 0xb0,
+        ClutAddrUpper = 0xb1,
+        TransferSrc,
+        TransferSrcW,
+        TransferDst,
+        TransferDstW,
+        TexSize0 = 0xb8,
+        TexSize1,
+        TexSize2,
+        TexSize3,
+        TexSize4,
+        TexSize5,
+        TexSize6,
+        TexSize7,
+        TexMapMode = 0xc0,
+        TexShadeLs = 0xc1,
+        TexMode = 0xc2,
+        TexFormat = 0xc3,
+        LoadClut = 0xc4,
+        ClutFormat = 0xc5,
+        TexFilter = 0xc6,
+        TexWrap = 0xc7,
+        TexLevel = 0xc8,
+        TexFunc = 0xc9,
+        TexEnvColor = 0xca,
+        TexFlush = 0xcb,
+        TexSync = 0xcc,
+        Fog1 = 0xcd,
+        Fog2 = 0xce,
+        FogColor = 0xcf,
+        TexLodSlope = 0xd0,
+        FramebufPixFormat = 0xd2,
+        ClearMode = 0xd3,
+        Scissor1 = 0xd4,
+        Scissor2 = 0xd5,
+        MinZ = 0xd6,
+        MaxZ = 0xd7,
+        ColorTest = 0xd8,
+        ColorRef = 0xd9,
+        ColorTestmask = 0xda,
+        AlphaTest = 0xdb,
+        StencilTest = 0xdc,
+        StencilOp = 0xdd,
+        ZTest = 0xde,
+        BlendMode = 0xdf,
+        BlendFixedA = 0xe0,
+        BlendFixedB = 0xe1,
+        Dith0 = 0xe2,
+        Dith1,
+        Dith2,
+        Dith3,
+        LogicOp = 0xe6,
+        ZWriteDisable = 0xe7,
+        MaskRgb = 0xe8,
+        MaskAlpha = 0xe9,
+        TransferStart = 0xea,
+        TransferSrcPos = 0xeb,
+        TransferDstPos = 0xec,
+        TransferSize = 0xee,
+        Vscx = 0xf0,
+        Vscy = 0xf1,
+        Vscz = 0xf2,
+        Vtcs = 0xf3,
+        Vtct = 0xf4,
+        Vtcq = 0xf5,
+        Vcv = 0xf6,
+        Vap = 0xf7,
+        Vfc = 0xf8,
+        Vscv = 0xf9,
+
+        Unknown03 = 0x03,
+        Unknown0D = 0x0d,
+        Unknown11 = 0x11,
+        Unknown29 = 0x29,
+        Unknown34 = 0x34,
+        Unknown35 = 0x35,
+        Unknown39 = 0x39,
+        Unknown4E = 0x4e,
+        Unknown4F = 0x4f,
+        Unknown52 = 0x52,
+        Unknown59 = 0x59,
+        Unknown5A = 0x5a,
+        UnknownB6 = 0xb6,
+        UnknownB7 = 0xb7,
+        UnknownD1 = 0xd1,
+        UnknownED = 0xed,
+        UnknownEF = 0xef,
+        UnknownFA = 0xfa,
+        UnknownFB = 0xfb,
+        UnknownFC = 0xfc,
+        UnknownFD = 0xfd,
+        UnknownFE = 0xfe,
+        NopFF = 0xff,
+    }
+
+    #[repr(i32)]
+    pub enum SceSysMemPartitionId {
+        SceKernelUnknownPartition = 0,
+        SceKernelPrimaryKernelPartition = 1,
+        SceKernelPrimaryUserPartition = 2,
+        SceKernelOtherKernelPartition1 = 3,
+        SceKernelOtherKernelPartition2 = 4,
+        SceKernelVshellPARTITION = 5,
+        SceKernelScUserPartition = 6,
+        SceKernelMeUserPartition = 7,
+        SceKernelExtendedScKernelPartition = 8,
+        SceKernelExtendedSc2KernelPartition = 9,
+        SceKernelExtendedMeKernelPartition = 10,
+        SceKernelVshellKernelPartition = 11,
+        SceKernelExtendedKernelPartition = 12,
+    }
+
+    #[repr(i32)]
+    pub enum SceSysMemBlockTypes {
+        Low = 0,
+        High,
+        Addr,
+    }
+
+    #[repr(u32)]
+    pub enum Interrupt {
+        Gpio = 4,
+        Ata = 5,
+        Umd = 6,
+        Mscm0 = 7,
+        Wlan = 8,
+        Audio = 10,
+        I2c = 12,
+        Sircs = 14,
+        Systimer0 = 15,
+        Systimer1 = 16,
+        Systimer2 = 17,
+        Systimer3 = 18,
+        Thread0 = 19,
+        Nand = 20,
+        Dmacplus = 21,
+        Dma0 = 22,
+        Dma1 = 23,
+        Memlmd = 24,
+        Ge = 25,
+        Vblank = 30,
+        Mecodec = 31,
+        Hpremote = 36,
+        Mscm1 = 60,
+        Mscm2 = 61,
+        Thread1 = 65,
+        Interrupt = 66,
+    }
+
+    #[repr(u32)]
+    pub enum SubInterrupt {
+        Gpio = Interrupt::Gpio as u32,
+        Ata = Interrupt::Ata as u32,
+        Umd = Interrupt::Umd as u32,
+        Dmacplus = Interrupt::Dmacplus as u32,
+        Ge = Interrupt::Ge as u32,
+        Display = Interrupt::Vblank as u32,
+    }
+
+    #[repr(u32)]
+    pub enum SceKernelIdListType {
+        Thread = 1,
+        Semaphore = 2,
+        EventFlag = 3,
+        Mbox = 4,
+        Vpl = 5,
+        Fpl = 6,
+        Mpipe = 7,
+        Callback = 8,
+        ThreadEventHandler = 9,
+        Alarm = 10,
+        VTimer = 11,
+        SleepThread = 64,
+        DelayThread = 65,
+        SuspendThread = 66,
+        DormantThread = 67,
+    }
+
+    #[repr(i32)]
+    pub enum UsbCamResolution {
+        Px160_120 = 0,
+        Px176_144 = 1,
+        Px320_240 = 2,
+        Px352_288 = 3,
+        Px640_480 = 4,
+        Px1024_768 = 5,
+        Px1280_960 = 6,
+        Px480_272 = 7,
+        Px360_272 = 8,
+    }
+
+    #[repr(i32)]
+    pub enum UsbCamResolutionEx {
+        Px160_120 = 0,
+        Px176_144 = 1,
+        Px320_240 = 2,
+        Px352_288 = 3,
+        Px360_272 = 4,
+        Px480_272 = 5,
+        Px640_480 = 6,
+        Px1024_768 = 7,
+        Px1280_960 = 8,
+    }
+
+    #[repr(i32)]
+    pub enum UsbCamDelay {
+        NoDelay = 0,
+        Delay10Sec = 1,
+        Delay20Sec = 2,
+        Delay30Sec = 3,
+    }
+
+    #[repr(i32)]
+    pub enum UsbCamFrameRate {
+        Fps3_75 = 0,
+        Fps5 = 1,
+        Fps7_5 = 2,
+        Fps10 = 3,
+        Fps15 = 4,
+        Fps20 = 5,
+        Fps30 = 6,
+        Fps60 = 7,
+    }
+
+    #[repr(i32)]
+    pub enum UsbCamWb {
+        Auto = 0,
+        Daylight = 1,
+        Fluorescent = 2,
+        Incadescent = 3,
+    }
+
+    #[repr(i32)]
+    pub enum UsbCamEffectMode {
+        Normal = 0,
+        Negative = 1,
+        Blackwhite = 2,
+        Sepia = 3,
+        Blue = 4,
+        Red = 5,
+        Green = 6,
+    }
+
+    #[repr(i32)]
+    pub enum UsbCamEvLevel {
+        Pos2_0 = 0,
+        Pos1_7 = 1,
+        Pos1_5 = 2,
+        Pos1_3 = 3,
+        Pos1_0 = 4,
+        Pos0_7 = 5,
+        Pos0_5 = 6,
+        Pos0_3 = 7,
+        Zero = 8,
+        Neg0_3,
+        Neg0_5,
+        Neg0_7,
+        Neg1_0,
+        Neg1_3,
+        Neg1_5,
+        Neg1_7,
+        Neg2_0,
+    }
+
+    #[repr(i32)]
+    pub enum RtcCheckValidError {
+        InvalidYear = -1,
+        InvalidMonth = -2,
+        InvalidDay = -3,
+        InvalidHour = -4,
+        InvalidMinutes = -5,
+        InvalidSeconds = -6,
+        InvalidMicroseconds = -7,
+    }
+
+    #[repr(u32)]
+    pub enum PowerTick {
+        All = 0,
+        Suspend = 1,
+        Display = 6,
+    }
+
+    #[repr(u32)]
+    pub enum IoAssignPerms {
+        RdWr = 0,
+        RdOnly = 1,
+    }
+
+    #[repr(u32)]
+    pub enum IoWhence {
+        Set = 0,
+        Cur = 1,
+        End = 2,
+    }
+
+    #[repr(u32)]
+    pub enum UmdType {
+        Game = 0x10,
+        Video = 0x20,
+        Audio = 0x40,
+    }
+
+    #[repr(u32)]
+    pub enum GuPrimitive {
+        Points = 0,
+        Lines = 1,
+        LineStrip = 2,
+        Triangles = 3,
+        TriangleStrip = 4,
+        TriangleFan = 5,
+        Sprites = 6,
+    }
+
+    #[repr(u32)]
+    pub enum PatchPrimitive {
+        Points = 0,
+        LineStrip = 2,
+        TriangleStrip = 4,
+    }
+
+    #[repr(u32)]
+    pub enum GuState {
+        AlphaTest = 0,
+        DepthTest = 1,
+        ScissorTest = 2,
+        StencilTest = 3,
+        Blend = 4,
+        CullFace = 5,
+        Dither = 6,
+        Fog = 7,
+        ClipPlanes = 8,
+        Texture2D = 9,
+        Lighting = 10,
+        Light0 = 11,
+        Light1 = 12,
+        Light2 = 13,
+        Light3 = 14,
+        LineSmooth = 15,
+        PatchCullFace = 16,
+        ColorTest = 17,
+        ColorLogicOp = 18,
+        FaceNormalReverse = 19,
+        PatchFace = 20,
+        Fragment2X = 21,
+    }
+
+    #[repr(u32)]
+    pub enum MatrixMode {
+        Projection = 0,
+        View = 1,
+        Model = 2,
+        Texture = 3,
+    }
+
+    #[repr(u32)]
+    pub enum TexturePixelFormat {
+        Psm5650 = 0,
+        Psm5551 = 1,
+        Psm4444 = 2,
+        Psm8888 = 3,
+        PsmT4 = 4,
+        PsmT8 = 5,
+        PsmT16 = 6,
+        PsmT32 = 7,
+        PsmDxt1 = 8,
+        PsmDxt3 = 9,
+        PsmDxt5 = 10,
+    }
+
+    #[repr(u32)]
+    pub enum SplineMode {
+        FillFill = 0,
+        OpenFill = 1,
+        FillOpen = 2,
+        OpenOpen = 3,
+    }
+
+    #[repr(u32)]
+    pub enum ShadingModel {
+        Flat = 0,
+        Smooth = 1,
+    }
+
+    #[repr(u32)]
+    pub enum LogicalOperation {
+        Clear = 0,
+        And = 1,
+        AndReverse = 2,
+        Copy = 3,
+        AndInverted = 4,
+        Noop = 5,
+        Xor = 6,
+        Or = 7,
+        Nor = 8,
+        Equiv = 9,
+        Inverted = 10,
+        OrReverse = 11,
+        CopyInverted = 12,
+        OrInverted = 13,
+        Nand = 14,
+        Set = 15,
+    }
+
+    #[repr(u32)]
+    pub enum TextureFilter {
+        Nearest = 0,
+        Linear = 1,
+        NearestMipmapNearest = 4,
+        LinearMipmapNearest = 5,
+        NearestMipmapLinear = 6,
+        LinearMipmapLinear = 7,
+    }
+
+    #[repr(u32)]
+    pub enum TextureMapMode {
+        TextureCoords = 0,
+        TextureMatrix = 1,
+        EnvironmentMap = 2,
+    }
+
+    #[repr(u32)]
+    pub enum TextureLevelMode {
+        Auto = 0,
+        Const = 1,
+        Slope = 2,
+    }
+
+    #[repr(u32)]
+    pub enum TextureProjectionMapMode {
+        Position = 0,
+        Uv = 1,
+        NormalizedNormal = 2,
+        Normal = 3,
+    }
+
+    #[repr(u32)]
+    pub enum GuTexWrapMode {
+        Repeat = 0,
+        Clamp = 1,
+    }
+
+    #[repr(u32)]
+    pub enum FrontFaceDirection {
+        Clockwise = 0,
+        CounterClockwise = 1,
+    }
+
+    #[repr(u32)]
+    pub enum AlphaFunc {
+        Never = 0,
+        Always,
+        Equal,
+        NotEqual,
+        Less,
+        LessOrEqual,
+        Greater,
+        GreaterOrEqual,
+    }
+
+    #[repr(u32)]
+    pub enum StencilFunc {
+        Never = 0,
+        Always,
+        Equal,
+        NotEqual,
+        Less,
+        LessOrEqual,
+        Greater,
+        GreaterOrEqual,
+    }
+
+    #[repr(u32)]
+    pub enum ColorFunc {
+        Never = 0,
+        Always,
+        Equal,
+        NotEqual,
+    }
+
+    #[repr(u32)]
+    pub enum DepthFunc {
+        Never = 0,
+        Always,
+        Equal,
+        NotEqual,
+        Less,
+        LessOrEqual,
+        Greater,
+        GreaterOrEqual,
+    }
+
+    #[repr(u32)]
+    pub enum TextureEffect {
+        Modulate = 0,
+        Decal = 1,
+        Blend = 2,
+        Replace = 3,
+        Add = 4,
+    }
+
+    #[repr(u32)]
+    pub enum TextureColorComponent {
+        Rgb = 0,
+        Rgba = 1,
+    }
+
+    #[repr(u32)]
+    pub enum MipmapLevel {
+        None = 0,
+        Level1,
+        Level2,
+        Level3,
+        Level4,
+        Level5,
+        Level6,
+        Level7,
+    }
+
+    #[repr(u32)]
+    pub enum BlendOp {
+        Add = 0,
+        Subtract = 1,
+        ReverseSubtract = 2,
+        Min = 3,
+        Max = 4,
+        Abs = 5,
+    }
+
+    #[repr(u32)]
+    pub enum BlendSrc {
+        SrcColor = 0,
+        OneMinusSrcColor = 1,
+        SrcAlpha = 2,
+        OneMinusSrcAlpha = 3,
+        Fix = 10,
+    }
+
+    #[repr(u32)]
+    pub enum BlendDst {
+        DstColor = 0,
+        OneMinusDstColor = 1,
+        DstAlpha = 4,
+        OneMinusDstAlpha = 5,
+        Fix = 10,
+    }
+
+    #[repr(u32)]
+    pub enum StencilOperation {
+        Keep = 0,
+        Zero = 1,
+        Replace = 2,
+        Invert = 3,
+        Incr = 4,
+        Decr = 5,
+    }
+
+    #[repr(u32)]
+    pub enum LightMode {
+        SingleColor = 0,
+        SeparateSpecularColor = 1,
+    }
+
+    #[repr(u32)]
+    pub enum LightType {
+        Directional = 0,
+        Pointlight = 1,
+        Spotlight = 2,
+    }
+
+    #[repr(u32)]
+    pub enum GuContextType {
+        Direct = 0,
+        Call = 1,
+        Send = 2,
+    }
+
+    #[repr(u32)]
+    pub enum GuQueueMode {
+        Tail = 0,
+        Head = 1,
+    }
+
+    #[repr(u32)]
+    pub enum GuSyncMode {
+        Finish = 0,
+        Signal = 1,
+        Done = 2,
+        List = 3,
+        Send = 4,
+    }
+
+    #[repr(u32)]
+    pub enum GuSyncBehavior {
+        Wait = 0,
+        NoWait = 1,
+    }
+
+    #[repr(u32)]
+    pub enum GuCallbackId {
+        Signal = 1,
+        Finish = 4,
+    }
+
+    #[repr(u32)]
+    pub enum SignalBehavior {
+        Suspend = 1,
+        Continue = 2,
+    }
+
+    #[repr(u32)]
+    pub enum ClutPixelFormat {
+        Psm5650 = 0,
+        Psm5551 = 1,
+        Psm4444 = 2,
+        Psm8888 = 3,
+    }
+
+    #[repr(C)]
+    pub enum KeyType {
+        Directory = 1,
+        Integer = 2,
+        String = 3,
+        Bytes = 4,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityMsgDialogMode {
+        Error,
+        Text,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityMsgDialogPressed {
+        Unknown1,
+        Yes,
+        No,
+        Back,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityDialogButtonAccept {
+        Circle,
+        Cross,
+    }
+
+    #[repr(u32)]
+    pub enum SceUtilityOskInputLanguage {
+        Default,
+        Japanese,
+        English,
+        French,
+        Spanish,
+        German,
+        Italian,
+        Dutch,
+        Portugese,
+        Russian,
+        Korean,
+    }
+
+    #[repr(u32)]
+    pub enum SceUtilityOskInputType {
+        All,
+        LatinDigit,
+        LatinSymbol,
+        LatinLowercase = 4,
+        LatinUppercase = 8,
+        JapaneseDigit = 0x100,
+        JapaneseSymbol = 0x200,
+        JapaneseLowercase = 0x400,
+        JapaneseUppercase = 0x800,
+        JapaneseHiragana = 0x1000,
+        JapaneseHalfWidthKatakana = 0x2000,
+        JapaneseKatakana = 0x4000,
+        JapaneseKanji = 0x8000,
+        RussianLowercase = 0x10000,
+        RussianUppercase = 0x20000,
+        Korean = 0x40000,
+        Url = 0x80000,
+    }
+
+    #[repr(u32)]
+    pub enum SceUtilityOskState {
+        None,
+        Initializing,
+        Initialized,
+        Visible,
+        Quit,
+        Finished,
+    }
+
+    #[repr(u32)]
+    pub enum SceUtilityOskResult {
+        Unchanged,
+        Cancelled,
+        Changed,
+    }
+
+    #[repr(u32)]
+    pub enum SystemParamLanguage {
+        Japanese,
+        English,
+        French,
+        Spanish,
+        German,
+        Italian,
+        Dutch,
+        Portugese,
+        Russian,
+        Korean,
+        ChineseTraditional,
+        ChineseSimplified,
+    }
+
+    #[repr(u32)]
+    pub enum SystemParamId {
+        StringNickname = 1,
+        AdhocChannel,
+        WlanPowerSave,
+        DateFormat,
+        TimeFormat,
+        Timezone,
+        DaylightSavings,
+        Language,
+        Unknown,
+    }
+
+    #[repr(u32)]
+    pub enum SystemParamAdhocChannel {
+        ChannelAutomatic = 0,
+        Channel1 = 1,
+        Channel6 = 6,
+        Channel11 = 11,
+    }
+
+    #[repr(u32)]
+    pub enum SystemParamWlanPowerSaveState {
+        Off,
+        On,
+    }
+
+    #[repr(u32)]
+    pub enum SystemParamDateFormat {
+        YYYYMMDD,
+        MMDDYYYY,
+        DDMMYYYY,
+    }
+
+    #[repr(u32)]
+    pub enum SystemParamTimeFormat {
+        Hour24,
+        Hour12,
+    }
+
+    #[repr(u32)]
+    pub enum SystemParamDaylightSavings {
+        Std,
+        Dst,
+    }
+
+    #[repr(u32)]
+    pub enum AvModule {
+        AvCodec,
+        SasCore,
+        Atrac3Plus,
+        MpegBase,
+        Mp3,
+        Vaudio,
+        Aac,
+        G729,
+    }
+
+    #[repr(u32)]
+    pub enum Module {
+        NetCommon = 0x100,
+        NetAdhoc,
+        NetInet,
+        NetParseUri,
+        NetHttp,
+        NetSsl,
+
+        UsbPspCm = 0x200,
+        UsbMic,
+        UsbCam,
+        UsbGps,
+
+        AvCodec = 0x300,
+        AvSascore,
+        AvAtrac3Plus,
+        AvMpegBase,
+        AvMp3,
+        AvVaudio,
+        AvAac,
+        AvG729,
+
+        NpCommon = 0x400,
+        NpService,
+        NpMatching2,
+        NpDrm = 0x500,
+
+        Irda = 0x600,
+    }
+
+    #[repr(u32)]
+    pub enum NetModule {
+        NetCommon = 1,
+        NetAdhoc,
+        NetInet,
+        NetParseUri,
+        NetHttp,
+        NetSsl,
+    }
+
+    #[repr(u32)]
+    pub enum UsbModule {
+        UsbPspCm = 1,
+        UsbAcc,
+        UsbMic,
+        UsbCam,
+        UsbGps,
+    }
+
+    #[repr(u32)]
+    pub enum NetParam {
+        Name,
+        Ssid,
+        Secure,
+        WepKey,
+        IsStaticIp,
+        Ip,
+        NetMask,
+        Route,
+        ManualDns,
+        PrimaryDns,
+        SecondaryDns,
+        ProxyUser,
+        ProxyPass,
+        UseProxy,
+        ProxyServer,
+        ProxyPort,
+        Unknown1,
+        Unknown2,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityNetconfAction {
+        ConnectAP,
+        DisplayStatus,
+        ConnectAdhoc,
+    }
+
+    #[repr(u32)]
+    pub enum UtilitySavedataMode {
+        AutoLoad,
+        AutoSave,
+        Load,
+        Save,
+        ListLoad,
+        ListSave,
+        ListDelete,
+        Delete,
+    }
+
+    #[repr(u32)]
+    pub enum UtilitySavedataFocus {
+        Unknown1,
+        FirstList,
+        LastList,
+        Latest,
+        Oldest,
+        Unknown2,
+        Unknown3,
+        FirstEmpty,
+        LastEmpty,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityGameSharingMode {
+        Single = 1,
+        Multiple,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityGameSharingDataType {
+        File = 1,
+        Memory,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityHtmlViewerInterfaceMode {
+        Full,
+        Limited,
+        None,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityHtmlViewerCookieMode {
+        Disabled = 0,
+        Enabled,
+        Confirm,
+        Default,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityHtmlViewerTextSize {
+        Large,
+        Normal,
+        Small,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityHtmlViewerDisplayMode {
+        Normal,
+        Fit,
+        SmartFit,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityHtmlViewerConnectMode {
+        Last,
+        ManualOnce,
+        ManualAll,
+    }
+
+    #[repr(u32)]
+    pub enum UtilityHtmlViewerDisconnectMode {
+        Enable,
+        Disable,
+        Confirm,
+    }
+
+    #[repr(u32)]
+    pub enum ScePspnetAdhocPtpState {
+        Closed,
+        Listen,
+        SynSent,
+        SynReceived,
+        Established,
+    }
+
+    #[repr(u32)]
+    pub enum AdhocMatchingMode {
+        Host = 1,
+        Client,
+        Ptp,
+    }
+
+    #[repr(u32)]
+    pub enum ApctlState {
+        Disconnected,
+        Scanning,
+        Joining,
+        GettingIp,
+        GotIp,
+        EapAuth,
+        KeyExchange,
+    }
+
+    #[repr(u32)]
+    pub enum ApctlEvent {
+        ConnectRequest,
+        ScanRequest,
+        ScanComplete,
+        Established,
+        GetIp,
+        DisconnectRequest,
+        Error,
+        Info,
+        EapAuth,
+        KeyExchange,
+        Reconnect,
+    }
+
+    #[repr(u32)]
+    pub enum ApctlInfo {
+        ProfileName,
+        Bssid,
+        Ssid,
+        SsidLength,
+        SecurityType,
+        Strength,
+        Channel,
+        PowerSave,
+        Ip,
+        SubnetMask,
+        Gateway,
+        PrimaryDns,
+        SecondaryDns,
+        UseProxy,
+        ProxyUrl,
+        ProxyPort,
+        EapType,
+        StartBrowser,
+        Wifisp,
+    }
+
+    #[repr(u32)]
+    pub enum ApctlInfoSecurityType {
+        None,
+        Wep,
+        Wpa,
+    }
+
+    #[repr(u32)]
+    pub enum HttpMethod {
+        Get,
+        Post,
+        Head,
+    }
+
+    #[repr(u32)]
+    pub enum HttpAuthType {
+        Basic,
+        Digest,
+    }
+}
+
+s_paren! {
+    #[repr(transparent)]
+    pub struct SceUid(pub i32);
+
+    #[repr(transparent)]
+    pub struct SceMpeg(*mut *mut c_void);
+
+    #[repr(transparent)]
+    pub struct SceMpegStream(*mut c_void);
+
+    #[repr(transparent)]
+    pub struct Mp3Handle(pub i32);
+
+    #[repr(transparent)]
+    pub struct RegHandle(u32);
 }
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum DisplayMode {
-    Lcd = 0,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum DisplayPixelFormat {
-    Psm5650 = 0,
-    Psm5551 = 1,
-    Psm4444 = 2,
-    Psm8888 = 3,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum DisplaySetBufSync {
-    Immediate = 0,
-    NextFrame = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(i32)]
-pub enum AudioOutputFrequency {
-    Khz48 = 48000,
-    Khz44_1 = 44100,
-    Khz32 = 32000,
-    Khz24 = 24000,
-    Khz22_05 = 22050,
-    Khz16 = 16000,
-    Khz12 = 12000,
-    Khz11_025 = 11025,
-    Khz8 = 8000,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(i32)]
-pub enum AudioInputFrequency {
-    Khz44_1 = 44100,
-    Khz22_05 = 22050,
-    Khz11_025 = 11025,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum CtrlMode {
-    Digital = 0,
-    Analog,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(i32)]
-pub enum GeMatrixType {
-    Bone0 = 0,
-    Bone1,
-    Bone2,
-    Bone3,
-    Bone4,
-    Bone5,
-    Bone6,
-    Bone7,
-    World,
-    View,
-    Projection,
-    TexGen,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(i32)]
-pub enum GeListState {
-    Done = 0,
-    Queued,
-    DrawingDone,
-    StallReached,
-    CancelDone,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[repr(u8)]
-#[derive(Copy, Clone)]
-pub enum GeCommand {
-    Nop = 0,
-    Vaddr = 0x1,
-    Iaddr = 0x2,
-    Prim = 0x4,
-    Bezier = 0x5,
-    Spline = 0x6,
-    BoundingBox = 0x7,
-    Jump = 0x8,
-    BJump = 0x9,
-    Call = 0xa,
-    Ret = 0xb,
-    End = 0xc,
-    Signal = 0xe,
-    Finish = 0xf,
-    Base = 0x10,
-    VertexType = 0x12,
-    OffsetAddr = 0x13,
-    Origin = 0x14,
-    Region1 = 0x15,
-    Region2 = 0x16,
-    LightingEnable = 0x17,
-    LightEnable0 = 0x18,
-    LightEnable1 = 0x19,
-    LightEnable2 = 0x1a,
-    LightEnable3 = 0x1b,
-    DepthClampEnable = 0x1c,
-    CullFaceEnable = 0x1d,
-    TextureMapEnable = 0x1e,
-    FogEnable = 0x1f,
-    DitherEnable = 0x20,
-    AlphaBlendEnable = 0x21,
-    AlphaTestEnable = 0x22,
-    ZTestEnable = 0x23,
-    StencilTestEnable = 0x24,
-    AntiAliasEnable = 0x25,
-    PatchCullEnable = 0x26,
-    ColorTestEnable = 0x27,
-    LogicOpEnable = 0x28,
-    BoneMatrixNumber = 0x2a,
-    BoneMatrixData = 0x2b,
-    MorphWeight0 = 0x2c,
-    MorphWeight1 = 0x2d,
-    MorphWeight2 = 0x2e,
-    MorphWeight3 = 0x2f,
-    MorphWeight4 = 0x30,
-    MorphWeight5 = 0x31,
-    MorphWeight6 = 0x32,
-    MorphWeight7 = 0x33,
-    PatchDivision = 0x36,
-    PatchPrimitive = 0x37,
-    PatchFacing = 0x38,
-    WorldMatrixNumber = 0x3a,
-    WorldMatrixData = 0x3b,
-    ViewMatrixNumber = 0x3c,
-    ViewMatrixData = 0x3d,
-    ProjMatrixNumber = 0x3e,
-    ProjMatrixData = 0x3f,
-    TGenMatrixNumber = 0x40,
-    TGenMatrixData = 0x41,
-    ViewportXScale = 0x42,
-    ViewportYScale = 0x43,
-    ViewportZScale = 0x44,
-    ViewportXCenter = 0x45,
-    ViewportYCenter = 0x46,
-    ViewportZCenter = 0x47,
-    TexScaleU = 0x48,
-    TexScaleV = 0x49,
-    TexOffsetU = 0x4a,
-    TexOffsetV = 0x4b,
-    OffsetX = 0x4c,
-    OffsetY = 0x4d,
-    ShadeMode = 0x50,
-    ReverseNormal = 0x51,
-    MaterialUpdate = 0x53,
-    MaterialEmissive = 0x54,
-    MaterialAmbient = 0x55,
-    MaterialDiffuse = 0x56,
-    MaterialSpecular = 0x57,
-    MaterialAlpha = 0x58,
-    MaterialSpecularCoef = 0x5b,
-    AmbientColor = 0x5c,
-    AmbientAlpha = 0x5d,
-    LightMode = 0x5e,
-    LightType0 = 0x5f,
-    LightType1 = 0x60,
-    LightType2 = 0x61,
-    LightType3 = 0x62,
-    Light0X = 0x63,
-    Light0Y,
-    Light0Z,
-    Light1X,
-    Light1Y,
-    Light1Z,
-    Light2X,
-    Light2Y,
-    Light2Z,
-    Light3X,
-    Light3Y,
-    Light3Z,
-    Light0DirectionX = 0x6f,
-    Light0DirectionY,
-    Light0DirectionZ,
-    Light1DirectionX,
-    Light1DirectionY,
-    Light1DirectionZ,
-    Light2DirectionX,
-    Light2DirectionY,
-    Light2DirectionZ,
-    Light3DirectionX,
-    Light3DirectionY,
-    Light3DirectionZ,
-    Light0ConstantAtten = 0x7b,
-    Light0LinearAtten,
-    Light0QuadtraticAtten,
-    Light1ConstantAtten,
-    Light1LinearAtten,
-    Light1QuadtraticAtten,
-    Light2ConstantAtten,
-    Light2LinearAtten,
-    Light2QuadtraticAtten,
-    Light3ConstantAtten,
-    Light3LinearAtten,
-    Light3QuadtraticAtten,
-    Light0ExponentAtten = 0x87,
-    Light1ExponentAtten,
-    Light2ExponentAtten,
-    Light3ExponentAtten,
-    Light0CutoffAtten = 0x8b,
-    Light1CutoffAtten,
-    Light2CutoffAtten,
-    Light3CutoffAtten,
-    Light0Ambient = 0x8f,
-    Light0Diffuse,
-    Light0Specular,
-    Light1Ambient,
-    Light1Diffuse,
-    Light1Specular,
-    Light2Ambient,
-    Light2Diffuse,
-    Light2Specular,
-    Light3Ambient,
-    Light3Diffuse,
-    Light3Specular,
-    Cull = 0x9b,
-    FrameBufPtr = 0x9c,
-    FrameBufWidth = 0x9d,
-    ZBufPtr = 0x9e,
-    ZBufWidth = 0x9f,
-    TexAddr0 = 0xa0,
-    TexAddr1,
-    TexAddr2,
-    TexAddr3,
-    TexAddr4,
-    TexAddr5,
-    TexAddr6,
-    TexAddr7,
-    TexBufWidth0 = 0xa8,
-    TexBufWidth1,
-    TexBufWidth2,
-    TexBufWidth3,
-    TexBufWidth4,
-    TexBufWidth5,
-    TexBufWidth6,
-    TexBufWidth7,
-    ClutAddr = 0xb0,
-    ClutAddrUpper = 0xb1,
-    TransferSrc,
-    TransferSrcW,
-    TransferDst,
-    TransferDstW,
-    TexSize0 = 0xb8,
-    TexSize1,
-    TexSize2,
-    TexSize3,
-    TexSize4,
-    TexSize5,
-    TexSize6,
-    TexSize7,
-    TexMapMode = 0xc0,
-    TexShadeLs = 0xc1,
-    TexMode = 0xc2,
-    TexFormat = 0xc3,
-    LoadClut = 0xc4,
-    ClutFormat = 0xc5,
-    TexFilter = 0xc6,
-    TexWrap = 0xc7,
-    TexLevel = 0xc8,
-    TexFunc = 0xc9,
-    TexEnvColor = 0xca,
-    TexFlush = 0xcb,
-    TexSync = 0xcc,
-    Fog1 = 0xcd,
-    Fog2 = 0xce,
-    FogColor = 0xcf,
-    TexLodSlope = 0xd0,
-    FramebufPixFormat = 0xd2,
-    ClearMode = 0xd3,
-    Scissor1 = 0xd4,
-    Scissor2 = 0xd5,
-    MinZ = 0xd6,
-    MaxZ = 0xd7,
-    ColorTest = 0xd8,
-    ColorRef = 0xd9,
-    ColorTestmask = 0xda,
-    AlphaTest = 0xdb,
-    StencilTest = 0xdc,
-    StencilOp = 0xdd,
-    ZTest = 0xde,
-    BlendMode = 0xdf,
-    BlendFixedA = 0xe0,
-    BlendFixedB = 0xe1,
-    Dith0 = 0xe2,
-    Dith1,
-    Dith2,
-    Dith3,
-    LogicOp = 0xe6,
-    ZWriteDisable = 0xe7,
-    MaskRgb = 0xe8,
-    MaskAlpha = 0xe9,
-    TransferStart = 0xea,
-    TransferSrcPos = 0xeb,
-    TransferDstPos = 0xec,
-    TransferSize = 0xee,
-    Vscx = 0xf0,
-    Vscy = 0xf1,
-    Vscz = 0xf2,
-    Vtcs = 0xf3,
-    Vtct = 0xf4,
-    Vtcq = 0xf5,
-    Vcv = 0xf6,
-    Vap = 0xf7,
-    Vfc = 0xf8,
-    Vscv = 0xf9,
-
-    Unknown03 = 0x03,
-    Unknown0D = 0x0d,
-    Unknown11 = 0x11,
-    Unknown29 = 0x29,
-    Unknown34 = 0x34,
-    Unknown35 = 0x35,
-    Unknown39 = 0x39,
-    Unknown4E = 0x4e,
-    Unknown4F = 0x4f,
-    Unknown52 = 0x52,
-    Unknown59 = 0x59,
-    Unknown5A = 0x5a,
-    UnknownB6 = 0xb6,
-    UnknownB7 = 0xb7,
-    UnknownD1 = 0xd1,
-    UnknownED = 0xed,
-    UnknownEF = 0xef,
-    UnknownFA = 0xfa,
-    UnknownFB = 0xfb,
-    UnknownFC = 0xfc,
-    UnknownFD = 0xfd,
-    UnknownFE = 0xfe,
-    NopFF = 0xff,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(i32)]
-pub enum SceSysMemPartitionId {
-    SceKernelUnknownPartition = 0,
-    SceKernelPrimaryKernelPartition = 1,
-    SceKernelPrimaryUserPartition = 2,
-    SceKernelOtherKernelPartition1 = 3,
-    SceKernelOtherKernelPartition2 = 4,
-    SceKernelVshellPARTITION = 5,
-    SceKernelScUserPartition = 6,
-    SceKernelMeUserPartition = 7,
-    SceKernelExtendedScKernelPartition = 8,
-    SceKernelExtendedSc2KernelPartition = 9,
-    SceKernelExtendedMeKernelPartition = 10,
-    SceKernelVshellKernelPartition = 11,
-    SceKernelExtendedKernelPartition = 12,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(i32)]
-pub enum SceSysMemBlockTypes {
-    Low = 0,
-    High,
-    Addr,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum Interrupt {
-    Gpio = 4,
-    Ata = 5,
-    Umd = 6,
-    Mscm0 = 7,
-    Wlan = 8,
-    Audio = 10,
-    I2c = 12,
-    Sircs = 14,
-    Systimer0 = 15,
-    Systimer1 = 16,
-    Systimer2 = 17,
-    Systimer3 = 18,
-    Thread0 = 19,
-    Nand = 20,
-    Dmacplus = 21,
-    Dma0 = 22,
-    Dma1 = 23,
-    Memlmd = 24,
-    Ge = 25,
-    Vblank = 30,
-    Mecodec = 31,
-    Hpremote = 36,
-    Mscm1 = 60,
-    Mscm2 = 61,
-    Thread1 = 65,
-    Interrupt = 66,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum SubInterrupt {
-    Gpio = Interrupt::Gpio as u32,
-    Ata = Interrupt::Ata as u32,
-    Umd = Interrupt::Umd as u32,
-    Dmacplus = Interrupt::Dmacplus as u32,
-    Ge = Interrupt::Ge as u32,
-    Display = Interrupt::Vblank as u32,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum SceKernelIdListType {
-    Thread = 1,
-    Semaphore = 2,
-    EventFlag = 3,
-    Mbox = 4,
-    Vpl = 5,
-    Fpl = 6,
-    Mpipe = 7,
-    Callback = 8,
-    ThreadEventHandler = 9,
-    Alarm = 10,
-    VTimer = 11,
-    SleepThread = 64,
-    DelayThread = 65,
-    SuspendThread = 66,
-    DormantThread = 67,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(i32)]
-pub enum UsbCamResolution {
-    Px160_120 = 0,
-    Px176_144 = 1,
-    Px320_240 = 2,
-    Px352_288 = 3,
-    Px640_480 = 4,
-    Px1024_768 = 5,
-    Px1280_960 = 6,
-    Px480_272 = 7,
-    Px360_272 = 8,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(i32)]
-pub enum UsbCamResolutionEx {
-    Px160_120 = 0,
-    Px176_144 = 1,
-    Px320_240 = 2,
-    Px352_288 = 3,
-    Px360_272 = 4,
-    Px480_272 = 5,
-    Px640_480 = 6,
-    Px1024_768 = 7,
-    Px1280_960 = 8,
-}
-
-#[repr(i32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UsbCamDelay {
-    NoDelay = 0,
-    Delay10Sec = 1,
-    Delay20Sec = 2,
-    Delay30Sec = 3,
-}
-
-#[repr(i32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UsbCamFrameRate {
-    Fps3_75 = 0,
-    Fps5 = 1,
-    Fps7_5 = 2,
-    Fps10 = 3,
-    Fps15 = 4,
-    Fps20 = 5,
-    Fps30 = 6,
-    Fps60 = 7,
-}
-
-#[repr(i32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UsbCamWb {
-    Auto = 0,
-    Daylight = 1,
-    Fluorescent = 2,
-    Incadescent = 3,
-}
-
-#[repr(i32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UsbCamEffectMode {
-    Normal = 0,
-    Negative = 1,
-    Blackwhite = 2,
-    Sepia = 3,
-    Blue = 4,
-    Red = 5,
-    Green = 6,
-}
-
-#[repr(i32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UsbCamEvLevel {
-    Pos2_0 = 0,
-    Pos1_7 = 1,
-    Pos1_5 = 2,
-    Pos1_3 = 3,
-    Pos1_0 = 4,
-    Pos0_7 = 5,
-    Pos0_5 = 6,
-    Pos0_3 = 7,
-    Zero = 8,
-    Neg0_3,
-    Neg0_5,
-    Neg0_7,
-    Neg1_0,
-    Neg1_3,
-    Neg1_5,
-    Neg1_7,
-    Neg2_0,
-}
-
-#[repr(i32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum RtcCheckValidError {
-    InvalidYear = -1,
-    InvalidMonth = -2,
-    InvalidDay = -3,
-    InvalidHour = -4,
-    InvalidMinutes = -5,
-    InvalidSeconds = -6,
-    InvalidMicroseconds = -7,
-}
-
-#[derive(Copy, Clone)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[repr(u32)]
-pub enum PowerTick {
-    All = 0,
-    Suspend = 1,
-    Display = 6,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum IoAssignPerms {
-    RdWr = 0,
-    RdOnly = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum IoWhence {
-    Set = 0,
-    Cur = 1,
-    End = 2,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UmdType {
-    Game = 0x10,
-    Video = 0x20,
-    Audio = 0x40,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum GuPrimitive {
-    Points = 0,
-    Lines = 1,
-    LineStrip = 2,
-    Triangles = 3,
-    TriangleStrip = 4,
-    TriangleFan = 5,
-    Sprites = 6,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum PatchPrimitive {
-    Points = 0,
-    LineStrip = 2,
-    TriangleStrip = 4,
-}
-
-#[derive(Clone, Copy)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[repr(u32)]
-pub enum GuState {
-    AlphaTest = 0,
-    DepthTest = 1,
-    ScissorTest = 2,
-    StencilTest = 3,
-    Blend = 4,
-    CullFace = 5,
-    Dither = 6,
-    Fog = 7,
-    ClipPlanes = 8,
-    Texture2D = 9,
-    Lighting = 10,
-    Light0 = 11,
-    Light1 = 12,
-    Light2 = 13,
-    Light3 = 14,
-    LineSmooth = 15,
-    PatchCullFace = 16,
-    ColorTest = 17,
-    ColorLogicOp = 18,
-    FaceNormalReverse = 19,
-    PatchFace = 20,
-    Fragment2X = 21,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum MatrixMode {
-    Projection = 0,
-    View = 1,
-    Model = 2,
-    Texture = 3,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum TexturePixelFormat {
-    Psm5650 = 0,
-    Psm5551 = 1,
-    Psm4444 = 2,
-    Psm8888 = 3,
-    PsmT4 = 4,
-    PsmT8 = 5,
-    PsmT16 = 6,
-    PsmT32 = 7,
-    PsmDxt1 = 8,
-    PsmDxt3 = 9,
-    PsmDxt5 = 10,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum SplineMode {
-    FillFill = 0,
-    OpenFill = 1,
-    FillOpen = 2,
-    OpenOpen = 3,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum ShadingModel {
-    Flat = 0,
-    Smooth = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum LogicalOperation {
-    Clear = 0,
-    And = 1,
-    AndReverse = 2,
-    Copy = 3,
-    AndInverted = 4,
-    Noop = 5,
-    Xor = 6,
-    Or = 7,
-    Nor = 8,
-    Equiv = 9,
-    Inverted = 10,
-    OrReverse = 11,
-    CopyInverted = 12,
-    OrInverted = 13,
-    Nand = 14,
-    Set = 15,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum TextureFilter {
-    Nearest = 0,
-    Linear = 1,
-    NearestMipmapNearest = 4,
-    LinearMipmapNearest = 5,
-    NearestMipmapLinear = 6,
-    LinearMipmapLinear = 7,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum TextureMapMode {
-    TextureCoords = 0,
-    TextureMatrix = 1,
-    EnvironmentMap = 2,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum TextureLevelMode {
-    Auto = 0,
-    Const = 1,
-    Slope = 2,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum TextureProjectionMapMode {
-    Position = 0,
-    Uv = 1,
-    NormalizedNormal = 2,
-    Normal = 3,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum GuTexWrapMode {
-    Repeat = 0,
-    Clamp = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum FrontFaceDirection {
-    Clockwise = 0,
-    CounterClockwise = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum AlphaFunc {
-    Never = 0,
-    Always,
-    Equal,
-    NotEqual,
-    Less,
-    LessOrEqual,
-    Greater,
-    GreaterOrEqual,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum StencilFunc {
-    Never = 0,
-    Always,
-    Equal,
-    NotEqual,
-    Less,
-    LessOrEqual,
-    Greater,
-    GreaterOrEqual,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum ColorFunc {
-    Never = 0,
-    Always,
-    Equal,
-    NotEqual,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum DepthFunc {
-    Never = 0,
-    Always,
-    Equal,
-    NotEqual,
-    Less,
-    LessOrEqual,
-    Greater,
-    GreaterOrEqual,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum TextureEffect {
-    Modulate = 0,
-    Decal = 1,
-    Blend = 2,
-    Replace = 3,
-    Add = 4,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum TextureColorComponent {
-    Rgb = 0,
-    Rgba = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-#[repr(u32)]
-pub enum MipmapLevel {
-    None = 0,
-    Level1,
-    Level2,
-    Level3,
-    Level4,
-    Level5,
-    Level6,
-    Level7,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum BlendOp {
-    Add = 0,
-    Subtract = 1,
-    ReverseSubtract = 2,
-    Min = 3,
-    Max = 4,
-    Abs = 5,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum BlendSrc {
-    SrcColor = 0,
-    OneMinusSrcColor = 1,
-    SrcAlpha = 2,
-    OneMinusSrcAlpha = 3,
-    Fix = 10,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum BlendDst {
-    DstColor = 0,
-    OneMinusDstColor = 1,
-    DstAlpha = 4,
-    OneMinusDstAlpha = 5,
-    Fix = 10,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum StencilOperation {
-    Keep = 0,
-    Zero = 1,
-    Replace = 2,
-    Invert = 3,
-    Incr = 4,
-    Decr = 5,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum LightMode {
-    SingleColor = 0,
-    SeparateSpecularColor = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum LightType {
-    Directional = 0,
-    Pointlight = 1,
-    Spotlight = 2,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[repr(u32)]
-#[derive(Copy, Clone)]
-pub enum GuContextType {
-    Direct = 0,
-    Call = 1,
-    Send = 2,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum GuQueueMode {
-    Tail = 0,
-    Head = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum GuSyncMode {
-    Finish = 0,
-    Signal = 1,
-    Done = 2,
-    List = 3,
-    Send = 4,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum GuSyncBehavior {
-    Wait = 0,
-    NoWait = 1,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum GuCallbackId {
-    Signal = 1,
-    Finish = 4,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum SignalBehavior {
-    Suspend = 1,
-    Continue = 2,
-}
-
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-#[repr(u32)]
-pub enum ClutPixelFormat {
-    Psm5650 = 0,
-    Psm5551 = 1,
-    Psm4444 = 2,
-    Psm8888 = 3,
-}
-
-#[repr(C)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum KeyType {
-    Directory = 1,
-    Integer = 2,
-    String = 3,
-    Bytes = 4,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityMsgDialogMode {
-    Error,
-    Text,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityMsgDialogPressed {
-    Unknown1,
-    Yes,
-    No,
-    Back,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityDialogButtonAccept {
-    Circle,
-    Cross,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SceUtilityOskInputLanguage {
-    Default,
-    Japanese,
-    English,
-    French,
-    Spanish,
-    German,
-    Italian,
-    Dutch,
-    Portugese,
-    Russian,
-    Korean,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SceUtilityOskInputType {
-    All,
-    LatinDigit,
-    LatinSymbol,
-    LatinLowercase = 4,
-    LatinUppercase = 8,
-    JapaneseDigit = 0x100,
-    JapaneseSymbol = 0x200,
-    JapaneseLowercase = 0x400,
-    JapaneseUppercase = 0x800,
-    JapaneseHiragana = 0x1000,
-    JapaneseHalfWidthKatakana = 0x2000,
-    JapaneseKatakana = 0x4000,
-    JapaneseKanji = 0x8000,
-    RussianLowercase = 0x10000,
-    RussianUppercase = 0x20000,
-    Korean = 0x40000,
-    Url = 0x80000,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SceUtilityOskState {
-    None,
-    Initializing,
-    Initialized,
-    Visible,
-    Quit,
-    Finished,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SceUtilityOskResult {
-    Unchanged,
-    Cancelled,
-    Changed,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SystemParamLanguage {
-    Japanese,
-    English,
-    French,
-    Spanish,
-    German,
-    Italian,
-    Dutch,
-    Portugese,
-    Russian,
-    Korean,
-    ChineseTraditional,
-    ChineseSimplified,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SystemParamId {
-    StringNickname = 1,
-    AdhocChannel,
-    WlanPowerSave,
-    DateFormat,
-    TimeFormat,
-    Timezone,
-    DaylightSavings,
-    Language,
-    Unknown,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SystemParamAdhocChannel {
-    ChannelAutomatic = 0,
-    Channel1 = 1,
-    Channel6 = 6,
-    Channel11 = 11,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SystemParamWlanPowerSaveState {
-    Off,
-    On,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SystemParamDateFormat {
-    YYYYMMDD,
-    MMDDYYYY,
-    DDMMYYYY,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SystemParamTimeFormat {
-    Hour24,
-    Hour12,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum SystemParamDaylightSavings {
-    Std,
-    Dst,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum AvModule {
-    AvCodec,
-    SasCore,
-    Atrac3Plus,
-    MpegBase,
-    Mp3,
-    Vaudio,
-    Aac,
-    G729,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum Module {
-    NetCommon = 0x100,
-    NetAdhoc,
-    NetInet,
-    NetParseUri,
-    NetHttp,
-    NetSsl,
-
-    UsbPspCm = 0x200,
-    UsbMic,
-    UsbCam,
-    UsbGps,
-
-    AvCodec = 0x300,
-    AvSascore,
-    AvAtrac3Plus,
-    AvMpegBase,
-    AvMp3,
-    AvVaudio,
-    AvAac,
-    AvG729,
-
-    NpCommon = 0x400,
-    NpService,
-    NpMatching2,
-    NpDrm = 0x500,
-
-    Irda = 0x600,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum NetModule {
-    NetCommon = 1,
-    NetAdhoc,
-    NetInet,
-    NetParseUri,
-    NetHttp,
-    NetSsl,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UsbModule {
-    UsbPspCm = 1,
-    UsbAcc,
-    UsbMic,
-    UsbCam,
-    UsbGps,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum NetParam {
-    Name,
-    Ssid,
-    Secure,
-    WepKey,
-    IsStaticIp,
-    Ip,
-    NetMask,
-    Route,
-    ManualDns,
-    PrimaryDns,
-    SecondaryDns,
-    ProxyUser,
-    ProxyPass,
-    UseProxy,
-    ProxyServer,
-    ProxyPort,
-    Unknown1,
-    Unknown2,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UtilityNetconfAction {
-    ConnectAP,
-    DisplayStatus,
-    ConnectAdhoc,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UtilitySavedataMode {
-    AutoLoad,
-    AutoSave,
-    Load,
-    Save,
-    ListLoad,
-    ListSave,
-    ListDelete,
-    Delete,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UtilitySavedataFocus {
-    Unknown1,
-    FirstList,
-    LastList,
-    Latest,
-    Oldest,
-    Unknown2,
-    Unknown3,
-    FirstEmpty,
-    LastEmpty,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UtilityGameSharingMode {
-    Single = 1,
-    Multiple,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum UtilityGameSharingDataType {
-    File = 1,
-    Memory,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityHtmlViewerInterfaceMode {
-    Full,
-    Limited,
-    None,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityHtmlViewerCookieMode {
-    Disabled = 0,
-    Enabled,
-    Confirm,
-    Default,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityHtmlViewerTextSize {
-    Large,
-    Normal,
-    Small,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityHtmlViewerDisplayMode {
-    Normal,
-    Fit,
-    SmartFit,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityHtmlViewerConnectMode {
-    Last,
-    ManualOnce,
-    ManualAll,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum UtilityHtmlViewerDisconnectMode {
-    Enable,
-    Disable,
-    Confirm,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum ScePspnetAdhocPtpState {
-    Closed,
-    Listen,
-    SynSent,
-    SynReceived,
-    Established,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum AdhocMatchingMode {
-    Host = 1,
-    Client,
-    Ptp,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum ApctlState {
-    Disconnected,
-    Scanning,
-    Joining,
-    GettingIp,
-    GotIp,
-    EapAuth,
-    KeyExchange,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum ApctlEvent {
-    ConnectRequest,
-    ScanRequest,
-    ScanComplete,
-    Established,
-    GetIp,
-    DisconnectRequest,
-    Error,
-    Info,
-    EapAuth,
-    KeyExchange,
-    Reconnect,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum ApctlInfo {
-    ProfileName,
-    Bssid,
-    Ssid,
-    SsidLength,
-    SecurityType,
-    Strength,
-    Channel,
-    PowerSave,
-    Ip,
-    SubnetMask,
-    Gateway,
-    PrimaryDns,
-    SecondaryDns,
-    UseProxy,
-    ProxyUrl,
-    ProxyPort,
-    EapType,
-    StartBrowser,
-    Wifisp,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Clone, Copy)]
-pub enum ApctlInfoSecurityType {
-    None,
-    Wep,
-    Wpa,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum HttpMethod {
-    Get,
-    Post,
-    Head,
-}
-
-#[repr(u32)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub enum HttpAuthType {
-    Basic,
-    Digest,
-}
-
-#[repr(transparent)]
-#[cfg_attr(feature = "extra_traits", derive(Debug, Eq, PartialEq, Hash))]
-#[derive(Copy, Clone)]
-pub struct SceUid(pub i32);
-
-#[repr(transparent)]
-#[cfg_attr(feature = "extra_traits", derive(Debug))]
-#[derive(Copy, Clone)]
-pub struct SceMpeg(*mut *mut c_void);
-
-#[repr(transparent)]
-#[cfg_attr(feature = "extra_traits", derive(Debug))]
-#[derive(Copy, Clone)]
-pub struct SceMpegStream(*mut c_void);
-
-#[repr(transparent)]
-#[cfg_attr(feature = "extra_traits", derive(Debug))]
-#[derive(Copy, Clone)]
-pub struct Mp3Handle(pub i32);
-
-#[repr(transparent)]
-#[cfg_attr(feature = "extra_traits", derive(Debug))]
-#[derive(Copy, Clone)]
-pub struct RegHandle(u32);
-
-#[cfg_attr(feature = "extra_traits", derive(Debug))]
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct sockaddr(pub u32);
-
-#[cfg_attr(feature = "extra_traits", derive(Debug))]
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct in_addr(pub u32);
 
 s! {
+    pub struct sockaddr {
+        pub sa_len: u8,
+        pub sa_family: u8,
+        pub sa_data: [u8;14],
+    }
+
+    pub struct in_addr {
+        pub s_addr: u32,
+    }
+
     pub struct AudioInputParams {
         pub unknown1: i32,
         pub gain: i32,
@@ -1669,9 +1445,9 @@ s! {
     }
 
     pub struct GeCallbackData {
-        pub signal_func: Option<extern "C" fn(id: i32, arg: *mut c_void)>,
+        pub signal_func: ::Option<extern "C" fn(id: i32, arg: *mut c_void)>,
         pub signal_arg: *mut c_void,
-        pub finish_func: Option<extern "C" fn(id: i32, arg: *mut c_void)>,
+        pub finish_func: ::Option<extern "C" fn(id: i32, arg: *mut c_void)>,
         pub finish_arg: *mut c_void,
     }
 
@@ -2817,8 +2593,7 @@ pub const UTILITY_HTMLVIEWER_DISABLE_EXIT_DIALOG: i32 = 0x000004;
 pub const UTILITY_HTMLVIEWER_DISABLE_CURSOR: i32 = 0x000008;
 pub const UTILITY_HTMLVIEWER_DISABLE_DOWNLOAD_COMPLETE_DIALOG: i32 = 0x000010;
 pub const UTILITY_HTMLVIEWER_DISABLE_DOWNLOAD_START_DIALOG: i32 = 0x000020;
-pub const UTILITY_HTMLVIEWER_DISABLE_DOWNLOAD_DESTINATION_DIALOG: i32 =
-    0x000040;
+pub const UTILITY_HTMLVIEWER_DISABLE_DOWNLOAD_DESTINATION_DIALOG: i32 = 0x000040;
 pub const UTILITY_HTMLVIEWER_LOCK_DOWNLOAD_DESTINATION_DIALOG: i32 = 0x000080;
 pub const UTILITY_HTMLVIEWER_DISABLE_TAB_DISPLAY: i32 = 0x000100;
 pub const UTILITY_HTMLVIEWER_ENABLE_ANALOG_HOLD: i32 = 0x000200;
@@ -2826,18 +2601,10 @@ pub const UTILITY_HTMLVIEWER_ENABLE_FLASH: i32 = 0x000400;
 pub const UTILITY_HTMLVIEWER_DISABLE_LRTRIGGER: i32 = 0x000800;
 
 extern "C" {
-    pub fn sceAudioChReserve(
-        channel: i32,
-        sample_count: i32,
-        format: AudioFormat,
-    ) -> i32;
+    pub fn sceAudioChReserve(channel: i32, sample_count: i32, format: AudioFormat) -> i32;
     pub fn sceAudioChRelease(channel: i32) -> i32;
     pub fn sceAudioOutput(channel: i32, vol: i32, buf: *mut c_void) -> i32;
-    pub fn sceAudioOutputBlocking(
-        channel: i32,
-        vol: i32,
-        buf: *mut c_void,
-    ) -> i32;
+    pub fn sceAudioOutputBlocking(channel: i32, vol: i32, buf: *mut c_void) -> i32;
     pub fn sceAudioOutputPanned(
         channel: i32,
         left_vol: i32,
@@ -2853,15 +2620,8 @@ extern "C" {
     pub fn sceAudioGetChannelRestLen(channel: i32) -> i32;
     pub fn sceAudioGetChannelRestLength(channel: i32) -> i32;
     pub fn sceAudioSetChannelDataLen(channel: i32, sample_count: i32) -> i32;
-    pub fn sceAudioChangeChannelConfig(
-        channel: i32,
-        format: AudioFormat,
-    ) -> i32;
-    pub fn sceAudioChangeChannelVolume(
-        channel: i32,
-        left_vol: i32,
-        right_vol: i32,
-    ) -> i32;
+    pub fn sceAudioChangeChannelConfig(channel: i32, format: AudioFormat) -> i32;
+    pub fn sceAudioChangeChannelVolume(channel: i32, left_vol: i32, right_vol: i32) -> i32;
     pub fn sceAudioOutput2Reserve(sample_count: i32) -> i32;
     pub fn sceAudioOutput2Release() -> i32;
     pub fn sceAudioOutput2ChangeLength(sample_count: i32) -> i32;
@@ -2876,16 +2636,8 @@ extern "C" {
     pub fn sceAudioSRCOutputBlocking(vol: i32, buf: *mut c_void) -> i32;
     pub fn sceAudioInputInit(unknown1: i32, gain: i32, unknown2: i32) -> i32;
     pub fn sceAudioInputInitEx(params: *mut AudioInputParams) -> i32;
-    pub fn sceAudioInputBlocking(
-        sample_count: i32,
-        freq: AudioInputFrequency,
-        buf: *mut c_void,
-    );
-    pub fn sceAudioInput(
-        sample_count: i32,
-        freq: AudioInputFrequency,
-        buf: *mut c_void,
-    );
+    pub fn sceAudioInputBlocking(sample_count: i32, freq: AudioInputFrequency, buf: *mut c_void);
+    pub fn sceAudioInput(sample_count: i32, freq: AudioInputFrequency, buf: *mut c_void);
     pub fn sceAudioGetInputLength() -> i32;
     pub fn sceAudioWaitInputEnd() -> i32;
     pub fn sceAudioPollInputEnd() -> i32;
@@ -2899,10 +2651,7 @@ extern "C" {
         out_end: *mut i32,
         out_remain_frame: *mut i32,
     ) -> i32;
-    pub fn sceAtracGetRemainFrame(
-        atrac_id: i32,
-        out_remain_frame: *mut i32,
-    ) -> i32;
+    pub fn sceAtracGetRemainFrame(atrac_id: i32, out_remain_frame: *mut i32) -> i32;
     pub fn sceAtracGetStreamDataInfo(
         atrac_id: i32,
         write_pointer: *mut *mut u8,
@@ -2921,19 +2670,13 @@ extern "C" {
         pbuffer_info: *mut Atrac3BufferInfo,
     ) -> i32;
     pub fn sceAtracGetChannel(atrac_id: i32, pui_channel: *mut u32) -> i32;
-    pub fn sceAtracGetInternalErrorInfo(
-        atrac_id: i32,
-        pi_result: *mut i32,
-    ) -> i32;
+    pub fn sceAtracGetInternalErrorInfo(atrac_id: i32, pi_result: *mut i32) -> i32;
     pub fn sceAtracGetLoopStatus(
         atrac_id: i32,
         pi_loop_num: *mut i32,
         pui_loop_status: *mut u32,
     ) -> i32;
-    pub fn sceAtracGetNextDecodePosition(
-        atrac_id: i32,
-        pui_sample_position: *mut u32,
-    ) -> i32;
+    pub fn sceAtracGetNextDecodePosition(atrac_id: i32, pui_sample_position: *mut u32) -> i32;
     pub fn sceAtracGetSecondBufferInfo(
         atrac_id: i32,
         pui_position: *mut u32,
@@ -2951,11 +2694,7 @@ extern "C" {
         ui_write_byte_first_buf: u32,
         ui_write_byte_second_buf: u32,
     ) -> i32;
-    pub fn sceAtracSetData(
-        atrac_id: i32,
-        puc_buffer_addr: *mut u8,
-        ui_buffer_byte: u32,
-    ) -> i32;
+    pub fn sceAtracSetData(atrac_id: i32, puc_buffer_addr: *mut u8, ui_buffer_byte: u32) -> i32;
     pub fn sceAtracSetHalfwayBuffer(
         atrac_id: i32,
         puc_buffer_addr: *mut u8,
@@ -2977,41 +2716,17 @@ extern "C" {
     pub fn sceCtrlGetSamplingCycle(pcycle: *mut i32) -> i32;
     pub fn sceCtrlSetSamplingMode(mode: CtrlMode) -> i32;
     pub fn sceCtrlGetSamplingMode(pmode: *mut i32) -> i32;
-    pub fn sceCtrlPeekBufferPositive(
-        pad_data: *mut SceCtrlData,
-        count: i32,
-    ) -> i32;
-    pub fn sceCtrlPeekBufferNegative(
-        pad_data: *mut SceCtrlData,
-        count: i32,
-    ) -> i32;
-    pub fn sceCtrlReadBufferPositive(
-        pad_data: *mut SceCtrlData,
-        count: i32,
-    ) -> i32;
-    pub fn sceCtrlReadBufferNegative(
-        pad_data: *mut SceCtrlData,
-        count: i32,
-    ) -> i32;
+    pub fn sceCtrlPeekBufferPositive(pad_data: *mut SceCtrlData, count: i32) -> i32;
+    pub fn sceCtrlPeekBufferNegative(pad_data: *mut SceCtrlData, count: i32) -> i32;
+    pub fn sceCtrlReadBufferPositive(pad_data: *mut SceCtrlData, count: i32) -> i32;
+    pub fn sceCtrlReadBufferNegative(pad_data: *mut SceCtrlData, count: i32) -> i32;
     pub fn sceCtrlPeekLatch(latch_data: *mut SceCtrlLatch) -> i32;
     pub fn sceCtrlReadLatch(latch_data: *mut SceCtrlLatch) -> i32;
-    pub fn sceCtrlSetIdleCancelThreshold(idlereset: i32, idleback: i32)
-        -> i32;
-    pub fn sceCtrlGetIdleCancelThreshold(
-        idlereset: *mut i32,
-        idleback: *mut i32,
-    ) -> i32;
+    pub fn sceCtrlSetIdleCancelThreshold(idlereset: i32, idleback: i32) -> i32;
+    pub fn sceCtrlGetIdleCancelThreshold(idlereset: *mut i32, idleback: *mut i32) -> i32;
 
-    pub fn sceDisplaySetMode(
-        mode: DisplayMode,
-        width: usize,
-        height: usize,
-    ) -> u32;
-    pub fn sceDisplayGetMode(
-        pmode: *mut i32,
-        pwidth: *mut i32,
-        pheight: *mut i32,
-    ) -> i32;
+    pub fn sceDisplaySetMode(mode: DisplayMode, width: usize, height: usize) -> u32;
+    pub fn sceDisplayGetMode(pmode: *mut i32, pwidth: *mut i32, pheight: *mut i32) -> i32;
     pub fn sceDisplaySetFrameBuf(
         top_addr: *const u8,
         buffer_width: usize,
@@ -3066,10 +2781,7 @@ extern "C" {
 
     pub fn sceKernelExitGame();
     pub fn sceKernelRegisterExitCallback(id: SceUid) -> i32;
-    pub fn sceKernelLoadExec(
-        file: *const u8,
-        param: *mut SceKernelLoadExecParam,
-    ) -> i32;
+    pub fn sceKernelLoadExec(file: *const u8, param: *mut SceKernelLoadExecParam) -> i32;
 
     pub fn sceKernelAllocPartitionMemory(
         partition: SceSysMemPartitionId,
@@ -3088,52 +2800,27 @@ extern "C" {
 
     pub fn sceKernelLibcTime(t: *mut i32) -> i32;
     pub fn sceKernelLibcClock() -> u32;
-    pub fn sceKernelLibcGettimeofday(
-        tp: *mut timeval,
-        tzp: *mut timezone,
-    ) -> i32;
+    pub fn sceKernelLibcGettimeofday(tp: *mut timeval, tzp: *mut timezone) -> i32;
     pub fn sceKernelDcacheWritebackAll();
     pub fn sceKernelDcacheWritebackInvalidateAll();
     pub fn sceKernelDcacheWritebackRange(p: *const c_void, size: u32);
-    pub fn sceKernelDcacheWritebackInvalidateRange(
-        p: *const c_void,
-        size: u32,
-    );
+    pub fn sceKernelDcacheWritebackInvalidateRange(p: *const c_void, size: u32);
     pub fn sceKernelDcacheInvalidateRange(p: *const c_void, size: u32);
     pub fn sceKernelIcacheInvalidateAll();
     pub fn sceKernelIcacheInvalidateRange(p: *const c_void, size: u32);
-    pub fn sceKernelUtilsMt19937Init(
-        ctx: *mut SceKernelUtilsMt19937Context,
-        seed: u32,
-    ) -> i32;
-    pub fn sceKernelUtilsMt19937UInt(
-        ctx: *mut SceKernelUtilsMt19937Context,
-    ) -> u32;
-    pub fn sceKernelUtilsMd5Digest(
-        data: *mut u8,
-        size: u32,
-        digest: *mut u8,
-    ) -> i32;
-    pub fn sceKernelUtilsMd5BlockInit(
-        ctx: *mut SceKernelUtilsMd5Context,
-    ) -> i32;
+    pub fn sceKernelUtilsMt19937Init(ctx: *mut SceKernelUtilsMt19937Context, seed: u32) -> i32;
+    pub fn sceKernelUtilsMt19937UInt(ctx: *mut SceKernelUtilsMt19937Context) -> u32;
+    pub fn sceKernelUtilsMd5Digest(data: *mut u8, size: u32, digest: *mut u8) -> i32;
+    pub fn sceKernelUtilsMd5BlockInit(ctx: *mut SceKernelUtilsMd5Context) -> i32;
     pub fn sceKernelUtilsMd5BlockUpdate(
         ctx: *mut SceKernelUtilsMd5Context,
         data: *mut u8,
         size: u32,
     ) -> i32;
-    pub fn sceKernelUtilsMd5BlockResult(
-        ctx: *mut SceKernelUtilsMd5Context,
-        digest: *mut u8,
-    ) -> i32;
-    pub fn sceKernelUtilsSha1Digest(
-        data: *mut u8,
-        size: u32,
-        digest: *mut u8,
-    ) -> i32;
-    pub fn sceKernelUtilsSha1BlockInit(
-        ctx: *mut SceKernelUtilsSha1Context,
-    ) -> i32;
+    pub fn sceKernelUtilsMd5BlockResult(ctx: *mut SceKernelUtilsMd5Context, digest: *mut u8)
+        -> i32;
+    pub fn sceKernelUtilsSha1Digest(data: *mut u8, size: u32, digest: *mut u8) -> i32;
+    pub fn sceKernelUtilsSha1BlockInit(ctx: *mut SceKernelUtilsSha1Context) -> i32;
     pub fn sceKernelUtilsSha1BlockUpdate(
         ctx: *mut SceKernelUtilsSha1Context,
         data: *mut u8,
@@ -3201,37 +2888,22 @@ extern "C" {
         option: *mut SceKernelSMOption,
     ) -> i32;
     pub fn sceKernelUnloadModule(mod_id: SceUid) -> i32;
-    pub fn sceKernelSelfStopUnloadModule(
-        unknown: i32,
-        arg_size: usize,
-        argp: *mut c_void,
-    ) -> i32;
+    pub fn sceKernelSelfStopUnloadModule(unknown: i32, arg_size: usize, argp: *mut c_void) -> i32;
     pub fn sceKernelStopUnloadSelfModule(
         arg_size: usize,
         argp: *mut c_void,
         status: *mut i32,
         option: *mut SceKernelSMOption,
     ) -> i32;
-    pub fn sceKernelQueryModuleInfo(
-        mod_id: SceUid,
-        info: *mut SceKernelModuleInfo,
-    ) -> i32;
+    pub fn sceKernelQueryModuleInfo(mod_id: SceUid, info: *mut SceKernelModuleInfo) -> i32;
     pub fn sceKernelGetModuleIdList(
         read_buf: *mut SceUid,
         read_buf_size: i32,
         id_count: *mut i32,
     ) -> i32;
 
-    pub fn sceKernelVolatileMemLock(
-        unk: i32,
-        ptr: *mut *mut c_void,
-        size: *mut i32,
-    ) -> i32;
-    pub fn sceKernelVolatileMemTryLock(
-        unk: i32,
-        ptr: *mut *mut c_void,
-        size: *mut i32,
-    ) -> i32;
+    pub fn sceKernelVolatileMemLock(unk: i32, ptr: *mut *mut c_void, size: *mut i32) -> i32;
+    pub fn sceKernelVolatileMemTryLock(unk: i32, ptr: *mut *mut c_void, size: *mut i32) -> i32;
     pub fn sceKernelVolatileMemUnlock(unk: i32) -> i32;
 
     pub fn sceKernelStdin() -> SceUid;
@@ -3248,11 +2920,7 @@ extern "C" {
         option: *mut SceKernelThreadOptParam,
     ) -> SceUid;
     pub fn sceKernelDeleteThread(thid: SceUid) -> i32;
-    pub fn sceKernelStartThread(
-        id: SceUid,
-        arg_len: usize,
-        arg_p: *mut c_void,
-    ) -> i32;
+    pub fn sceKernelStartThread(id: SceUid, arg_len: usize, arg_p: *mut c_void) -> i32;
     pub fn sceKernelExitThread(status: i32) -> i32;
     pub fn sceKernelExitDeleteThread(status: i32) -> i32;
     pub fn sceKernelTerminateThread(thid: SceUid) -> i32;
@@ -3270,9 +2938,7 @@ extern "C" {
     pub fn sceKernelDelayThread(delay: u32) -> i32;
     pub fn sceKernelDelayThreadCB(delay: u32) -> i32;
     pub fn sceKernelDelaySysClockThread(delay: *mut SceKernelSysClock) -> i32;
-    pub fn sceKernelDelaySysClockThreadCB(
-        delay: *mut SceKernelSysClock,
-    ) -> i32;
+    pub fn sceKernelDelaySysClockThreadCB(delay: *mut SceKernelSysClock) -> i32;
     pub fn sceKernelChangeCurrentThreadAttr(unknown: i32, attr: i32) -> i32;
     pub fn sceKernelChangeThreadPriority(thid: SceUid, priority: i32) -> i32;
     pub fn sceKernelRotateThreadReadyQueue(priority: i32) -> i32;
@@ -3282,10 +2948,7 @@ extern "C" {
     pub fn sceKernelGetThreadExitStatus(thid: SceUid) -> i32;
     pub fn sceKernelCheckThreadStack() -> i32;
     pub fn sceKernelGetThreadStackFreeSize(thid: SceUid) -> i32;
-    pub fn sceKernelReferThreadStatus(
-        thid: SceUid,
-        info: *mut SceKernelThreadInfo,
-    ) -> i32;
+    pub fn sceKernelReferThreadStatus(thid: SceUid, info: *mut SceKernelThreadInfo) -> i32;
     pub fn sceKernelReferThreadRunStatus(
         thid: SceUid,
         status: *mut SceKernelThreadRunStatus,
@@ -3299,21 +2962,10 @@ extern "C" {
     ) -> SceUid;
     pub fn sceKernelDeleteSema(sema_id: SceUid) -> i32;
     pub fn sceKernelSignalSema(sema_id: SceUid, signal: i32) -> i32;
-    pub fn sceKernelWaitSema(
-        sema_id: SceUid,
-        signal: i32,
-        timeout: *mut u32,
-    ) -> i32;
-    pub fn sceKernelWaitSemaCB(
-        sema_id: SceUid,
-        signal: i32,
-        timeout: *mut u32,
-    ) -> i32;
+    pub fn sceKernelWaitSema(sema_id: SceUid, signal: i32, timeout: *mut u32) -> i32;
+    pub fn sceKernelWaitSemaCB(sema_id: SceUid, signal: i32, timeout: *mut u32) -> i32;
     pub fn sceKernelPollSema(sema_id: SceUid, signal: i32) -> i32;
-    pub fn sceKernelReferSemaStatus(
-        sema_id: SceUid,
-        info: *mut SceKernelSemaInfo,
-    ) -> i32;
+    pub fn sceKernelReferSemaStatus(sema_id: SceUid, info: *mut SceKernelSemaInfo) -> i32;
     pub fn sceKernelCreateEventFlag(
         name: *const u8,
         attr: i32,
@@ -3322,12 +2974,7 @@ extern "C" {
     ) -> SceUid;
     pub fn sceKernelSetEventFlag(ev_id: SceUid, bits: u32) -> i32;
     pub fn sceKernelClearEventFlag(ev_id: SceUid, bits: u32) -> i32;
-    pub fn sceKernelPollEventFlag(
-        ev_id: SceUid,
-        bits: u32,
-        wait: i32,
-        out_bits: *mut u32,
-    ) -> i32;
+    pub fn sceKernelPollEventFlag(ev_id: SceUid, bits: u32, wait: i32, out_bits: *mut u32) -> i32;
     pub fn sceKernelWaitEventFlag(
         ev_id: SceUid,
         bits: u32,
@@ -3343,10 +2990,8 @@ extern "C" {
         timeout: *mut u32,
     ) -> i32;
     pub fn sceKernelDeleteEventFlag(ev_id: SceUid) -> i32;
-    pub fn sceKernelReferEventFlagStatus(
-        event: SceUid,
-        status: *mut SceKernelEventFlagInfo,
-    ) -> i32;
+    pub fn sceKernelReferEventFlagStatus(event: SceUid, status: *mut SceKernelEventFlagInfo)
+        -> i32;
     pub fn sceKernelCreateMbx(
         name: *const u8,
         attr: u32,
@@ -3354,23 +2999,16 @@ extern "C" {
     ) -> SceUid;
     pub fn sceKernelDeleteMbx(mbx_id: SceUid) -> i32;
     pub fn sceKernelSendMbx(mbx_id: SceUid, message: *mut c_void) -> i32;
-    pub fn sceKernelReceiveMbx(
-        mbx_id: SceUid,
-        message: *mut *mut c_void,
-        timeout: *mut u32,
-    ) -> i32;
+    pub fn sceKernelReceiveMbx(mbx_id: SceUid, message: *mut *mut c_void, timeout: *mut u32)
+        -> i32;
     pub fn sceKernelReceiveMbxCB(
         mbx_id: SceUid,
         message: *mut *mut c_void,
         timeout: *mut u32,
     ) -> i32;
-    pub fn sceKernelPollMbx(mbx_id: SceUid, pmessage: *mut *mut c_void)
-        -> i32;
+    pub fn sceKernelPollMbx(mbx_id: SceUid, pmessage: *mut *mut c_void) -> i32;
     pub fn sceKernelCancelReceiveMbx(mbx_id: SceUid, num: *mut i32) -> i32;
-    pub fn sceKernelReferMbxStatus(
-        mbx_id: SceUid,
-        info: *mut SceKernelMbxInfo,
-    ) -> i32;
+    pub fn sceKernelReferMbxStatus(mbx_id: SceUid, info: *mut SceKernelMbxInfo) -> i32;
     pub fn sceKernelSetAlarm(
         clock: u32,
         handler: SceKernelAlarmHandler,
@@ -3382,19 +3020,13 @@ extern "C" {
         common: *mut c_void,
     ) -> SceUid;
     pub fn sceKernelCancelAlarm(alarm_id: SceUid) -> i32;
-    pub fn sceKernelReferAlarmStatus(
-        alarm_id: SceUid,
-        info: *mut SceKernelAlarmInfo,
-    ) -> i32;
+    pub fn sceKernelReferAlarmStatus(alarm_id: SceUid, info: *mut SceKernelAlarmInfo) -> i32;
     pub fn sceKernelCreateCallback(
         name: *const u8,
         func: SceKernelCallbackFunction,
         arg: *mut c_void,
     ) -> SceUid;
-    pub fn sceKernelReferCallbackStatus(
-        cb: SceUid,
-        status: *mut SceKernelCallbackInfo,
-    ) -> i32;
+    pub fn sceKernelReferCallbackStatus(cb: SceUid, status: *mut SceKernelCallbackInfo) -> i32;
     pub fn sceKernelDeleteCallback(cb: SceUid) -> i32;
     pub fn sceKernelNotifyCallback(cb: SceUid, arg2: i32) -> i32;
     pub fn sceKernelCancelCallback(cb: SceUid) -> i32;
@@ -3406,9 +3038,7 @@ extern "C" {
         read_buf_size: i32,
         id_count: *mut i32,
     ) -> i32;
-    pub fn sceKernelReferSystemStatus(
-        status: *mut SceKernelSystemStatus,
-    ) -> i32;
+    pub fn sceKernelReferSystemStatus(status: *mut SceKernelSystemStatus) -> i32;
     pub fn sceKernelCreateMsgPipe(
         name: *const u8,
         part: i32,
@@ -3463,15 +3093,8 @@ extern "C" {
         unk1: i32,
         unk2: *mut c_void,
     ) -> i32;
-    pub fn sceKernelCancelMsgPipe(
-        uid: SceUid,
-        send: *mut i32,
-        recv: *mut i32,
-    ) -> i32;
-    pub fn sceKernelReferMsgPipeStatus(
-        uid: SceUid,
-        info: *mut SceKernelMppInfo,
-    ) -> i32;
+    pub fn sceKernelCancelMsgPipe(uid: SceUid, send: *mut i32, recv: *mut i32) -> i32;
+    pub fn sceKernelReferMsgPipeStatus(uid: SceUid, info: *mut SceKernelMppInfo) -> i32;
     pub fn sceKernelCreateVpl(
         name: *const u8,
         part: i32,
@@ -3492,17 +3115,10 @@ extern "C" {
         data: *mut *mut c_void,
         timeout: *mut u32,
     ) -> i32;
-    pub fn sceKernelTryAllocateVpl(
-        uid: SceUid,
-        size: u32,
-        data: *mut *mut c_void,
-    ) -> i32;
+    pub fn sceKernelTryAllocateVpl(uid: SceUid, size: u32, data: *mut *mut c_void) -> i32;
     pub fn sceKernelFreeVpl(uid: SceUid, data: *mut c_void) -> i32;
     pub fn sceKernelCancelVpl(uid: SceUid, num: *mut i32) -> i32;
-    pub fn sceKernelReferVplStatus(
-        uid: SceUid,
-        info: *mut SceKernelVplInfo,
-    ) -> i32;
+    pub fn sceKernelReferVplStatus(uid: SceUid, info: *mut SceKernelVplInfo) -> i32;
     pub fn sceKernelCreateFpl(
         name: *const u8,
         part: i32,
@@ -3512,61 +3128,30 @@ extern "C" {
         opt: *mut SceKernelFplOptParam,
     ) -> i32;
     pub fn sceKernelDeleteFpl(uid: SceUid) -> i32;
-    pub fn sceKernelAllocateFpl(
-        uid: SceUid,
-        data: *mut *mut c_void,
-        timeout: *mut u32,
-    ) -> i32;
-    pub fn sceKernelAllocateFplCB(
-        uid: SceUid,
-        data: *mut *mut c_void,
-        timeout: *mut u32,
-    ) -> i32;
-    pub fn sceKernelTryAllocateFpl(uid: SceUid, data: *mut *mut c_void)
-        -> i32;
+    pub fn sceKernelAllocateFpl(uid: SceUid, data: *mut *mut c_void, timeout: *mut u32) -> i32;
+    pub fn sceKernelAllocateFplCB(uid: SceUid, data: *mut *mut c_void, timeout: *mut u32) -> i32;
+    pub fn sceKernelTryAllocateFpl(uid: SceUid, data: *mut *mut c_void) -> i32;
     pub fn sceKernelFreeFpl(uid: SceUid, data: *mut c_void) -> i32;
     pub fn sceKernelCancelFpl(uid: SceUid, pnum: *mut i32) -> i32;
-    pub fn sceKernelReferFplStatus(
-        uid: SceUid,
-        info: *mut SceKernelFplInfo,
-    ) -> i32;
-    pub fn sceKernelUSec2SysClock(
-        usec: u32,
-        clock: *mut SceKernelSysClock,
-    ) -> i32;
+    pub fn sceKernelReferFplStatus(uid: SceUid, info: *mut SceKernelFplInfo) -> i32;
+    pub fn sceKernelUSec2SysClock(usec: u32, clock: *mut SceKernelSysClock) -> i32;
     pub fn sceKernelUSec2SysClockWide(usec: u32) -> i64;
     pub fn sceKernelSysClock2USec(
         clock: *mut SceKernelSysClock,
         low: *mut u32,
         high: *mut u32,
     ) -> i32;
-    pub fn sceKernelSysClock2USecWide(
-        clock: i64,
-        low: *mut u32,
-        high: *mut u32,
-    ) -> i32;
+    pub fn sceKernelSysClock2USecWide(clock: i64, low: *mut u32, high: *mut u32) -> i32;
     pub fn sceKernelGetSystemTime(time: *mut SceKernelSysClock) -> i32;
     pub fn sceKernelGetSystemTimeWide() -> i64;
     pub fn sceKernelGetSystemTimeLow() -> u32;
-    pub fn sceKernelCreateVTimer(
-        name: *const u8,
-        opt: *mut SceKernelVTimerOptParam,
-    ) -> SceUid;
+    pub fn sceKernelCreateVTimer(name: *const u8, opt: *mut SceKernelVTimerOptParam) -> SceUid;
     pub fn sceKernelDeleteVTimer(uid: SceUid) -> i32;
-    pub fn sceKernelGetVTimerBase(
-        uid: SceUid,
-        base: *mut SceKernelSysClock,
-    ) -> i32;
+    pub fn sceKernelGetVTimerBase(uid: SceUid, base: *mut SceKernelSysClock) -> i32;
     pub fn sceKernelGetVTimerBaseWide(uid: SceUid) -> i64;
-    pub fn sceKernelGetVTimerTime(
-        uid: SceUid,
-        time: *mut SceKernelSysClock,
-    ) -> i32;
+    pub fn sceKernelGetVTimerTime(uid: SceUid, time: *mut SceKernelSysClock) -> i32;
     pub fn sceKernelGetVTimerTimeWide(uid: SceUid) -> i64;
-    pub fn sceKernelSetVTimerTime(
-        uid: SceUid,
-        time: *mut SceKernelSysClock,
-    ) -> i32;
+    pub fn sceKernelSetVTimerTime(uid: SceUid, time: *mut SceKernelSysClock) -> i32;
     pub fn sceKernelSetVTimerTimeWide(uid: SceUid, time: i64) -> i64;
     pub fn sceKernelStartVTimer(uid: SceUid) -> i32;
     pub fn sceKernelStopVTimer(uid: SceUid) -> i32;
@@ -3583,10 +3168,7 @@ extern "C" {
         common: *mut c_void,
     ) -> i32;
     pub fn sceKernelCancelVTimerHandler(uid: SceUid) -> i32;
-    pub fn sceKernelReferVTimerStatus(
-        uid: SceUid,
-        info: *mut SceKernelVTimerInfo,
-    ) -> i32;
+    pub fn sceKernelReferVTimerStatus(uid: SceUid, info: *mut SceKernelVTimerInfo) -> i32;
     pub fn sceKernelRegisterThreadEventHandler(
         name: *const u8,
         thread_id: SceUid,
@@ -3602,16 +3184,8 @@ extern "C" {
     pub fn sceKernelReferThreadProfiler() -> *mut DebugProfilerRegs;
     pub fn sceKernelReferGlobalProfiler() -> *mut DebugProfilerRegs;
 
-    pub fn sceUsbStart(
-        driver_name: *const u8,
-        size: i32,
-        args: *mut c_void,
-    ) -> i32;
-    pub fn sceUsbStop(
-        driver_name: *const u8,
-        size: i32,
-        args: *mut c_void,
-    ) -> i32;
+    pub fn sceUsbStart(driver_name: *const u8, size: i32, args: *mut c_void) -> i32;
+    pub fn sceUsbStop(driver_name: *const u8, size: i32, args: *mut c_void) -> i32;
     pub fn sceUsbActivate(pid: u32) -> i32;
     pub fn sceUsbDeactivate(pid: u32) -> i32;
     pub fn sceUsbGetState() -> i32;
@@ -3656,9 +3230,7 @@ extern "C" {
     pub fn sceUsbCamGetBrightness(brightness: *mut i32) -> i32;
     pub fn sceUsbCamGetContrast(contrast: *mut i32) -> i32;
     pub fn sceUsbCamGetSharpness(sharpness: *mut i32) -> i32;
-    pub fn sceUsbCamGetImageEffectMode(
-        effect_mode: *mut UsbCamEffectMode,
-    ) -> i32;
+    pub fn sceUsbCamGetImageEffectMode(effect_mode: *mut UsbCamEffectMode) -> i32;
     pub fn sceUsbCamGetEvLevel(exposure_level: *mut UsbCamEvLevel) -> i32;
     pub fn sceUsbCamGetReverseMode(reverse_flags: *mut i32) -> i32;
     pub fn sceUsbCamGetZoom(zoom: *mut i32) -> i32;
@@ -3690,11 +3262,7 @@ extern "C" {
     pub fn scePowerGetBusClockFrequency() -> i32;
     pub fn scePowerGetBusClockFrequencyInt() -> i32;
     pub fn scePowerGetBusClockFrequencyFloat() -> f32;
-    pub fn scePowerSetClockFrequency(
-        pllfreq: i32,
-        cpufreq: i32,
-        busfreq: i32,
-    ) -> i32;
+    pub fn scePowerSetClockFrequency(pllfreq: i32, cpufreq: i32, busfreq: i32) -> i32;
     pub fn scePowerLock(unknown: i32) -> i32;
     pub fn scePowerUnlock(unknown: i32) -> i32;
     pub fn scePowerTick(t: PowerTick) -> i32;
@@ -3715,14 +3283,8 @@ extern "C" {
     pub fn sceRtcGetCurrentTick(tick: *mut u64) -> i32;
     pub fn sceRtcGetCurrentClock(tm: *mut ScePspDateTime, tz: i32) -> i32;
     pub fn sceRtcGetCurrentClockLocalTime(tm: *mut ScePspDateTime) -> i32;
-    pub fn sceRtcConvertUtcToLocalTime(
-        tick_utc: *const u64,
-        tick_local: *mut u64,
-    ) -> i32;
-    pub fn sceRtcConvertLocalTimeToUTC(
-        tick_local: *const u64,
-        tick_utc: *mut u64,
-    ) -> i32;
+    pub fn sceRtcConvertUtcToLocalTime(tick_utc: *const u64, tick_local: *mut u64) -> i32;
+    pub fn sceRtcConvertLocalTimeToUTC(tick_local: *const u64, tick_utc: *mut u64) -> i32;
     pub fn sceRtcIsLeapYear(year: i32) -> i32;
     pub fn sceRtcGetDaysInMonth(year: i32, month: i32) -> i32;
     pub fn sceRtcGetDayOfWeek(year: i32, month: i32, day: i32) -> i32;
@@ -3730,101 +3292,43 @@ extern "C" {
     pub fn sceRtcSetTick(date: *mut ScePspDateTime, tick: *const u64) -> i32;
     pub fn sceRtcGetTick(date: *const ScePspDateTime, tick: *mut u64) -> i32;
     pub fn sceRtcCompareTick(tick1: *const u64, tick2: *const u64) -> i32;
-    pub fn sceRtcTickAddTicks(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_ticks: u64,
-    ) -> i32;
-    pub fn sceRtcTickAddMicroseconds(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_ms: u64,
-    ) -> i32;
-    pub fn sceRtcTickAddSeconds(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_seconds: u64,
-    ) -> i32;
-    pub fn sceRtcTickAddMinutes(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_minutes: u64,
-    ) -> i32;
-    pub fn sceRtcTickAddHours(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_hours: u64,
-    ) -> i32;
-    pub fn sceRtcTickAddDays(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_days: u64,
-    ) -> i32;
-    pub fn sceRtcTickAddWeeks(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_weeks: u64,
-    ) -> i32;
-    pub fn sceRtcTickAddMonths(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_months: u64,
-    ) -> i32;
-    pub fn sceRtcTickAddYears(
-        dest_tick: *mut u64,
-        src_tick: *const u64,
-        num_years: u64,
-    ) -> i32;
-    pub fn sceRtcSetTime_t(date: *mut ScePspDateTime, time: i64) -> i32;
-    pub fn sceRtcGetTime_t(date: *const ScePspDateTime, time: *mut i64)
+    pub fn sceRtcTickAddTicks(dest_tick: *mut u64, src_tick: *const u64, num_ticks: u64) -> i32;
+    pub fn sceRtcTickAddMicroseconds(dest_tick: *mut u64, src_tick: *const u64, num_ms: u64)
         -> i32;
+    pub fn sceRtcTickAddSeconds(dest_tick: *mut u64, src_tick: *const u64, num_seconds: u64)
+        -> i32;
+    pub fn sceRtcTickAddMinutes(dest_tick: *mut u64, src_tick: *const u64, num_minutes: u64)
+        -> i32;
+    pub fn sceRtcTickAddHours(dest_tick: *mut u64, src_tick: *const u64, num_hours: u64) -> i32;
+    pub fn sceRtcTickAddDays(dest_tick: *mut u64, src_tick: *const u64, num_days: u64) -> i32;
+    pub fn sceRtcTickAddWeeks(dest_tick: *mut u64, src_tick: *const u64, num_weeks: u64) -> i32;
+    pub fn sceRtcTickAddMonths(dest_tick: *mut u64, src_tick: *const u64, num_months: u64) -> i32;
+    pub fn sceRtcTickAddYears(dest_tick: *mut u64, src_tick: *const u64, num_years: u64) -> i32;
+    pub fn sceRtcSetTime_t(date: *mut ScePspDateTime, time: u32) -> i32;
+    pub fn sceRtcGetTime_t(date: *const ScePspDateTime, time: *mut u32) -> i32;
+    pub fn sceRtcSetTime64_t(date: *mut ScePspDateTime, time: u64) -> i32;
+    pub fn sceRtcGetTime64_t(date: *const ScePspDateTime, time: *mut u64) -> i32;
     pub fn sceRtcSetDosTime(date: *mut ScePspDateTime, dos_time: u32) -> i32;
     pub fn sceRtcGetDosTime(date: *mut ScePspDateTime, dos_time: u32) -> i32;
-    pub fn sceRtcSetWin32FileTime(
-        date: *mut ScePspDateTime,
-        time: *mut u64,
-    ) -> i32;
-    pub fn sceRtcGetWin32FileTime(
-        date: *mut ScePspDateTime,
-        time: *mut u64,
-    ) -> i32;
-    pub fn sceRtcParseDateTime(
-        dest_tick: *mut u64,
-        date_string: *const u8,
-    ) -> i32;
+    pub fn sceRtcSetWin32FileTime(date: *mut ScePspDateTime, time: *mut u64) -> i32;
+    pub fn sceRtcGetWin32FileTime(date: *mut ScePspDateTime, time: *mut u64) -> i32;
+    pub fn sceRtcParseDateTime(dest_tick: *mut u64, date_string: *const u8) -> i32;
     pub fn sceRtcFormatRFC3339(
         psz_date_time: *mut char,
         p_utc: *const u64,
         time_zone_minutes: i32,
     ) -> i32;
-    pub fn sceRtcFormatRFC3339LocalTime(
-        psz_date_time: *mut char,
-        p_utc: *const u64,
-    ) -> i32;
-    pub fn sceRtcParseRFC3339(
-        p_utc: *mut u64,
-        psz_date_time: *const u8,
-    ) -> i32;
+    pub fn sceRtcFormatRFC3339LocalTime(psz_date_time: *mut char, p_utc: *const u64) -> i32;
+    pub fn sceRtcParseRFC3339(p_utc: *mut u64, psz_date_time: *const u8) -> i32;
     pub fn sceRtcFormatRFC2822(
         psz_date_time: *mut char,
         p_utc: *const u64,
         time_zone_minutes: i32,
     ) -> i32;
-    pub fn sceRtcFormatRFC2822LocalTime(
-        psz_date_time: *mut char,
-        p_utc: *const u64,
-    ) -> i32;
+    pub fn sceRtcFormatRFC2822LocalTime(psz_date_time: *mut char, p_utc: *const u64) -> i32;
 
-    pub fn sceIoOpen(
-        file: *const u8,
-        flags: i32,
-        permissions: IoPermissions,
-    ) -> SceUid;
-    pub fn sceIoOpenAsync(
-        file: *const u8,
-        flags: i32,
-        permissions: IoPermissions,
-    ) -> SceUid;
+    pub fn sceIoOpen(file: *const u8, flags: i32, permissions: IoPermissions) -> SceUid;
+    pub fn sceIoOpenAsync(file: *const u8, flags: i32, permissions: IoPermissions) -> SceUid;
     pub fn sceIoClose(fd: SceUid) -> i32;
     pub fn sceIoCloseAsync(fd: SceUid) -> i32;
     pub fn sceIoRead(fd: SceUid, data: *mut c_void, size: u32) -> i32;
@@ -3834,8 +3338,7 @@ extern "C" {
     pub fn sceIoLseek(fd: SceUid, offset: i64, whence: IoWhence) -> i64;
     pub fn sceIoLseekAsync(fd: SceUid, offset: i64, whence: IoWhence) -> i32;
     pub fn sceIoLseek32(fd: SceUid, offset: i32, whence: IoWhence) -> i32;
-    pub fn sceIoLseek32Async(fd: SceUid, offset: i32, whence: IoWhence)
-        -> i32;
+    pub fn sceIoLseek32Async(fd: SceUid, offset: i32, whence: IoWhence) -> i32;
     pub fn sceIoRemove(file: *const u8) -> i32;
     pub fn sceIoMkdir(dir: *const u8, mode: IoPermissions) -> i32;
     pub fn sceIoRmdir(path: *const u8) -> i32;
@@ -3862,11 +3365,7 @@ extern "C" {
     ) -> i32;
     pub fn sceIoUnassign(dev: *const u8) -> i32;
     pub fn sceIoGetstat(file: *const u8, stat: *mut SceIoStat) -> i32;
-    pub fn sceIoChstat(
-        file: *const u8,
-        stat: *mut SceIoStat,
-        bits: i32,
-    ) -> i32;
+    pub fn sceIoChstat(file: *const u8, stat: *mut SceIoStat, bits: i32) -> i32;
     pub fn sceIoIoctl(
         fd: SceUid,
         cmd: u32,
@@ -3891,22 +3390,13 @@ extern "C" {
     pub fn sceIoCancel(fd: SceUid) -> i32;
     pub fn sceIoGetDevType(fd: SceUid) -> i32;
     pub fn sceIoChangeAsyncPriority(fd: SceUid, pri: i32) -> i32;
-    pub fn sceIoSetAsyncCallback(
-        fd: SceUid,
-        cb: SceUid,
-        argp: *mut c_void,
-    ) -> i32;
+    pub fn sceIoSetAsyncCallback(fd: SceUid, cb: SceUid, argp: *mut c_void) -> i32;
 
     pub fn sceJpegInitMJpeg() -> i32;
     pub fn sceJpegFinishMJpeg() -> i32;
     pub fn sceJpegCreateMJpeg(width: i32, height: i32) -> i32;
     pub fn sceJpegDeleteMJpeg() -> i32;
-    pub fn sceJpegDecodeMJpeg(
-        jpeg_buf: *mut u8,
-        size: usize,
-        rgba: *mut c_void,
-        unk: u32,
-    ) -> i32;
+    pub fn sceJpegDecodeMJpeg(jpeg_buf: *mut u8, size: usize, rgba: *mut c_void, unk: u32) -> i32;
 
     pub fn sceUmdCheckMedium() -> i32;
     pub fn sceUmdGetDiscInfo(info: *mut UmdInfo) -> i32;
@@ -3935,9 +3425,7 @@ extern "C" {
         cb_param: *mut c_void,
     ) -> i32;
     pub fn sceMpegRingbufferDestruct(ringbuffer: *mut SceMpegRingbuffer);
-    pub fn sceMpegRingbufferAvailableSize(
-        ringbuffer: *mut SceMpegRingbuffer,
-    ) -> i32;
+    pub fn sceMpegRingbufferAvailableSize(ringbuffer: *mut SceMpegRingbuffer) -> i32;
     pub fn sceMpegRingbufferPut(
         ringbuffer: *mut SceMpegRingbuffer,
         num_packets: i32,
@@ -3954,41 +3442,22 @@ extern "C" {
         unk2: i32,
     ) -> i32;
     pub fn sceMpegDelete(handle: SceMpeg);
-    pub fn sceMpegQueryStreamOffset(
-        handle: SceMpeg,
-        buffer: *mut c_void,
-        offset: *mut i32,
-    ) -> i32;
+    pub fn sceMpegQueryStreamOffset(handle: SceMpeg, buffer: *mut c_void, offset: *mut i32) -> i32;
     pub fn sceMpegQueryStreamSize(buffer: *mut c_void, size: *mut i32) -> i32;
-    pub fn sceMpegRegistStream(
-        handle: SceMpeg,
-        stream_id: i32,
-        unk: i32,
-    ) -> SceMpegStream;
+    pub fn sceMpegRegistStream(handle: SceMpeg, stream_id: i32, unk: i32) -> SceMpegStream;
     pub fn sceMpegUnRegistStream(handle: SceMpeg, stream: SceMpegStream);
     pub fn sceMpegFlushAllStream(handle: SceMpeg) -> i32;
     pub fn sceMpegMallocAvcEsBuf(handle: SceMpeg) -> *mut c_void;
     pub fn sceMpegFreeAvcEsBuf(handle: SceMpeg, buf: *mut c_void);
-    pub fn sceMpegQueryAtracEsSize(
-        handle: SceMpeg,
-        es_size: *mut i32,
-        out_size: *mut i32,
-    ) -> i32;
-    pub fn sceMpegInitAu(
-        handle: SceMpeg,
-        es_buffer: *mut c_void,
-        au: *mut SceMpegAu,
-    ) -> i32;
+    pub fn sceMpegQueryAtracEsSize(handle: SceMpeg, es_size: *mut i32, out_size: *mut i32) -> i32;
+    pub fn sceMpegInitAu(handle: SceMpeg, es_buffer: *mut c_void, au: *mut SceMpegAu) -> i32;
     pub fn sceMpegGetAvcAu(
         handle: SceMpeg,
         stream: SceMpegStream,
         au: *mut SceMpegAu,
         unk: *mut i32,
     ) -> i32;
-    pub fn sceMpegAvcDecodeMode(
-        handle: SceMpeg,
-        mode: *mut SceMpegAvcMode,
-    ) -> i32;
+    pub fn sceMpegAvcDecodeMode(handle: SceMpeg, mode: *mut SceMpegAvcMode) -> i32;
     pub fn sceMpegAvcDecode(
         handle: SceMpeg,
         au: *mut SceMpegAu,
@@ -4015,11 +3484,7 @@ extern "C" {
         init: i32,
     ) -> i32;
 
-    pub fn sceMpegBaseYCrCbCopyVme(
-        yuv_buffer: *mut c_void,
-        buffer: *mut i32,
-        type_: i32,
-    ) -> i32;
+    pub fn sceMpegBaseYCrCbCopyVme(yuv_buffer: *mut c_void, buffer: *mut i32, type_: i32) -> i32;
     pub fn sceMpegBaseCscInit(width: i32) -> i32;
     pub fn sceMpegBaseCscVme(
         rgb_buffer: *mut c_void,
@@ -4037,22 +3502,9 @@ extern "C" {
     pub fn sceHprmIsMicrophoneExist() -> i32;
 
     pub fn sceGuDepthBuffer(zbp: *mut c_void, zbw: i32);
-    pub fn sceGuDispBuffer(
-        width: i32,
-        height: i32,
-        dispbp: *mut c_void,
-        dispbw: i32,
-    );
-    pub fn sceGuDrawBuffer(
-        psm: DisplayPixelFormat,
-        fbp: *mut c_void,
-        fbw: i32,
-    );
-    pub fn sceGuDrawBufferList(
-        psm: DisplayPixelFormat,
-        fbp: *mut c_void,
-        fbw: i32,
-    );
+    pub fn sceGuDispBuffer(width: i32, height: i32, dispbp: *mut c_void, dispbw: i32);
+    pub fn sceGuDrawBuffer(psm: DisplayPixelFormat, fbp: *mut c_void, fbw: i32);
+    pub fn sceGuDrawBufferList(psm: DisplayPixelFormat, fbp: *mut c_void, fbw: i32);
     pub fn sceGuDisplay(state: bool) -> bool;
     pub fn sceGuDepthFunc(function: DepthFunc);
     pub fn sceGuDepthMask(mask: i32);
@@ -4063,10 +3515,7 @@ extern "C" {
     pub fn sceGuTerm();
     pub fn sceGuBreak(mode: i32);
     pub fn sceGuContinue();
-    pub fn sceGuSetCallback(
-        signal: GuCallbackId,
-        callback: GuCallback,
-    ) -> GuCallback;
+    pub fn sceGuSetCallback(signal: GuCallbackId, callback: GuCallback) -> GuCallback;
     pub fn sceGuSignal(behavior: SignalBehavior, signal: i32);
     pub fn sceGuSendCommandf(cmd: GeCommand, argument: f32);
     pub fn sceGuSendCommandi(cmd: GeCommand, argument: i32);
@@ -4077,16 +3526,9 @@ extern "C" {
     pub fn sceGuCallList(list: *const c_void);
     pub fn sceGuCallMode(mode: i32);
     pub fn sceGuCheckList() -> i32;
-    pub fn sceGuSendList(
-        mode: GuQueueMode,
-        list: *const c_void,
-        context: *mut GeContext,
-    );
+    pub fn sceGuSendList(mode: GuQueueMode, list: *const c_void, context: *mut GeContext);
     pub fn sceGuSwapBuffers() -> *mut c_void;
-    pub fn sceGuSync(
-        mode: GuSyncMode,
-        behavior: GuSyncBehavior,
-    ) -> GeListState;
+    pub fn sceGuSync(mode: GuSyncMode, behavior: GuSyncBehavior) -> GeListState;
     pub fn sceGuDrawArray(
         prim: GuPrimitive,
         vtype: i32,
@@ -4107,21 +3549,11 @@ extern "C" {
     pub fn sceGuGetAllStatus() -> i32;
     pub fn sceGuEnable(state: GuState);
     pub fn sceGuDisable(state: GuState);
-    pub fn sceGuLight(
-        light: i32,
-        type_: LightType,
-        components: i32,
-        position: &ScePspFVector3,
-    );
+    pub fn sceGuLight(light: i32, type_: LightType, components: i32, position: &ScePspFVector3);
     pub fn sceGuLightAtt(light: i32, atten0: f32, atten1: f32, atten2: f32);
     pub fn sceGuLightColor(light: i32, component: i32, color: u32);
     pub fn sceGuLightMode(mode: LightMode);
-    pub fn sceGuLightSpot(
-        light: i32,
-        direction: &ScePspFVector3,
-        exponent: f32,
-        cutoff: f32,
-    );
+    pub fn sceGuLightSpot(light: i32, direction: &ScePspFVector3, exponent: f32, cutoff: f32);
     pub fn sceGuClear(flags: i32);
     pub fn sceGuClearColor(color: u32);
     pub fn sceGuClearDepth(depth: u32);
@@ -4133,26 +3565,11 @@ extern "C" {
     pub fn sceGuAlphaFunc(func: AlphaFunc, value: i32, mask: i32);
     pub fn sceGuAmbient(color: u32);
     pub fn sceGuAmbientColor(color: u32);
-    pub fn sceGuBlendFunc(
-        op: BlendOp,
-        src: BlendSrc,
-        dest: BlendDst,
-        src_fix: u32,
-        dest_fix: u32,
-    );
+    pub fn sceGuBlendFunc(op: BlendOp, src: BlendSrc, dest: BlendDst, src_fix: u32, dest_fix: u32);
     pub fn sceGuMaterial(components: i32, color: u32);
-    pub fn sceGuModelColor(
-        emissive: u32,
-        ambient: u32,
-        diffuse: u32,
-        specular: u32,
-    );
+    pub fn sceGuModelColor(emissive: u32, ambient: u32, diffuse: u32, specular: u32);
     pub fn sceGuStencilFunc(func: StencilFunc, ref_: i32, mask: i32);
-    pub fn sceGuStencilOp(
-        fail: StencilOperation,
-        zfail: StencilOperation,
-        zpass: StencilOperation,
-    );
+    pub fn sceGuStencilOp(fail: StencilOperation, zfail: StencilOperation, zpass: StencilOperation);
     pub fn sceGuSpecular(power: f32);
     pub fn sceGuFrontFace(order: FrontFaceDirection);
     pub fn sceGuLogicalOp(op: LogicalOperation);
@@ -4184,12 +3601,7 @@ extern "C" {
     );
     pub fn sceGuTexLevelMode(mode: TextureLevelMode, bias: f32);
     pub fn sceGuTexMapMode(mode: TextureMapMode, a1: u32, a2: u32);
-    pub fn sceGuTexMode(
-        tpsm: TexturePixelFormat,
-        maxmips: i32,
-        a2: i32,
-        swizzle: i32,
-    );
+    pub fn sceGuTexMode(tpsm: TexturePixelFormat, maxmips: i32, a2: i32, swizzle: i32);
     pub fn sceGuTexOffset(u: f32, v: f32);
     pub fn sceGuTexProjMapMode(mode: TextureProjectionMapMode);
     pub fn sceGuTexScale(u: f32, v: f32);
@@ -4197,12 +3609,7 @@ extern "C" {
     pub fn sceGuTexSync();
     pub fn sceGuTexWrap(u: GuTexWrapMode, v: GuTexWrapMode);
     pub fn sceGuClutLoad(num_blocks: i32, cbp: *const c_void);
-    pub fn sceGuClutMode(
-        cpsm: ClutPixelFormat,
-        shift: u32,
-        mask: u32,
-        a3: u32,
-    );
+    pub fn sceGuClutMode(cpsm: ClutPixelFormat, shift: u32, mask: u32, a3: u32);
     pub fn sceGuOffset(x: u32, y: u32);
     pub fn sceGuScissor(x: i32, y: i32, w: i32, h: i32);
     pub fn sceGuViewport(cx: i32, cy: i32, width: i32, height: i32);
@@ -4272,21 +3679,10 @@ extern "C" {
     pub fn sceGumFullInverse();
     pub fn sceGumLoadIdentity();
     pub fn sceGumLoadMatrix(m: &ScePspFMatrix4);
-    pub fn sceGumLookAt(
-        eye: &ScePspFVector3,
-        center: &ScePspFVector3,
-        up: &ScePspFVector3,
-    );
+    pub fn sceGumLookAt(eye: &ScePspFVector3, center: &ScePspFVector3, up: &ScePspFVector3);
     pub fn sceGumMatrixMode(mode: MatrixMode);
     pub fn sceGumMultMatrix(m: &ScePspFMatrix4);
-    pub fn sceGumOrtho(
-        left: f32,
-        right: f32,
-        bottom: f32,
-        top: f32,
-        near: f32,
-        far: f32,
-    );
+    pub fn sceGumOrtho(left: f32, right: f32, bottom: f32, top: f32, near: f32, far: f32);
     pub fn sceGumPerspective(fovy: f32, aspect: f32, near: f32, far: f32);
     pub fn sceGumPopMatrix();
     pub fn sceGumPushMatrix();
@@ -4323,11 +3719,7 @@ extern "C" {
     pub fn sceMp3GetMp3ChannelNum(handle: Mp3Handle) -> i32;
     pub fn sceMp3ResetPlayPosition(handle: Mp3Handle) -> i32;
 
-    pub fn sceRegOpenRegistry(
-        reg: *mut Key,
-        mode: i32,
-        handle: *mut RegHandle,
-    ) -> i32;
+    pub fn sceRegOpenRegistry(reg: *mut Key, mode: i32, handle: *mut RegHandle) -> i32;
     pub fn sceRegFlushRegistry(handle: RegHandle) -> i32;
     pub fn sceRegCloseRegistry(handle: RegHandle) -> i32;
     pub fn sceRegOpenCategory(
@@ -4371,21 +3763,13 @@ extern "C" {
         size: usize,
     ) -> i32;
     pub fn sceRegGetKeysNum(dir_handle: RegHandle, num: *mut i32) -> i32;
-    pub fn sceRegGetKeys(dir_handle: RegHandle, buf: *mut u8, num: i32)
-        -> i32;
-    pub fn sceRegCreateKey(
-        dir_handle: RegHandle,
-        name: *const u8,
-        type_: i32,
-        size: usize,
-    ) -> i32;
+    pub fn sceRegGetKeys(dir_handle: RegHandle, buf: *mut u8, num: i32) -> i32;
+    pub fn sceRegCreateKey(dir_handle: RegHandle, name: *const u8, type_: i32, size: usize) -> i32;
     pub fn sceRegRemoveRegistry(key: *mut Key) -> i32;
 
     pub fn sceOpenPSIDGetOpenPSID(openpsid: *mut OpenPSID) -> i32;
 
-    pub fn sceUtilityMsgDialogInitStart(
-        params: *mut UtilityMsgDialogParams,
-    ) -> i32;
+    pub fn sceUtilityMsgDialogInitStart(params: *mut UtilityMsgDialogParams) -> i32;
     pub fn sceUtilityMsgDialogShutdownStart();
     pub fn sceUtilityMsgDialogGetStatus() -> i32;
     pub fn sceUtilityMsgDialogUpdate(n: i32);
@@ -4395,43 +3779,23 @@ extern "C" {
     pub fn sceUtilityNetconfUpdate(unknown: i32) -> i32;
     pub fn sceUtilityNetconfGetStatus() -> i32;
     pub fn sceUtilityCheckNetParam(id: i32) -> i32;
-    pub fn sceUtilityGetNetParam(
-        conf: i32,
-        param: NetParam,
-        data: *mut UtilityNetData,
-    ) -> i32;
-    pub fn sceUtilitySavedataInitStart(
-        params: *mut SceUtilitySavedataParam,
-    ) -> i32;
+    pub fn sceUtilityGetNetParam(conf: i32, param: NetParam, data: *mut UtilityNetData) -> i32;
+    pub fn sceUtilitySavedataInitStart(params: *mut SceUtilitySavedataParam) -> i32;
     pub fn sceUtilitySavedataGetStatus() -> i32;
     pub fn sceUtilitySavedataShutdownStart() -> i32;
     pub fn sceUtilitySavedataUpdate(unknown: i32);
-    pub fn sceUtilityGameSharingInitStart(
-        params: *mut UtilityGameSharingParams,
-    ) -> i32;
+    pub fn sceUtilityGameSharingInitStart(params: *mut UtilityGameSharingParams) -> i32;
     pub fn sceUtilityGameSharingShutdownStart();
     pub fn sceUtilityGameSharingGetStatus() -> i32;
     pub fn sceUtilityGameSharingUpdate(n: i32);
-    pub fn sceUtilityHtmlViewerInitStart(
-        params: *mut UtilityHtmlViewerParam,
-    ) -> i32;
+    pub fn sceUtilityHtmlViewerInitStart(params: *mut UtilityHtmlViewerParam) -> i32;
     pub fn sceUtilityHtmlViewerShutdownStart() -> i32;
     pub fn sceUtilityHtmlViewerUpdate(n: i32) -> i32;
     pub fn sceUtilityHtmlViewerGetStatus() -> i32;
     pub fn sceUtilitySetSystemParamInt(id: SystemParamId, value: i32) -> i32;
-    pub fn sceUtilitySetSystemParamString(
-        id: SystemParamId,
-        str: *const u8,
-    ) -> i32;
-    pub fn sceUtilityGetSystemParamInt(
-        id: SystemParamId,
-        value: *mut i32,
-    ) -> i32;
-    pub fn sceUtilityGetSystemParamString(
-        id: SystemParamId,
-        str: *mut u8,
-        len: i32,
-    ) -> i32;
+    pub fn sceUtilitySetSystemParamString(id: SystemParamId, str: *const u8) -> i32;
+    pub fn sceUtilityGetSystemParamInt(id: SystemParamId, value: *mut i32) -> i32;
+    pub fn sceUtilityGetSystemParamString(id: SystemParamId, str: *mut u8, len: i32) -> i32;
     pub fn sceUtilityOskInitStart(params: *mut SceUtilityOskParams) -> i32;
     pub fn sceUtilityOskShutdownStart() -> i32;
     pub fn sceUtilityOskUpdate(n: i32) -> i32;
@@ -4490,48 +3854,29 @@ extern "C" {
         timeout: u32,
         unknown: i32,
     ) -> i32;
-    pub fn sceNetAdhocctlGetGameModeInfo(
-        gamemodeinfo: *mut SceNetAdhocctlGameModeInfo,
-    ) -> i32;
+    pub fn sceNetAdhocctlGetGameModeInfo(gamemodeinfo: *mut SceNetAdhocctlGameModeInfo) -> i32;
     pub fn sceNetAdhocctlExitGameMode() -> i32;
-    pub fn sceNetAdhocctlGetPeerList(
-        length: *mut i32,
-        buf: *mut c_void,
-    ) -> i32;
+    pub fn sceNetAdhocctlGetPeerList(length: *mut i32, buf: *mut c_void) -> i32;
     pub fn sceNetAdhocctlGetPeerInfo(
         mac: *mut u8,
         size: i32,
         peerinfo: *mut SceNetAdhocctlPeerInfo,
     ) -> i32;
     pub fn sceNetAdhocctlScan() -> i32;
-    pub fn sceNetAdhocctlGetScanInfo(
-        length: *mut i32,
-        buf: *mut c_void,
-    ) -> i32;
-    pub fn sceNetAdhocctlAddHandler(
-        handler: SceNetAdhocctlHandler,
-        unknown: *mut c_void,
-    ) -> i32;
+    pub fn sceNetAdhocctlGetScanInfo(length: *mut i32, buf: *mut c_void) -> i32;
+    pub fn sceNetAdhocctlAddHandler(handler: SceNetAdhocctlHandler, unknown: *mut c_void) -> i32;
     pub fn sceNetAdhocctlDelHandler(id: i32) -> i32;
-    pub fn sceNetAdhocctlGetNameByAddr(mac: *mut u8, nickname: *mut u8)
-        -> i32;
+    pub fn sceNetAdhocctlGetNameByAddr(mac: *mut u8, nickname: *mut u8) -> i32;
     pub fn sceNetAdhocctlGetAddrByName(
         nickname: *mut u8,
         length: *mut i32,
         buf: *mut c_void,
     ) -> i32;
-    pub fn sceNetAdhocctlGetParameter(
-        params: *mut SceNetAdhocctlParams,
-    ) -> i32;
+    pub fn sceNetAdhocctlGetParameter(params: *mut SceNetAdhocctlParams) -> i32;
 
     pub fn sceNetAdhocInit() -> i32;
     pub fn sceNetAdhocTerm() -> i32;
-    pub fn sceNetAdhocPdpCreate(
-        mac: *mut u8,
-        port: u16,
-        buf_size: u32,
-        unk1: i32,
-    ) -> i32;
+    pub fn sceNetAdhocPdpCreate(mac: *mut u8, port: u16, buf_size: u32, unk1: i32) -> i32;
     pub fn sceNetAdhocPdpDelete(id: i32, unk1: i32) -> i32;
     pub fn sceNetAdhocPdpSend(
         id: i32,
@@ -4551,19 +3896,9 @@ extern "C" {
         timeout: u32,
         nonblock: i32,
     ) -> i32;
-    pub fn sceNetAdhocGetPdpStat(
-        size: *mut i32,
-        stat: *mut SceNetAdhocPdpStat,
-    ) -> i32;
-    pub fn sceNetAdhocGameModeCreateMaster(
-        data: *mut c_void,
-        size: i32,
-    ) -> i32;
-    pub fn sceNetAdhocGameModeCreateReplica(
-        mac: *mut u8,
-        data: *mut c_void,
-        size: i32,
-    ) -> i32;
+    pub fn sceNetAdhocGetPdpStat(size: *mut i32, stat: *mut SceNetAdhocPdpStat) -> i32;
+    pub fn sceNetAdhocGameModeCreateMaster(data: *mut c_void, size: i32) -> i32;
+    pub fn sceNetAdhocGameModeCreateReplica(mac: *mut u8, data: *mut c_void, size: i32) -> i32;
     pub fn sceNetAdhocGameModeUpdateMaster() -> i32;
     pub fn sceNetAdhocGameModeUpdateReplica(id: i32, unk1: i32) -> i32;
     pub fn sceNetAdhocGameModeDeleteMaster() -> i32;
@@ -4611,10 +3946,7 @@ extern "C" {
     ) -> i32;
     pub fn sceNetAdhocPtpFlush(id: i32, timeout: u32, nonblock: i32) -> i32;
     pub fn sceNetAdhocPtpClose(id: i32, unk1: i32) -> i32;
-    pub fn sceNetAdhocGetPtpStat(
-        size: *mut i32,
-        stat: *mut SceNetAdhocPtpStat,
-    ) -> i32;
+    pub fn sceNetAdhocGetPtpStat(size: *mut i32, stat: *mut SceNetAdhocPtpStat) -> i32;
 }
 
 extern "C" {
@@ -4648,10 +3980,7 @@ extern "C" {
         opt_len: i32,
         opt_data: *mut c_void,
     ) -> i32;
-    pub fn sceNetAdhocMatchingCancelTarget(
-        matching_id: i32,
-        mac: *mut u8,
-    ) -> i32;
+    pub fn sceNetAdhocMatchingCancelTarget(matching_id: i32, mac: *mut u8) -> i32;
     pub fn sceNetAdhocMatchingCancelTargetWithOpt(
         matching_id: i32,
         mac: *mut u8,
@@ -4664,10 +3993,7 @@ extern "C" {
         data_len: i32,
         data: *mut c_void,
     ) -> i32;
-    pub fn sceNetAdhocMatchingAbortSendData(
-        matching_id: i32,
-        mac: *mut u8,
-    ) -> i32;
+    pub fn sceNetAdhocMatchingAbortSendData(matching_id: i32, mac: *mut u8) -> i32;
     pub fn sceNetAdhocMatchingSetHelloOpt(
         matching_id: i32,
         opt_len: i32,
@@ -4684,21 +4010,14 @@ extern "C" {
         buf: *mut c_void,
     ) -> i32;
     pub fn sceNetAdhocMatchingGetPoolMaxAlloc() -> i32;
-    pub fn sceNetAdhocMatchingGetPoolStat(poolstat: *mut AdhocPoolStat)
-        -> i32;
+    pub fn sceNetAdhocMatchingGetPoolStat(poolstat: *mut AdhocPoolStat) -> i32;
 }
 
 extern "C" {
     pub fn sceNetApctlInit(stack_size: i32, init_priority: i32) -> i32;
     pub fn sceNetApctlTerm() -> i32;
-    pub fn sceNetApctlGetInfo(
-        code: ApctlInfo,
-        pinfo: *mut SceNetApctlInfo,
-    ) -> i32;
-    pub fn sceNetApctlAddHandler(
-        handler: SceNetApctlHandler,
-        parg: *mut c_void,
-    ) -> i32;
+    pub fn sceNetApctlGetInfo(code: ApctlInfo, pinfo: *mut SceNetApctlInfo) -> i32;
+    pub fn sceNetApctlAddHandler(handler: SceNetApctlHandler, parg: *mut c_void) -> i32;
     pub fn sceNetApctlDelHandler(handler_id: i32) -> i32;
     pub fn sceNetApctlConnect(conn_index: i32) -> i32;
     pub fn sceNetApctlDisconnect() -> i32;
@@ -4706,21 +4025,9 @@ extern "C" {
 
     pub fn sceNetInetInit() -> i32;
     pub fn sceNetInetTerm() -> i32;
-    pub fn sceNetInetAccept(
-        s: i32,
-        addr: *mut sockaddr,
-        addr_len: *mut socklen_t,
-    ) -> i32;
-    pub fn sceNetInetBind(
-        s: i32,
-        my_addr: *const sockaddr,
-        addr_len: socklen_t,
-    ) -> i32;
-    pub fn sceNetInetConnect(
-        s: i32,
-        serv_addr: *const sockaddr,
-        addr_len: socklen_t,
-    ) -> i32;
+    pub fn sceNetInetAccept(s: i32, addr: *mut sockaddr, addr_len: *mut socklen_t) -> i32;
+    pub fn sceNetInetBind(s: i32, my_addr: *const sockaddr, addr_len: socklen_t) -> i32;
+    pub fn sceNetInetConnect(s: i32, serv_addr: *const sockaddr, addr_len: socklen_t) -> i32;
     pub fn sceNetInetGetsockopt(
         s: i32,
         level: i32,
@@ -4729,12 +4036,7 @@ extern "C" {
         optl_en: *mut socklen_t,
     ) -> i32;
     pub fn sceNetInetListen(s: i32, backlog: i32) -> i32;
-    pub fn sceNetInetRecv(
-        s: i32,
-        buf: *mut c_void,
-        len: usize,
-        flags: i32,
-    ) -> usize;
+    pub fn sceNetInetRecv(s: i32, buf: *mut c_void, len: usize, flags: i32) -> usize;
     pub fn sceNetInetRecvfrom(
         s: i32,
         buf: *mut c_void,
@@ -4743,12 +4045,7 @@ extern "C" {
         from: *mut sockaddr,
         from_len: *mut socklen_t,
     ) -> usize;
-    pub fn sceNetInetSend(
-        s: i32,
-        buf: *const c_void,
-        len: usize,
-        flags: i32,
-    ) -> usize;
+    pub fn sceNetInetSend(s: i32, buf: *const c_void, len: usize, flags: i32) -> usize;
     pub fn sceNetInetSendto(
         s: i32,
         buf: *const c_void,
@@ -4776,11 +4073,7 @@ extern "C" {
 
     pub fn sceHttpInit(unknown1: u32) -> i32;
     pub fn sceHttpEnd() -> i32;
-    pub fn sceHttpCreateTemplate(
-        agent: *mut u8,
-        unknown1: i32,
-        unknown2: i32,
-    ) -> i32;
+    pub fn sceHttpCreateTemplate(agent: *mut u8, unknown1: i32, unknown2: i32) -> i32;
     pub fn sceHttpDeleteTemplate(templateid: i32) -> i32;
     pub fn sceHttpCreateConnection(
         templateid: i32,
@@ -4789,11 +4082,7 @@ extern "C" {
         port: u16,
         unknown2: i32,
     ) -> i32;
-    pub fn sceHttpCreateConnectionWithURL(
-        templateid: i32,
-        url: *const u8,
-        unknown1: i32,
-    ) -> i32;
+    pub fn sceHttpCreateConnectionWithURL(templateid: i32, url: *const u8, unknown1: i32) -> i32;
     pub fn sceHttpDeleteConnection(connection_id: i32) -> i32;
     pub fn sceHttpCreateRequest(
         connection_id: i32,
@@ -4808,23 +4097,11 @@ extern "C" {
         content_length: u64,
     ) -> i32;
     pub fn sceHttpDeleteRequest(request_id: i32) -> i32;
-    pub fn sceHttpSendRequest(
-        request_id: i32,
-        data: *mut c_void,
-        data_size: u32,
-    ) -> i32;
+    pub fn sceHttpSendRequest(request_id: i32, data: *mut c_void, data_size: u32) -> i32;
     pub fn sceHttpAbortRequest(request_id: i32) -> i32;
-    pub fn sceHttpReadData(
-        request_id: i32,
-        data: *mut c_void,
-        data_size: u32,
-    ) -> i32;
-    pub fn sceHttpGetContentLength(
-        request_id: i32,
-        content_length: *mut u64,
-    ) -> i32;
-    pub fn sceHttpGetStatusCode(request_id: i32, status_code: *mut i32)
-        -> i32;
+    pub fn sceHttpReadData(request_id: i32, data: *mut c_void, data_size: u32) -> i32;
+    pub fn sceHttpGetContentLength(request_id: i32, content_length: *mut u64) -> i32;
+    pub fn sceHttpGetStatusCode(request_id: i32, status_code: *mut i32) -> i32;
     pub fn sceHttpSetResolveTimeOut(id: i32, timeout: u32) -> i32;
     pub fn sceHttpSetResolveRetry(id: i32, count: i32) -> i32;
     pub fn sceHttpSetConnectTimeOut(id: i32, timeout: u32) -> i32;
@@ -4838,19 +4115,9 @@ extern "C" {
     pub fn sceHttpDisableCookie(id: i32) -> i32;
     pub fn sceHttpSaveSystemCookie() -> i32;
     pub fn sceHttpLoadSystemCookie() -> i32;
-    pub fn sceHttpAddExtraHeader(
-        id: i32,
-        name: *mut u8,
-        value: *mut u8,
-        unknown1: i32,
-    ) -> i32;
+    pub fn sceHttpAddExtraHeader(id: i32, name: *mut u8, value: *mut u8, unknown1: i32) -> i32;
     pub fn sceHttpDeleteHeader(id: i32, name: *const u8) -> i32;
-    pub fn sceHttpsInit(
-        unknown1: i32,
-        unknown2: i32,
-        unknown3: i32,
-        unknown4: i32,
-    ) -> i32;
+    pub fn sceHttpsInit(unknown1: i32, unknown2: i32, unknown3: i32, unknown4: i32) -> i32;
     pub fn sceHttpsEnd() -> i32;
     pub fn sceHttpsLoadDefaultCert(unknown1: i32, unknown2: i32) -> i32;
     pub fn sceHttpDisableAuth(id: i32) -> i32;
@@ -4858,11 +4125,7 @@ extern "C" {
     pub fn sceHttpEnableAuth(id: i32) -> i32;
     pub fn sceHttpEnableCache(id: i32) -> i32;
     pub fn sceHttpEndCache() -> i32;
-    pub fn sceHttpGetAllHeader(
-        request: i32,
-        header: *mut *mut u8,
-        header_size: *mut u32,
-    ) -> i32;
+    pub fn sceHttpGetAllHeader(request: i32, header: *mut *mut u8, header_size: *mut u32) -> i32;
     pub fn sceHttpGetNetworkErrno(request: i32, err_num: *mut i32) -> i32;
     pub fn sceHttpGetProxy(
         id: i32,
@@ -4889,11 +4152,7 @@ extern "C" {
     ) -> i32;
 
     pub fn sceNetResolverInit() -> i32;
-    pub fn sceNetResolverCreate(
-        rid: *mut i32,
-        buf: *mut c_void,
-        buf_length: u32,
-    ) -> i32;
+    pub fn sceNetResolverCreate(rid: *mut i32, buf: *mut c_void, buf_length: u32) -> i32;
     pub fn sceNetResolverDelete(rid: i32) -> i32;
     pub fn sceNetResolverStartNtoA(
         rid: i32,

@@ -3,6 +3,7 @@ import re
 import sys
 import pathlib
 
+# Base path for Linux Kernel sources
 BASE = (sys.argv[1] if len(sys.argv) > 1 else '.')
 
 SOURCES = [
@@ -10,15 +11,16 @@ SOURCES = [
     ('b32/sparc',       {'common', '32'},           'arch/sparc/kernel/syscalls/syscall.tbl'),
     ('b32/x86',         {'i386'},                   'arch/x86/entry/syscalls/syscall_32.tbl'),
     ('b32/powerpc',     {'common', 'nospu', '32'},  'arch/powerpc/kernel/syscalls/syscall.tbl'),
-    ('b32/mipsel',      {'o32'},                    'arch/mips/kernel/syscalls/syscall_o32.tbl'),
+    ('b32/mips',        {'o32'},                    'arch/mips/kernel/syscalls/syscall_o32.tbl'),
     ('b64/x86_64',      {'common', '64'},           'arch/x86/entry/syscalls/syscall_64.tbl'),
     ('b64/powerpc64',   {'common', 'nospu', '64'},  'arch/powerpc/kernel/syscalls/syscall.tbl'),
     ('b64/s390x',       {'common', '64'},           'arch/s390/kernel/syscalls/syscall.tbl'),
     ('b64/sparc64',     {'common', '64'},           'arch/sparc/kernel/syscalls/syscall.tbl'),
-    ('b64/mips64el',    {'n64'},                    'arch/mips/kernel/syscalls/syscall_n64.tbl'),
+    ('b64/mips64',      {'n64'},                    'arch/mips/kernel/syscalls/syscall_n64.tbl'),
 ]
 
 def header(o):
+    print('/// An enum of all syscalls', file=o)
     print('#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumString)]', file=o)
     print('#[allow(non_camel_case_types)]', file=o)
     print('#[non_exhaustive]', file=o)
@@ -31,7 +33,7 @@ def convert_tbl(out, f):
     with open(out, 'w') as o:
         header(o)
         for l in f:
-            m = re.match('^(\\d+)\\s+(\\S+)\\s+(\\S+)\\s+(\\S+)', l)
+            m = re.match('^(\\d+)\\s+(\\S+)\\s+(\\S+)(?:\\s+(\\S+))?', l)
             if m:
                 nr, abi, name, entrypoint = m.groups()
                 if name in {'break'}:

@@ -6,9 +6,8 @@
 //! [`Cursor`] type. `Cursor` is a cheaply copyable cursor over a range of
 //! tokens in a token stream.
 //!
-//! [`ParseStream`]: type.ParseStream.html
-//! [`Result<T>`]: type.Result.html
-//! [`Cursor`]: ../buffer/index.html
+//! [`Result<T>`]: Result
+//! [`Cursor`]: crate::buffer::Cursor
 //!
 //! # Example
 //!
@@ -23,7 +22,7 @@
 //! procedural macro, they will receive a helpful compiler error message
 //! pointing out the exact token that triggered the failure to parse.
 //!
-//! [`parse_macro_input!`]: ../macro.parse_macro_input.html
+//! [`parse_macro_input!`]: crate::parse_macro_input!
 //!
 //! ```
 //! # extern crate proc_macro;
@@ -96,10 +95,9 @@
 //! obvious default way. These functions can return any syntax tree node that
 //! implements the [`Parse`] trait, which includes most types in Syn.
 //!
-//! [`syn::parse`]: ../fn.parse.html
-//! [`syn::parse2`]: ../fn.parse2.html
-//! [`syn::parse_str`]: ../fn.parse_str.html
-//! [`Parse`]: trait.Parse.html
+//! [`syn::parse`]: crate::parse()
+//! [`syn::parse2`]: crate::parse2()
+//! [`syn::parse_str`]: crate::parse_str()
 //!
 //! ```
 //! use syn::Type;
@@ -114,7 +112,7 @@
 //!
 //! The [`parse_quote!`] macro also uses this approach.
 //!
-//! [`parse_quote!`]: ../macro.parse_quote.html
+//! [`parse_quote!`]: crate::parse_quote!
 //!
 //! # The `Parser` trait
 //!
@@ -124,8 +122,8 @@
 //! may or may not allow trailing punctuation, and parsing it the wrong way
 //! would either reject valid input or accept invalid input.
 //!
-//! [`Attribute`]: ../struct.Attribute.html
-//! [`Punctuated`]: ../punctuated/index.html
+//! [`Attribute`]: crate::Attribute
+//! [`Punctuated`]: crate::punctuated
 //!
 //! The `Parse` trait is not implemented in these cases because there is no good
 //! behavior to consider the default.
@@ -150,7 +148,6 @@
 //! single `Parse` implementation, and those parser functions can be invoked
 //! through the [`Parser`] trait.
 //!
-//! [`Parser`]: trait.Parser.html
 //!
 //! ```
 //! # extern crate proc_macro;
@@ -189,26 +186,26 @@
 #[path = "discouraged.rs"]
 pub mod discouraged;
 
-use std::cell::Cell;
-use std::fmt::{self, Debug, Display};
-use std::marker::PhantomData;
-use std::mem;
-use std::ops::Deref;
-use std::rc::Rc;
-use std::str::FromStr;
-
+use crate::buffer::{Cursor, TokenBuffer};
+use crate::error;
+use crate::lookahead;
 #[cfg(all(
     not(all(target_arch = "wasm32", any(target_os = "unknown", target_os = "wasi"))),
     feature = "proc-macro"
 ))]
 use crate::proc_macro;
-use proc_macro2::{self, Delimiter, Group, Literal, Punct, Span, TokenStream, TokenTree};
-
-use crate::buffer::{Cursor, TokenBuffer};
-use crate::error;
-use crate::lookahead;
 use crate::punctuated::Punctuated;
 use crate::token::Token;
+use proc_macro2::{self, Delimiter, Group, Literal, Punct, Span, TokenStream, TokenTree};
+use std::cell::Cell;
+use std::fmt::{self, Debug, Display};
+#[cfg(feature = "extra-traits")]
+use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
+use std::mem;
+use std::ops::Deref;
+use std::rc::Rc;
+use std::str::FromStr;
 
 pub use crate::error::{Error, Result};
 pub use crate::lookahead::{Lookahead1, Peek};
@@ -250,7 +247,8 @@ pub type ParseStream<'a> = &'a ParseBuffer<'a>;
 /// - One of [the `syn::parse*` functions][syn-parse]; or
 /// - A method of the [`Parser`] trait.
 ///
-/// [syn-parse]: index.html#the-synparse-functions
+/// [`parse_macro_input!`]: crate::parse_macro_input!
+/// [syn-parse]: self#the-synparse-functions
 pub struct ParseBuffer<'a> {
     scope: Span,
     // Instead of Cell<Cursor<'a>> so that ParseBuffer<'a> is covariant in 'a.
@@ -336,7 +334,6 @@ impl<'a> Debug for ParseBuffer<'a> {
 /// #     .unwrap();
 /// # assert_eq!(remainder.to_string(), "b c");
 /// ```
-#[derive(Copy, Clone)]
 pub struct StepCursor<'c, 'a> {
     scope: Span,
     // This field is covariant in 'c.
@@ -357,6 +354,14 @@ impl<'c, 'a> Deref for StepCursor<'c, 'a> {
 
     fn deref(&self) -> &Self::Target {
         &self.cursor
+    }
+}
+
+impl<'c, 'a> Copy for StepCursor<'c, 'a> {}
+
+impl<'c, 'a> Clone for StepCursor<'c, 'a> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
 
@@ -393,7 +398,6 @@ pub(crate) fn new_parse_buffer(
     }
 }
 
-#[derive(Clone)]
 pub(crate) enum Unexpected {
     None,
     Some(Span),
@@ -403,6 +407,16 @@ pub(crate) enum Unexpected {
 impl Default for Unexpected {
     fn default() -> Self {
         Unexpected::None
+    }
+}
+
+impl Clone for Unexpected {
+    fn clone(&self) -> Self {
+        match self {
+            Unexpected::None => Unexpected::None,
+            Unexpected::Some(span) => Unexpected::Some(*span),
+            Unexpected::Chain(next) => Unexpected::Chain(next.clone()),
+        }
     }
 }
 
@@ -606,17 +620,36 @@ impl<'a> ParseBuffer<'a> {
     /// }
     /// ```
     pub fn peek2<T: Peek>(&self, token: T) -> bool {
+        fn peek2(buffer: &ParseBuffer, peek: fn(Cursor) -> bool) -> bool {
+            if let Some(group) = buffer.cursor().group(Delimiter::None) {
+                if group.0.skip().map_or(false, peek) {
+                    return true;
+                }
+            }
+            buffer.cursor().skip().map_or(false, peek)
+        }
+
         let _ = token;
-        self.cursor().skip().map_or(false, T::Token::peek)
+        peek2(self, T::Token::peek)
     }
 
     /// Looks at the third-next token in the parse stream.
     pub fn peek3<T: Peek>(&self, token: T) -> bool {
+        fn peek3(buffer: &ParseBuffer, peek: fn(Cursor) -> bool) -> bool {
+            if let Some(group) = buffer.cursor().group(Delimiter::None) {
+                if group.0.skip().and_then(Cursor::skip).map_or(false, peek) {
+                    return true;
+                }
+            }
+            buffer
+                .cursor()
+                .skip()
+                .and_then(Cursor::skip)
+                .map_or(false, peek)
+        }
+
         let _ = token;
-        self.cursor()
-            .skip()
-            .and_then(Cursor::skip)
-            .map_or(false, T::Token::peek)
+        peek3(self, T::Token::peek)
     }
 
     /// Parses zero or more occurrences of `T` separated by punctuation of type
@@ -1029,12 +1062,14 @@ impl<'a> ParseBuffer<'a> {
     }
 }
 
+#[cfg_attr(doc_cfg, doc(cfg(feature = "parsing")))]
 impl<T: Parse> Parse for Box<T> {
     fn parse(input: ParseStream) -> Result<Self> {
         input.parse().map(Box::new)
     }
 }
 
+#[cfg_attr(doc_cfg, doc(cfg(feature = "parsing")))]
 impl<T: Parse + Token> Parse for Option<T> {
     fn parse(input: ParseStream) -> Result<Self> {
         if T::peek(input.cursor()) {
@@ -1045,12 +1080,14 @@ impl<T: Parse + Token> Parse for Option<T> {
     }
 }
 
+#[cfg_attr(doc_cfg, doc(cfg(feature = "parsing")))]
 impl Parse for TokenStream {
     fn parse(input: ParseStream) -> Result<Self> {
         input.step(|cursor| Ok((cursor.token_stream(), Cursor::empty())))
     }
 }
 
+#[cfg_attr(doc_cfg, doc(cfg(feature = "parsing")))]
 impl Parse for TokenTree {
     fn parse(input: ParseStream) -> Result<Self> {
         input.step(|cursor| match cursor.token_tree() {
@@ -1060,6 +1097,7 @@ impl Parse for TokenTree {
     }
 }
 
+#[cfg_attr(doc_cfg, doc(cfg(feature = "parsing")))]
 impl Parse for Group {
     fn parse(input: ParseStream) -> Result<Self> {
         input.step(|cursor| {
@@ -1075,6 +1113,7 @@ impl Parse for Group {
     }
 }
 
+#[cfg_attr(doc_cfg, doc(cfg(feature = "parsing")))]
 impl Parse for Punct {
     fn parse(input: ParseStream) -> Result<Self> {
         input.step(|cursor| match cursor.punct() {
@@ -1084,6 +1123,7 @@ impl Parse for Punct {
     }
 }
 
+#[cfg_attr(doc_cfg, doc(cfg(feature = "parsing")))]
 impl Parse for Literal {
     fn parse(input: ParseStream) -> Result<Self> {
         input.step(|cursor| match cursor.literal() {
@@ -1178,7 +1218,6 @@ where
         }
     }
 
-    #[doc(hidden)]
     #[cfg(any(feature = "full", feature = "derive"))]
     fn __parse_scoped(self, scope: Span, tokens: TokenStream) -> Result<Self::Output> {
         let buf = TokenBuffer::new2(tokens);
@@ -1194,7 +1233,6 @@ where
         }
     }
 
-    #[doc(hidden)]
     #[cfg(any(feature = "full", feature = "derive"))]
     fn __parse_stream(self, input: ParseStream) -> Result<Self::Output> {
         self(input)
@@ -1247,4 +1285,30 @@ impl Parse for Nothing {
     fn parse(_input: ParseStream) -> Result<Self> {
         Ok(Nothing)
     }
+}
+
+#[cfg(feature = "extra-traits")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extra-traits")))]
+impl Debug for Nothing {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("Nothing")
+    }
+}
+
+#[cfg(feature = "extra-traits")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extra-traits")))]
+impl Eq for Nothing {}
+
+#[cfg(feature = "extra-traits")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extra-traits")))]
+impl PartialEq for Nothing {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+#[cfg(feature = "extra-traits")]
+#[cfg_attr(doc_cfg, doc(cfg(feature = "extra-traits")))]
+impl Hash for Nothing {
+    fn hash<H: Hasher>(&self, _state: &mut H) {}
 }

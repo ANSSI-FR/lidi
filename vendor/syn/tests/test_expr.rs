@@ -50,10 +50,10 @@ fn test_await() {
     "###);
 }
 
+#[rustfmt::skip]
 #[test]
 fn test_tuple_multi_index() {
-    let input = "tuple.0.0";
-    snapshot!(input as Expr, @r###"
+    let expected = snapshot!("tuple.0.0" as Expr, @r###"
     Expr::Field {
         base: Expr::Field {
             base: Expr::Path {
@@ -76,29 +76,26 @@ fn test_tuple_multi_index() {
     }
     "###);
 
-    let tokens = quote!(tuple.0.0);
-    snapshot!(tokens as Expr, @r###"
-    Expr::Field {
-        base: Expr::Field {
-            base: Expr::Path {
-                path: Path {
-                    segments: [
-                        PathSegment {
-                            ident: "tuple",
-                            arguments: None,
-                        },
-                    ],
-                },
-            },
-            member: Unnamed(Index {
-                index: 0,
-            }),
-        },
-        member: Unnamed(Index {
-            index: 0,
-        }),
+    for &input in &[
+        "tuple .0.0",
+        "tuple. 0.0",
+        "tuple.0 .0",
+        "tuple.0. 0",
+        "tuple . 0 . 0",
+    ] {
+        assert_eq!(expected, syn::parse_str(input).unwrap());
     }
-    "###);
+
+    for tokens in vec![
+        quote!(tuple.0.0),
+        quote!(tuple .0.0),
+        quote!(tuple. 0.0),
+        quote!(tuple.0 .0),
+        quote!(tuple.0. 0),
+        quote!(tuple . 0 . 0),
+    ] {
+        assert_eq!(expected, syn::parse2(tokens).unwrap());
+    }
 }
 
 #[test]
@@ -282,4 +279,28 @@ fn test_macro_variable_match_arm() {
         ],
     }
     "###);
+}
+
+// https://github.com/dtolnay/syn/issues/1019
+#[test]
+fn test_closure_vs_rangefull() {
+    #[rustfmt::skip] // rustfmt bug: https://github.com/rust-lang/rustfmt/issues/4808
+    let tokens = quote!(|| .. .method());
+    snapshot!(tokens as Expr, @r###"
+    Expr::MethodCall {
+        receiver: Expr::Closure {
+            output: Default,
+            body: Expr::Range {
+                limits: HalfOpen,
+            },
+        },
+        method: "method",
+    }
+    "###);
+}
+
+#[test]
+fn test_postfix_operator_after_cast() {
+    syn::parse_str::<Expr>("|| &x as T[0]").unwrap_err();
+    syn::parse_str::<Expr>("|| () as ()()").unwrap_err();
 }

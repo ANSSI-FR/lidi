@@ -1,86 +1,85 @@
-use std::convert::From;
+use proc_macro2::TokenStream;
+use quote::quote;
 use std::default::Default;
+use syn::{DeriveInput, Ident, Path, Visibility};
 
-use crate::helpers::case_style::CaseStyle;
-use crate::helpers::has_metadata::HasMetadata;
-use crate::helpers::{MetaHelpers, NestedMetaHelpers};
+use super::case_style::CaseStyle;
+use super::metadata::{DeriveInputExt, EnumDiscriminantsMeta, EnumMeta};
+use super::occurrence_error;
 
 pub trait HasTypeProperties {
-    fn get_type_properties(&self) -> StrumTypeProperties;
+    fn get_type_properties(&self) -> syn::Result<StrumTypeProperties>;
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct StrumTypeProperties {
     pub case_style: Option<CaseStyle>,
-    pub discriminant_derives: Vec<syn::Path>,
-    pub discriminant_name: Option<syn::Path>,
-    pub discriminant_others: Vec<syn::Meta>,
+    pub ascii_case_insensitive: bool,
+    pub discriminant_derives: Vec<Path>,
+    pub discriminant_name: Option<Ident>,
+    pub discriminant_others: Vec<TokenStream>,
+    pub discriminant_vis: Option<Visibility>,
 }
 
-impl HasTypeProperties for syn::DeriveInput {
-    fn get_type_properties(&self) -> StrumTypeProperties {
+impl HasTypeProperties for DeriveInput {
+    fn get_type_properties(&self) -> syn::Result<StrumTypeProperties> {
         let mut output = StrumTypeProperties::default();
 
-        let strum_meta = self.get_metadata("strum");
-        let discriminants_meta = self.get_metadata("strum_discriminants");
+        let strum_meta = self.get_metadata()?;
+        let discriminants_meta = self.get_discriminants_metadata()?;
 
+        let mut serialize_all_kw = None;
+        let mut ascii_case_insensitive_kw = None;
         for meta in strum_meta {
-            let meta = match meta {
-                syn::Meta::NameValue(mv) => mv,
-                _ => panic!("strum on types only supports key-values"),
-            };
+            match meta {
+                EnumMeta::SerializeAll { case_style, kw } => {
+                    if let Some(fst_kw) = serialize_all_kw {
+                        return Err(occurrence_error(fst_kw, kw, "serialize_all"));
+                    }
 
-            if meta.path.is_ident("serialize_all") {
-                let style = match meta.lit {
-                    syn::Lit::Str(s) => s.value(),
-                    _ => panic!("expected string value for 'serialize_all'"),
-                };
-
-                if output.case_style.is_some() {
-                    panic!("found multiple values of serialize_all");
+                    serialize_all_kw = Some(kw);
+                    output.case_style = Some(case_style);
                 }
+                EnumMeta::AsciiCaseInsensitive(kw) => {
+                    if let Some(fst_kw) = ascii_case_insensitive_kw {
+                        return Err(occurrence_error(fst_kw, kw, "ascii_case_insensitive"));
+                    }
 
-                output.case_style = Some(CaseStyle::from(&*style));
-            } else {
-                panic!("unrecognized attribue found on strum(..)");
+                    ascii_case_insensitive_kw = Some(kw);
+                    output.ascii_case_insensitive = true;
+                }
             }
         }
 
+        let mut name_kw = None;
+        let mut vis_kw = None;
         for meta in discriminants_meta {
             match meta {
-                syn::Meta::List(ref ls) => {
-                    if ls.path.is_ident("derive") {
-                        let paths = ls
-                            .nested
-                            .iter()
-                            .map(|meta| meta.expect_meta("unexpected literal").path().clone());
-
-                        output.discriminant_derives.extend(paths);
-                    } else if ls.path.is_ident("name") {
-                        if ls.nested.len() != 1 {
-                            panic!("name expects exactly 1 value");
-                        }
-
-                        let value = ls.nested.first().expect("unexpected error");
-                        let name = value
-                            .expect_meta("unexpected literal")
-                            .expect_path("name must be an identifier");
-
-                        if output.discriminant_name.is_some() {
-                            panic!("multiple occurrences of 'name'");
-                        }
-
-                        output.discriminant_name = Some(name.clone());
-                    } else {
-                        output.discriminant_others.push(meta.clone());
-                    }
+                EnumDiscriminantsMeta::Derive { paths, .. } => {
+                    output.discriminant_derives.extend(paths);
                 }
-                _ => {
-                    output.discriminant_others.push(meta);
+                EnumDiscriminantsMeta::Name { name, kw } => {
+                    if let Some(fst_kw) = name_kw {
+                        return Err(occurrence_error(fst_kw, kw, "name"));
+                    }
+
+                    name_kw = Some(kw);
+                    output.discriminant_name = Some(name);
+                }
+                EnumDiscriminantsMeta::Vis { vis, kw } => {
+                    if let Some(fst_kw) = vis_kw {
+                        return Err(occurrence_error(fst_kw, kw, "vis"));
+                    }
+
+                    vis_kw = Some(kw);
+                    output.discriminant_vis = Some(vis);
+                }
+                EnumDiscriminantsMeta::Other { path, nested } => {
+                    output.discriminant_others.push(quote! { #path(#nested) });
                 }
             }
         }
 
-        output
+        Ok(output)
     }
 }

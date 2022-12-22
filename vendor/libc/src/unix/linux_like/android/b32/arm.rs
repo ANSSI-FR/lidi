@@ -138,7 +138,7 @@ cfg_if! {
                         self.uc_stack.hash(state);
                         self.uc_mcontext.hash(state);
                         self.uc_sigmask__c_anonymous_union.hash(state);
-                        &self.uc_regspace[..].hash(state);
+                        self.uc_regspace[..].hash(state);
                         // Ignore padding field
                     }
                 }
@@ -501,6 +501,9 @@ pub const SYS_pwritev2: ::c_long = 393;
 pub const SYS_pkey_mprotect: ::c_long = 394;
 pub const SYS_pkey_alloc: ::c_long = 395;
 pub const SYS_pkey_free: ::c_long = 396;
+pub const SYS_io_uring_setup: ::c_long = 425;
+pub const SYS_io_uring_enter: ::c_long = 426;
+pub const SYS_io_uring_register: ::c_long = 427;
 
 // offsets in mcontext_t.gregs from sys/ucontext.h
 pub const REG_R0: ::c_int = 0;
@@ -521,3 +524,19 @@ pub const REG_R14: ::c_int = 14;
 pub const REG_R15: ::c_int = 15;
 
 pub const NGREG: ::c_int = 18;
+
+f! {
+    // Sadly, Android before 5.0 (API level 21), the accept4 syscall is not
+    // exposed by the libc. As work-around, we implement it through `syscall`
+    // directly. This workaround can be removed if the minimum version of
+    // Android is bumped. When the workaround is removed, `accept4` can be
+    // moved back to `linux_like/mod.rs`
+    pub fn accept4(
+        fd: ::c_int,
+        addr: *mut ::sockaddr,
+        len: *mut ::socklen_t,
+        flg: ::c_int
+    ) -> ::c_int {
+        ::syscall(SYS_accept4, fd, addr, len, flg) as ::c_int
+    }
+}

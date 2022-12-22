@@ -15,10 +15,12 @@ use crate::systematic_constants::num_ldpc_symbols;
 use crate::systematic_constants::{
     calculate_p1, extended_source_block_symbols, num_lt_symbols, num_pi_symbols, systematic_index,
 };
+#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::{collections::HashSet, iter};
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct Decoder {
     config: ObjectTransmissionInformation,
     block_decoders: Vec<SourceBlockDecoder>,
@@ -64,7 +66,8 @@ impl Decoder {
     pub fn decode(&mut self, packet: EncodingPacket) -> Option<Vec<u8>> {
         let block_number = packet.payload_id.source_block_number() as usize;
         if self.blocks[block_number].is_none() {
-            self.blocks[block_number] = self.block_decoders[block_number].decode(vec![packet]);
+            self.blocks[block_number] =
+                self.block_decoders[block_number].decode(iter::once(packet));
         }
         for block in self.blocks.iter() {
             if block.is_none() {
@@ -73,9 +76,10 @@ impl Decoder {
         }
 
         let mut result = vec![];
-        for block in self.blocks.iter() {
-            result.extend(block.clone().unwrap());
+        for block in self.blocks.iter().flatten() {
+            result.extend(block);
         }
+
         result.truncate(self.config.transfer_length() as usize);
         Some(result)
     }
@@ -83,7 +87,8 @@ impl Decoder {
     pub fn add_new_packet(&mut self, packet: EncodingPacket) {
         let block_number = packet.payload_id.source_block_number() as usize;
         if self.blocks[block_number].is_none() {
-            self.blocks[block_number] = self.block_decoders[block_number].decode(vec![packet]);
+            self.blocks[block_number] =
+                self.block_decoders[block_number].decode(iter::once(packet));
         }
     }
 
@@ -95,15 +100,16 @@ impl Decoder {
         }
 
         let mut result = vec![];
-        for block in self.blocks.iter() {
-            result.extend(block.clone().unwrap());
+        for block in self.blocks.iter().flatten() {
+            result.extend(block);
         }
         result.truncate(self.config.transfer_length() as usize);
         Some(result)
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct SourceBlockDecoder {
     source_block_id: u8,
     symbol_size: u16,
@@ -159,7 +165,7 @@ impl SourceBlockDecoder {
         self.sparse_threshold = value;
     }
 
-    fn unpack_sub_blocks(&self, result: &mut Vec<u8>, symbol: &Symbol, symbol_index: usize) {
+    fn unpack_sub_blocks(&self, result: &mut [u8], symbol: &Symbol, symbol_index: usize) {
         let (tl, ts, nl, ns) = partition(
             (self.symbol_size / self.symbol_alignment as u16) as u32,
             self.num_sub_blocks,
@@ -331,8 +337,11 @@ mod codec_tests {
     use crate::{ObjectTransmissionInformation, SourceBlockDecoder};
     use rand::seq::SliceRandom;
     use rand::Rng;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::{
+        iter,
+        sync::atomic::{AtomicU32, Ordering},
+    };
 
     #[test]
     fn random_erasure_dense() {
@@ -345,14 +354,14 @@ mod codec_tests {
     }
 
     fn random_erasure(sparse_threshold: u32) {
-        let elements: usize = rand::thread_rng().gen_range(1, 1_000_000);
+        let elements: usize = rand::thread_rng().gen_range(1..1_000_000);
         let mut data: Vec<u8> = vec![0; elements];
-        for i in 0..elements {
-            data[i] = rand::thread_rng().gen();
+        for element in &mut data {
+            *element = rand::thread_rng().gen();
         }
 
         // MTU is set to not be too small, otherwise this test may take a very long time
-        let mtu = rand::thread_rng().gen_range((elements / 100) as u16, 10_000);
+        let mtu = rand::thread_rng().gen_range(((elements / 100) as u16)..10_000);
 
         let encoder = Encoder::with_defaults(&data, mtu);
 
@@ -380,8 +389,8 @@ mod codec_tests {
     fn sub_block_erasure() {
         let elements: usize = 10_000;
         let mut data: Vec<u8> = vec![0; elements];
-        for i in 0..elements {
-            data[i] = rand::thread_rng().gen();
+        for element in &mut data {
+            *element = rand::thread_rng().gen();
         }
 
         let mut builder = EncoderBuilder::new();
@@ -446,8 +455,8 @@ mod codec_tests {
         for symbol_count in 1..=max_symbols {
             let elements = symbol_size * symbol_count;
             let mut data: Vec<u8> = vec![0; elements];
-            for i in 0..elements {
-                data[i] = rand::thread_rng().gen();
+            for element in &mut data {
+                *element = rand::thread_rng().gen();
             }
 
             if progress && symbol_count % 100 == 0 {
@@ -463,7 +472,7 @@ mod codec_tests {
             let mut result = None;
             for packet in encoder.source_packets() {
                 assert_eq!(result, None);
-                result = decoder.decode(vec![packet]);
+                result = decoder.decode(iter::once(packet));
             }
 
             assert_eq!(result.unwrap(), data);
@@ -502,6 +511,31 @@ mod codec_tests {
         repair(0, 50, false, true);
     }
 
+    #[test]
+    fn issue_120() {
+        let symbol_size = 1280;
+        let overhead = 0.5;
+        let symbol_count = 10;
+        let elements = symbol_count * symbol_size as usize;
+        let mut data: Vec<u8> = vec![0; elements];
+        for i in 0..elements {
+            data[i] = rand::thread_rng().gen();
+        }
+
+        let total_bytes: usize = 1024 * 1024;
+        let iterations = total_bytes / elements;
+        let config = ObjectTransmissionInformation::new(0, symbol_size, 0, 1, 1);
+        let encoder = SourceBlockEncoder::new2(1, &config, &data);
+        let elements_and_overhead = (symbol_count as f64 * (1.0 + overhead)) as u32;
+        let mut packets =
+            encoder.repair_packets(0, (iterations as u32 * elements_and_overhead) as u32);
+        for _ in 0..iterations {
+            let mut decoder = SourceBlockDecoder::new2(1, &config, elements as u64);
+            let start = packets.len() - elements_and_overhead as usize;
+            decoder.decode(packets.drain(start..));
+        }
+    }
+
     fn repair(sparse_threshold: u32, max_symbols: usize, progress: bool, pre_plan: bool) {
         let pool = threadpool::Builder::new().build();
         let failed = Arc::new(AtomicU32::new(0));
@@ -530,8 +564,8 @@ mod codec_tests {
         let symbol_size = 8;
         let elements = symbol_size * symbol_count;
         let mut data: Vec<u8> = vec![0; elements];
-        for i in 0..elements {
-            data[i] = rand::thread_rng().gen();
+        for element in &mut data {
+            *element = rand::thread_rng().gen();
         }
 
         let config = ObjectTransmissionInformation::new(0, 8, 0, 1, 1);
@@ -552,7 +586,7 @@ mod codec_tests {
             if parsed_packets < elements / symbol_size && result.is_some() {
                 return false;
             }
-            result = decoder.decode(vec![packet]);
+            result = decoder.decode(iter::once(packet));
             parsed_packets += 1;
         }
 

@@ -1,12 +1,11 @@
 use crate::octet::Octet;
-use crate::octets::fused_addassign_mul_scalar;
-use crate::octets::{add_assign, mulassign_scalar};
+use crate::octets::{add_assign, fused_addassign_mul_scalar_binary, mulassign_scalar};
+use crate::octets::{fused_addassign_mul_scalar, BinaryOctetVec};
 use crate::util::get_both_indices;
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "benchmarking")]
 use std::mem::size_of;
 
-#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize, Hash)]
+#[derive(Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct DenseOctetMatrix {
     height: usize,
     width: usize,
@@ -26,19 +25,18 @@ impl DenseOctetMatrix {
         }
     }
 
-    pub fn fma_sub_row(&mut self, row: usize, start_col: usize, scalar: &Octet, other: &[u8]) {
-        if *scalar == Octet::one() {
-            add_assign(
-                &mut self.elements[row][start_col..(start_col + other.len())],
-                other,
-            );
-        } else {
-            fused_addassign_mul_scalar(
-                &mut self.elements[row][start_col..(start_col + other.len())],
-                other,
-                scalar,
-            );
-        }
+    pub fn fma_sub_row(
+        &mut self,
+        row: usize,
+        start_col: usize,
+        scalar: &Octet,
+        other: &BinaryOctetVec,
+    ) {
+        fused_addassign_mul_scalar_binary(
+            &mut self.elements[row][start_col..(start_col + other.len())],
+            other,
+            scalar,
+        );
     }
 
     pub fn set(&mut self, i: usize, j: usize, value: Octet) {
@@ -47,6 +45,11 @@ impl DenseOctetMatrix {
 
     pub fn height(&self) -> usize {
         self.height
+    }
+
+    #[cfg(test)]
+    pub fn width(&self) -> usize {
+        self.width
     }
 
     #[cfg(feature = "benchmarking")]

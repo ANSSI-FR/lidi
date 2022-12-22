@@ -4,14 +4,13 @@ use de::{
     Deserialize, Deserializer, EnumAccess, Error, SeqAccess, Unexpected, VariantAccess, Visitor,
 };
 
-#[cfg(any(core_duration, feature = "std", feature = "alloc"))]
+#[cfg(any(feature = "std", feature = "alloc", not(no_core_duration)))]
 use de::MapAccess;
 
-use de::from_primitive::FromPrimitive;
-use private::de::InPlaceSeed;
+use seed::InPlaceSeed;
 
 #[cfg(any(feature = "std", feature = "alloc"))]
-use private::de::size_hint;
+use __private::size_hint;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,39 +80,35 @@ impl<'de> Deserialize<'de> for bool {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-macro_rules! visit_integer_method {
-    ($src_ty:ident, $method:ident, $from_method:ident, $group:ident, $group_ty:ident) => {
-        #[inline]
-        fn $method<E>(self, v: $src_ty) -> Result<Self::Value, E>
-        where
-            E: Error,
-        {
-            match FromPrimitive::$from_method(v) {
-                Some(v) => Ok(v),
-                None => Err(Error::invalid_value(
-                    Unexpected::$group(v as $group_ty),
-                    &self,
-                )),
+macro_rules! impl_deserialize_num {
+    ($primitive:ident, $nonzero:ident $(cfg($($cfg:tt)*))*, $deserialize:ident $($method:ident!($($val:ident : $visit:ident)*);)*) => {
+        impl_deserialize_num!($primitive, $deserialize $($method!($($val : $visit)*);)*);
+
+        #[cfg(all(not(no_num_nonzero), $($($cfg)*)*))]
+        impl<'de> Deserialize<'de> for num::$nonzero {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct NonZeroVisitor;
+
+                impl<'de> Visitor<'de> for NonZeroVisitor {
+                    type Value = num::$nonzero;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str(concat!("a nonzero ", stringify!($primitive)))
+                    }
+
+                    $($($method!(nonzero $primitive $val : $visit);)*)*
+                }
+
+                deserializer.$deserialize(NonZeroVisitor)
             }
         }
     };
-}
 
-macro_rules! visit_float_method {
-    ($src_ty:ident, $method:ident) => {
-        #[inline]
-        fn $method<E>(self, v: $src_ty) -> Result<Self::Value, E>
-        where
-            E: Error,
-        {
-            Ok(v as Self::Value)
-        }
-    };
-}
-
-macro_rules! impl_deserialize_num {
-    ($ty:ident, $method:ident, $($visit:ident),*) => {
-        impl<'de> Deserialize<'de> for $ty {
+    ($primitive:ident, $deserialize:ident $($method:ident!($($val:ident : $visit:ident)*);)*) => {
+        impl<'de> Deserialize<'de> for $primitive {
             #[inline]
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
@@ -122,138 +117,312 @@ macro_rules! impl_deserialize_num {
                 struct PrimitiveVisitor;
 
                 impl<'de> Visitor<'de> for PrimitiveVisitor {
-                    type Value = $ty;
+                    type Value = $primitive;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str(stringify!($ty))
+                        formatter.write_str(stringify!($primitive))
                     }
 
-                    $(
-                        impl_deserialize_num!($visit $ty);
-                    )*
+                    $($($method!($val : $visit);)*)*
                 }
 
-                deserializer.$method(PrimitiveVisitor)
+                deserializer.$deserialize(PrimitiveVisitor)
             }
         }
-    };
-
-    (integer $ty:ident) => {
-        visit_integer_method!(i8, visit_i8, from_i8, Signed, i64);
-        visit_integer_method!(i16, visit_i16, from_i16, Signed, i64);
-        visit_integer_method!(i32, visit_i32, from_i32, Signed, i64);
-        visit_integer_method!(i64, visit_i64, from_i64, Signed, i64);
-
-        visit_integer_method!(u8, visit_u8, from_u8, Unsigned, u64);
-        visit_integer_method!(u16, visit_u16, from_u16, Unsigned, u64);
-        visit_integer_method!(u32, visit_u32, from_u32, Unsigned, u64);
-        visit_integer_method!(u64, visit_u64, from_u64, Unsigned, u64);
-    };
-
-    (float $ty:ident) => {
-        visit_float_method!(f32, visit_f32);
-        visit_float_method!(f64, visit_f64);
     };
 }
 
-impl_deserialize_num!(i8, deserialize_i8, integer);
-impl_deserialize_num!(i16, deserialize_i16, integer);
-impl_deserialize_num!(i32, deserialize_i32, integer);
-impl_deserialize_num!(i64, deserialize_i64, integer);
-impl_deserialize_num!(isize, deserialize_i64, integer);
+macro_rules! num_self {
+    ($ty:ident : $visit:ident) => {
+        #[inline]
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            Ok(v)
+        }
+    };
 
-impl_deserialize_num!(u8, deserialize_u8, integer);
-impl_deserialize_num!(u16, deserialize_u16, integer);
-impl_deserialize_num!(u32, deserialize_u32, integer);
-impl_deserialize_num!(u64, deserialize_u64, integer);
-impl_deserialize_num!(usize, deserialize_u64, integer);
+    (nonzero $primitive:ident $ty:ident : $visit:ident) => {
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            if let Some(nonzero) = Self::Value::new(v) {
+                Ok(nonzero)
+            } else {
+                Err(Error::invalid_value(Unexpected::Unsigned(0), &self))
+            }
+        }
+    };
+}
 
-impl_deserialize_num!(f32, deserialize_f32, integer, float);
-impl_deserialize_num!(f64, deserialize_f64, integer, float);
+macro_rules! num_as_self {
+    ($ty:ident : $visit:ident) => {
+        #[inline]
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            Ok(v as Self::Value)
+        }
+    };
+
+    (nonzero $primitive:ident $ty:ident : $visit:ident) => {
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            if let Some(nonzero) = Self::Value::new(v as $primitive) {
+                Ok(nonzero)
+            } else {
+                Err(Error::invalid_value(Unexpected::Unsigned(0), &self))
+            }
+        }
+    };
+}
+
+macro_rules! int_to_int {
+    ($ty:ident : $visit:ident) => {
+        #[inline]
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            if Self::Value::min_value() as i64 <= v as i64
+                && v as i64 <= Self::Value::max_value() as i64
+            {
+                Ok(v as Self::Value)
+            } else {
+                Err(Error::invalid_value(Unexpected::Signed(v as i64), &self))
+            }
+        }
+    };
+
+    (nonzero $primitive:ident $ty:ident : $visit:ident) => {
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            if $primitive::min_value() as i64 <= v as i64
+                && v as i64 <= $primitive::max_value() as i64
+            {
+                if let Some(nonzero) = Self::Value::new(v as $primitive) {
+                    return Ok(nonzero);
+                }
+            }
+            Err(Error::invalid_value(Unexpected::Signed(v as i64), &self))
+        }
+    };
+}
+
+macro_rules! int_to_uint {
+    ($ty:ident : $visit:ident) => {
+        #[inline]
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            if 0 <= v && v as u64 <= Self::Value::max_value() as u64 {
+                Ok(v as Self::Value)
+            } else {
+                Err(Error::invalid_value(Unexpected::Signed(v as i64), &self))
+            }
+        }
+    };
+
+    (nonzero $primitive:ident $ty:ident : $visit:ident) => {
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            if 0 < v && v as u64 <= $primitive::max_value() as u64 {
+                if let Some(nonzero) = Self::Value::new(v as $primitive) {
+                    return Ok(nonzero);
+                }
+            }
+            Err(Error::invalid_value(Unexpected::Signed(v as i64), &self))
+        }
+    };
+}
+
+macro_rules! uint_to_self {
+    ($ty:ident : $visit:ident) => {
+        #[inline]
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            if v as u64 <= Self::Value::max_value() as u64 {
+                Ok(v as Self::Value)
+            } else {
+                Err(Error::invalid_value(Unexpected::Unsigned(v as u64), &self))
+            }
+        }
+    };
+
+    (nonzero $primitive:ident $ty:ident : $visit:ident) => {
+        fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+        where
+            E: Error,
+        {
+            if v as u64 <= $primitive::max_value() as u64 {
+                if let Some(nonzero) = Self::Value::new(v as $primitive) {
+                    return Ok(nonzero);
+                }
+            }
+            Err(Error::invalid_value(Unexpected::Unsigned(v as u64), &self))
+        }
+    };
+}
+
+impl_deserialize_num! {
+    i8, NonZeroI8 cfg(not(no_num_nonzero_signed)), deserialize_i8
+    num_self!(i8:visit_i8);
+    int_to_int!(i16:visit_i16 i32:visit_i32 i64:visit_i64);
+    uint_to_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    i16, NonZeroI16 cfg(not(no_num_nonzero_signed)), deserialize_i16
+    num_self!(i16:visit_i16);
+    num_as_self!(i8:visit_i8);
+    int_to_int!(i32:visit_i32 i64:visit_i64);
+    uint_to_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    i32, NonZeroI32 cfg(not(no_num_nonzero_signed)), deserialize_i32
+    num_self!(i32:visit_i32);
+    num_as_self!(i8:visit_i8 i16:visit_i16);
+    int_to_int!(i64:visit_i64);
+    uint_to_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    i64, NonZeroI64 cfg(not(no_num_nonzero_signed)), deserialize_i64
+    num_self!(i64:visit_i64);
+    num_as_self!(i8:visit_i8 i16:visit_i16 i32:visit_i32);
+    uint_to_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    isize, NonZeroIsize cfg(not(no_num_nonzero_signed)), deserialize_i64
+    num_as_self!(i8:visit_i8 i16:visit_i16);
+    int_to_int!(i32:visit_i32 i64:visit_i64);
+    uint_to_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    u8, NonZeroU8, deserialize_u8
+    num_self!(u8:visit_u8);
+    int_to_uint!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+    uint_to_self!(u16:visit_u16 u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    u16, NonZeroU16, deserialize_u16
+    num_self!(u16:visit_u16);
+    num_as_self!(u8:visit_u8);
+    int_to_uint!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+    uint_to_self!(u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    u32, NonZeroU32, deserialize_u32
+    num_self!(u32:visit_u32);
+    num_as_self!(u8:visit_u8 u16:visit_u16);
+    int_to_uint!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+    uint_to_self!(u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    u64, NonZeroU64, deserialize_u64
+    num_self!(u64:visit_u64);
+    num_as_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32);
+    int_to_uint!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+}
+
+impl_deserialize_num! {
+    usize, NonZeroUsize, deserialize_u64
+    num_as_self!(u8:visit_u8 u16:visit_u16);
+    int_to_uint!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+    uint_to_self!(u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    f32, deserialize_f32
+    num_self!(f32:visit_f32);
+    num_as_self!(f64:visit_f64);
+    num_as_self!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+    num_as_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+}
+
+impl_deserialize_num! {
+    f64, deserialize_f64
+    num_self!(f64:visit_f64);
+    num_as_self!(f32:visit_f32);
+    num_as_self!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+    num_as_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+}
 
 serde_if_integer128! {
-    impl<'de> Deserialize<'de> for i128 {
-        #[inline]
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            struct PrimitiveVisitor;
-
-            impl<'de> Visitor<'de> for PrimitiveVisitor {
-                type Value = i128;
-
-                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                    formatter.write_str("i128")
-                }
-
-                impl_deserialize_num!(integer i128);
-
-                #[inline]
-                fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
-                where
-                    E: Error,
+    macro_rules! num_128 {
+        ($ty:ident : $visit:ident) => {
+            fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                if v as i128 >= Self::Value::min_value() as i128
+                    && v as u128 <= Self::Value::max_value() as u128
                 {
-                    Ok(v)
-                }
-
-                #[inline]
-                fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
-                where
-                    E: Error,
-                {
-                    if v <= i128::max_value() as u128 {
-                        Ok(v as i128)
-                    } else {
-                        Err(Error::invalid_value(Unexpected::Other("u128"), &self))
-                    }
+                    Ok(v as Self::Value)
+                } else {
+                    Err(Error::invalid_value(
+                        Unexpected::Other(stringify!($ty)),
+                        &self,
+                    ))
                 }
             }
+        };
 
-            deserializer.deserialize_i128(PrimitiveVisitor)
-        }
+        (nonzero $primitive:ident $ty:ident : $visit:ident) => {
+            fn $visit<E>(self, v: $ty) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                if v as i128 >= $primitive::min_value() as i128
+                    && v as u128 <= $primitive::max_value() as u128
+                {
+                    if let Some(nonzero) = Self::Value::new(v as $primitive) {
+                        Ok(nonzero)
+                    } else {
+                        Err(Error::invalid_value(Unexpected::Unsigned(0), &self))
+                    }
+                } else {
+                    Err(Error::invalid_value(
+                        Unexpected::Other(stringify!($ty)),
+                        &self,
+                    ))
+                }
+            }
+        };
     }
 
-    impl<'de> Deserialize<'de> for u128 {
-        #[inline]
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            struct PrimitiveVisitor;
+    impl_deserialize_num! {
+        i128, NonZeroI128 cfg(not(no_num_nonzero_signed)), deserialize_i128
+        num_self!(i128:visit_i128);
+        num_as_self!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+        num_as_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+        num_128!(u128:visit_u128);
+    }
 
-            impl<'de> Visitor<'de> for PrimitiveVisitor {
-                type Value = u128;
-
-                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                    formatter.write_str("u128")
-                }
-
-                impl_deserialize_num!(integer u128);
-
-                #[inline]
-                fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
-                where
-                    E: Error,
-                {
-                    if v >= 0 {
-                        Ok(v as u128)
-                    } else {
-                        Err(Error::invalid_value(Unexpected::Other("i128"), &self))
-                    }
-                }
-
-                #[inline]
-                fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
-                where
-                    E: Error,
-                {
-                    Ok(v)
-                }
-            }
-
-            deserializer.deserialize_u128(PrimitiveVisitor)
-        }
+    impl_deserialize_num! {
+        u128, NonZeroU128, deserialize_u128
+        num_self!(u128:visit_u128);
+        num_as_self!(u8:visit_u8 u16:visit_u16 u32:visit_u32 u64:visit_u64);
+        int_to_uint!(i8:visit_i8 i16:visit_i16 i32:visit_i32 i64:visit_i64);
+        num_128!(i128:visit_i128);
     }
 }
 
@@ -564,7 +733,7 @@ impl<'de> Deserialize<'de> for CString {
 macro_rules! forwarded_impl {
     (
         $(#[doc = $doc:tt])*
-        ( $($id: ident),* ), $ty: ty, $func: expr
+        ($($id:ident),*), $ty:ty, $func:expr
     ) => {
         $(#[doc = $doc])*
         impl<'de $(, $id : Deserialize<'de>,)*> Deserialize<'de> for $ty {
@@ -578,10 +747,10 @@ macro_rules! forwarded_impl {
     }
 }
 
-#[cfg(all(feature = "std", de_boxed_c_str))]
+#[cfg(all(feature = "std", not(no_de_boxed_c_str)))]
 forwarded_impl!((), Box<CStr>, CString::into_boxed_c_str);
 
-#[cfg(core_reverse)]
+#[cfg(not(no_core_reverse))]
 forwarded_impl!((T), Reverse<T>, Reverse);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -624,7 +793,6 @@ where
         T::deserialize(deserializer).map(Some)
     }
 
-    #[doc(hidden)]
     fn __private_visit_untagged_option<D>(self, deserializer: D) -> Result<Self::Value, ()>
     where
         D: Deserializer<'de>,
@@ -692,7 +860,7 @@ impl<'de, T: ?Sized> Deserialize<'de> for PhantomData<T> {
 #[cfg(any(feature = "std", feature = "alloc"))]
 macro_rules! seq_impl {
     (
-        $ty:ident < T $(: $tbound1:ident $(+ $tbound2:ident)*)* $(, $typaram:ident : $bound1:ident $(+ $bound2:ident)*)* >,
+        $ty:ident <T $(: $tbound1:ident $(+ $tbound2:ident)*)* $(, $typaram:ident : $bound1:ident $(+ $bound2:ident)*)*>,
         $access:ident,
         $clear:expr,
         $with_capacity:expr,
@@ -1185,7 +1353,7 @@ tuple_impls! {
 #[cfg(any(feature = "std", feature = "alloc"))]
 macro_rules! map_impl {
     (
-        $ty:ident < K $(: $kbound1:ident $(+ $kbound2:ident)*)*, V $(, $typaram:ident : $bound1:ident $(+ $bound2:ident)*)* >,
+        $ty:ident <K $(: $kbound1:ident $(+ $kbound2:ident)*)*, V $(, $typaram:ident : $bound1:ident $(+ $bound2:ident)*)*>,
         $access:ident,
         $with_capacity:expr
     ) => {
@@ -1260,24 +1428,7 @@ macro_rules! parse_ip_impl {
                 D: Deserializer<'de>,
             {
                 if deserializer.is_human_readable() {
-                    struct IpAddrVisitor;
-
-                    impl<'de> Visitor<'de> for IpAddrVisitor {
-                        type Value = $ty;
-
-                        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                            formatter.write_str($expecting)
-                        }
-
-                        fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-                        where
-                            E: Error,
-                        {
-                            s.parse().map_err(Error::custom)
-                        }
-                    }
-
-                    deserializer.deserialize_str(IpAddrVisitor)
+                    deserializer.deserialize_str(FromStrVisitor::new($expecting))
                 } else {
                     <[u8; $size]>::deserialize(deserializer).map(<$ty>::from)
                 }
@@ -1289,15 +1440,15 @@ macro_rules! parse_ip_impl {
 #[cfg(feature = "std")]
 macro_rules! variant_identifier {
     (
-        $name_kind: ident ( $($variant: ident; $bytes: expr; $index: expr),* )
-        $expecting_message: expr,
-        $variants_name: ident
+        $name_kind:ident ($($variant:ident; $bytes:expr; $index:expr),*)
+        $expecting_message:expr,
+        $variants_name:ident
     ) => {
         enum $name_kind {
-            $( $variant ),*
+            $($variant),*
         }
 
-        static $variants_name: &'static [&'static str] = &[ $( stringify!($variant) ),*];
+        static $variants_name: &'static [&'static str] = &[$(stringify!($variant)),*];
 
         impl<'de> Deserialize<'de> for $name_kind {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -1364,12 +1515,12 @@ macro_rules! variant_identifier {
 #[cfg(feature = "std")]
 macro_rules! deserialize_enum {
     (
-        $name: ident $name_kind: ident ( $($variant: ident; $bytes: expr; $index: expr),* )
-        $expecting_message: expr,
-        $deserializer: expr
+        $name:ident $name_kind:ident ($($variant:ident; $bytes:expr; $index:expr),*)
+        $expecting_message:expr,
+        $deserializer:expr
     ) => {
-        variant_identifier!{
-            $name_kind ( $($variant; $bytes; $index),* )
+        variant_identifier! {
+            $name_kind ($($variant; $bytes; $index),*)
             $expecting_message,
             VARIANTS
         }
@@ -1405,24 +1556,7 @@ impl<'de> Deserialize<'de> for net::IpAddr {
         D: Deserializer<'de>,
     {
         if deserializer.is_human_readable() {
-            struct IpAddrVisitor;
-
-            impl<'de> Visitor<'de> for IpAddrVisitor {
-                type Value = net::IpAddr;
-
-                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                    formatter.write_str("IP address")
-                }
-
-                fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-                where
-                    E: Error,
-                {
-                    s.parse().map_err(Error::custom)
-                }
-            }
-
-            deserializer.deserialize_str(IpAddrVisitor)
+            deserializer.deserialize_str(FromStrVisitor::new("IP address"))
         } else {
             use lib::net::IpAddr;
             deserialize_enum! {
@@ -1449,24 +1583,7 @@ macro_rules! parse_socket_impl {
                 D: Deserializer<'de>,
             {
                 if deserializer.is_human_readable() {
-                    struct SocketAddrVisitor;
-
-                    impl<'de> Visitor<'de> for SocketAddrVisitor {
-                        type Value = $ty;
-
-                        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                            formatter.write_str($expecting)
-                        }
-
-                        fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-                        where
-                            E: Error,
-                        {
-                            s.parse().map_err(Error::custom)
-                        }
-                    }
-
-                    deserializer.deserialize_str(SocketAddrVisitor)
+                    deserializer.deserialize_str(FromStrVisitor::new($expecting))
                 } else {
                     <(_, u16)>::deserialize(deserializer).map(|(ip, port)| $new(ip, port))
                 }
@@ -1482,24 +1599,7 @@ impl<'de> Deserialize<'de> for net::SocketAddr {
         D: Deserializer<'de>,
     {
         if deserializer.is_human_readable() {
-            struct SocketAddrVisitor;
-
-            impl<'de> Visitor<'de> for SocketAddrVisitor {
-                type Value = net::SocketAddr;
-
-                fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                    formatter.write_str("socket address")
-                }
-
-                fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
-                where
-                    E: Error,
-                {
-                    s.parse().map_err(Error::custom)
-                }
-            }
-
-            deserializer.deserialize_str(SocketAddrVisitor)
+            deserializer.deserialize_str(FromStrVisitor::new("socket address"))
         } else {
             use lib::net::SocketAddr;
             deserialize_enum! {
@@ -1613,7 +1713,7 @@ impl<'de> Deserialize<'de> for PathBuf {
     }
 }
 
-#[cfg(all(feature = "std", de_boxed_path))]
+#[cfg(all(feature = "std", not(no_de_boxed_path)))]
 forwarded_impl!((), Box<Path>, PathBuf::into_boxed_path);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1694,11 +1794,7 @@ forwarded_impl!((T), Box<[T]>, Vec::into_boxed_slice);
 #[cfg(any(feature = "std", feature = "alloc"))]
 forwarded_impl!((), Box<str>, String::into_boxed_str);
 
-#[cfg(all(
-    not(de_rc_dst),
-    feature = "rc",
-    any(feature = "std", feature = "alloc")
-))]
+#[cfg(all(no_de_rc_dst, feature = "rc", any(feature = "std", feature = "alloc")))]
 forwarded_impl! {
     /// This impl requires the [`"rc"`] Cargo feature of Serde.
     ///
@@ -1710,11 +1806,7 @@ forwarded_impl! {
     (T), Arc<T>, Arc::new
 }
 
-#[cfg(all(
-    not(de_rc_dst),
-    feature = "rc",
-    any(feature = "std", feature = "alloc")
-))]
+#[cfg(all(no_de_rc_dst, feature = "rc", any(feature = "std", feature = "alloc")))]
 forwarded_impl! {
     /// This impl requires the [`"rc"`] Cargo feature of Serde.
     ///
@@ -1781,7 +1873,11 @@ where
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[cfg(all(de_rc_dst, feature = "rc", any(feature = "std", feature = "alloc")))]
+#[cfg(all(
+    not(no_de_rc_dst),
+    feature = "rc",
+    any(feature = "std", feature = "alloc")
+))]
 macro_rules! box_forwarded_impl {
     (
         $(#[doc = $doc:tt])*
@@ -1802,7 +1898,11 @@ macro_rules! box_forwarded_impl {
     };
 }
 
-#[cfg(all(de_rc_dst, feature = "rc", any(feature = "std", feature = "alloc")))]
+#[cfg(all(
+    not(no_de_rc_dst),
+    feature = "rc",
+    any(feature = "std", feature = "alloc")
+))]
 box_forwarded_impl! {
     /// This impl requires the [`"rc"`] Cargo feature of Serde.
     ///
@@ -1814,7 +1914,11 @@ box_forwarded_impl! {
     Rc
 }
 
-#[cfg(all(de_rc_dst, feature = "rc", any(feature = "std", feature = "alloc")))]
+#[cfg(all(
+    not(no_de_rc_dst),
+    feature = "rc",
+    any(feature = "std", feature = "alloc")
+))]
 box_forwarded_impl! {
     /// This impl requires the [`"rc"`] Cargo feature of Serde.
     ///
@@ -1858,7 +1962,7 @@ forwarded_impl!((T), RwLock<T>, RwLock::new);
 //         secs: u64,
 //         nanos: u32,
 //     }
-#[cfg(any(core_duration, feature = "std"))]
+#[cfg(any(feature = "std", not(no_core_duration)))]
 impl<'de> Deserialize<'de> for Duration {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -1871,7 +1975,7 @@ impl<'de> Deserialize<'de> for Duration {
         enum Field {
             Secs,
             Nanos,
-        };
+        }
 
         impl<'de> Deserialize<'de> for Field {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -1906,14 +2010,25 @@ impl<'de> Deserialize<'de> for Duration {
                             b"secs" => Ok(Field::Secs),
                             b"nanos" => Ok(Field::Nanos),
                             _ => {
-                                let value = ::export::from_utf8_lossy(value);
-                                Err(Error::unknown_field(&value, FIELDS))
+                                let value = ::__private::from_utf8_lossy(value);
+                                Err(Error::unknown_field(&*value, FIELDS))
                             }
                         }
                     }
                 }
 
                 deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        fn check_overflow<E>(secs: u64, nanos: u32) -> Result<(), E>
+        where
+            E: Error,
+        {
+            static NANOS_PER_SEC: u32 = 1_000_000_000;
+            match secs.checked_add((nanos / NANOS_PER_SEC) as u64) {
+                Some(_) => Ok(()),
+                None => Err(E::custom("overflow deserializing Duration")),
             }
         }
 
@@ -1942,6 +2057,7 @@ impl<'de> Deserialize<'de> for Duration {
                         return Err(Error::invalid_length(1, &self));
                     }
                 };
+                try!(check_overflow(secs, nanos));
                 Ok(Duration::new(secs, nanos))
             }
 
@@ -1975,6 +2091,7 @@ impl<'de> Deserialize<'de> for Duration {
                     Some(nanos) => nanos,
                     None => return Err(<A::Error as Error>::missing_field("nanos")),
                 };
+                try!(check_overflow(secs, nanos));
                 Ok(Duration::new(secs, nanos))
             }
         }
@@ -1996,7 +2113,7 @@ impl<'de> Deserialize<'de> for SystemTime {
         enum Field {
             Secs,
             Nanos,
-        };
+        }
 
         impl<'de> Deserialize<'de> for Field {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -2042,6 +2159,17 @@ impl<'de> Deserialize<'de> for SystemTime {
             }
         }
 
+        fn check_overflow<E>(secs: u64, nanos: u32) -> Result<(), E>
+        where
+            E: Error,
+        {
+            static NANOS_PER_SEC: u32 = 1_000_000_000;
+            match secs.checked_add((nanos / NANOS_PER_SEC) as u64) {
+                Some(_) => Ok(()),
+                None => Err(E::custom("overflow deserializing SystemTime epoch offset")),
+            }
+        }
+
         struct DurationVisitor;
 
         impl<'de> Visitor<'de> for DurationVisitor {
@@ -2067,6 +2195,7 @@ impl<'de> Deserialize<'de> for SystemTime {
                         return Err(Error::invalid_length(1, &self));
                     }
                 };
+                try!(check_overflow(secs, nanos));
                 Ok(Duration::new(secs, nanos))
             }
 
@@ -2104,13 +2233,20 @@ impl<'de> Deserialize<'de> for SystemTime {
                     Some(nanos) => nanos,
                     None => return Err(<A::Error as Error>::missing_field("nanos_since_epoch")),
                 };
+                try!(check_overflow(secs, nanos));
                 Ok(Duration::new(secs, nanos))
             }
         }
 
         const FIELDS: &'static [&'static str] = &["secs_since_epoch", "nanos_since_epoch"];
         let duration = try!(deserializer.deserialize_struct("SystemTime", FIELDS, DurationVisitor));
-        Ok(UNIX_EPOCH + duration)
+        #[cfg(not(no_systemtime_checked_add))]
+        let ret = UNIX_EPOCH
+            .checked_add(duration)
+            .ok_or_else(|| D::Error::custom("overflow deserializing SystemTime"));
+        #[cfg(no_systemtime_checked_add)]
+        let ret = Ok(UNIX_EPOCH + duration);
+        ret
     }
 }
 
@@ -2132,19 +2268,19 @@ where
     where
         D: Deserializer<'de>,
     {
-        let (start, end) = deserializer.deserialize_struct(
+        let (start, end) = try!(deserializer.deserialize_struct(
             "Range",
             range::FIELDS,
             range::RangeVisitor {
                 expecting: "struct Range",
                 phantom: PhantomData,
             },
-        )?;
+        ));
         Ok(start..end)
     }
 }
 
-#[cfg(range_inclusive)]
+#[cfg(not(no_range_inclusive))]
 impl<'de, Idx> Deserialize<'de> for RangeInclusive<Idx>
 where
     Idx: Deserialize<'de>,
@@ -2153,14 +2289,14 @@ where
     where
         D: Deserializer<'de>,
     {
-        let (start, end) = deserializer.deserialize_struct(
+        let (start, end) = try!(deserializer.deserialize_struct(
             "RangeInclusive",
             range::FIELDS,
             range::RangeVisitor {
                 expecting: "struct RangeInclusive",
                 phantom: PhantomData,
             },
-        )?;
+        ));
         Ok(RangeInclusive::new(start, end))
     }
 }
@@ -2214,8 +2350,8 @@ mod range {
                         b"start" => Ok(Field::Start),
                         b"end" => Ok(Field::End),
                         _ => {
-                            let value = ::export::from_utf8_lossy(value);
-                            Err(Error::unknown_field(&value, FIELDS))
+                            let value = ::__private::from_utf8_lossy(value);
+                            Err(Error::unknown_field(&*value, FIELDS))
                         }
                     }
                 }
@@ -2296,7 +2432,7 @@ mod range {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[cfg(any(ops_bound, collections_bound))]
+#[cfg(any(not(no_ops_bound), all(feature = "std", not(no_collections_bound))))]
 impl<'de, T> Deserialize<'de> for Bound<T>
 where
     T: Deserialize<'de>,
@@ -2334,10 +2470,7 @@ where
                             0 => Ok(Field::Unbounded),
                             1 => Ok(Field::Included),
                             2 => Ok(Field::Excluded),
-                            _ => Err(Error::invalid_value(
-                                Unexpected::Unsigned(value),
-                                &self,
-                            )),
+                            _ => Err(Error::invalid_value(Unexpected::Unsigned(value), &self)),
                         }
                     }
 
@@ -2407,58 +2540,6 @@ where
 
 ////////////////////////////////////////////////////////////////////////////////
 
-macro_rules! nonzero_integers {
-    ( $( $T: ident, )+ ) => {
-        $(
-            #[cfg(num_nonzero)]
-            impl<'de> Deserialize<'de> for num::$T {
-                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-                where
-                    D: Deserializer<'de>,
-                {
-                    let value = try!(Deserialize::deserialize(deserializer));
-                    match <num::$T>::new(value) {
-                        Some(nonzero) => Ok(nonzero),
-                        None => Err(Error::custom("expected a non-zero value")),
-                    }
-                }
-            }
-        )+
-    };
-}
-
-nonzero_integers! {
-    NonZeroU8,
-    NonZeroU16,
-    NonZeroU32,
-    NonZeroU64,
-    NonZeroUsize,
-}
-
-#[cfg(num_nonzero_signed)]
-nonzero_integers! {
-    NonZeroI8,
-    NonZeroI16,
-    NonZeroI32,
-    NonZeroI64,
-    NonZeroIsize,
-}
-
-// Currently 128-bit integers do not work on Emscripten targets so we need an
-// additional `#[cfg]`
-serde_if_integer128! {
-    nonzero_integers! {
-        NonZeroU128,
-    }
-
-    #[cfg(num_nonzero_signed)]
-    nonzero_integers! {
-        NonZeroI128,
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 impl<'de, T, E> Deserialize<'de> for Result<T, E>
 where
     T: Deserialize<'de>,
@@ -2499,10 +2580,7 @@ where
                         match value {
                             0 => Ok(Field::Ok),
                             1 => Ok(Field::Err),
-                            _ => Err(Error::invalid_value(
-                                Unexpected::Unsigned(value),
-                                &self,
-                            )),
+                            _ => Err(Error::invalid_value(Unexpected::Unsigned(value), &self)),
                         }
                     }
 
@@ -2570,7 +2648,6 @@ where
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#[cfg(feature = "std")]
 impl<'de, T> Deserialize<'de> for Wrapping<T>
 where
     T: Deserialize<'de>,
@@ -2583,10 +2660,11 @@ where
     }
 }
 
-#[cfg(all(feature = "std", std_atomic))]
+#[cfg(all(feature = "std", not(no_std_atomic)))]
 macro_rules! atomic_impl {
-    ($($ty:ident)*) => {
+    ($($ty:ident $size:expr)*) => {
         $(
+            #[cfg(any(no_target_has_atomic, target_has_atomic = $size))]
             impl<'de> Deserialize<'de> for $ty {
                 fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
                 where
@@ -2599,14 +2677,57 @@ macro_rules! atomic_impl {
     };
 }
 
-#[cfg(all(feature = "std", std_atomic))]
+#[cfg(all(feature = "std", not(no_std_atomic)))]
 atomic_impl! {
-    AtomicBool
-    AtomicI8 AtomicI16 AtomicI32 AtomicIsize
-    AtomicU8 AtomicU16 AtomicU32 AtomicUsize
+    AtomicBool "8"
+    AtomicI8 "8"
+    AtomicI16 "16"
+    AtomicI32 "32"
+    AtomicIsize "ptr"
+    AtomicU8 "8"
+    AtomicU16 "16"
+    AtomicU32 "32"
+    AtomicUsize "ptr"
 }
 
-#[cfg(all(feature = "std", std_atomic64))]
+#[cfg(all(feature = "std", not(no_std_atomic64)))]
 atomic_impl! {
-    AtomicI64 AtomicU64
+    AtomicI64 "64"
+    AtomicU64 "64"
+}
+
+#[cfg(feature = "std")]
+struct FromStrVisitor<T> {
+    expecting: &'static str,
+    ty: PhantomData<T>,
+}
+
+#[cfg(feature = "std")]
+impl<T> FromStrVisitor<T> {
+    fn new(expecting: &'static str) -> Self {
+        FromStrVisitor {
+            expecting: expecting,
+            ty: PhantomData,
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'de, T> Visitor<'de> for FromStrVisitor<T>
+where
+    T: str::FromStr,
+    T::Err: fmt::Display,
+{
+    type Value = T;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(self.expecting)
+    }
+
+    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        s.parse().map_err(Error::custom)
+    }
 }

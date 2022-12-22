@@ -1,3 +1,5 @@
+use crate::{capitalize, lowercase, transform};
+
 /// This trait defines a mixed case conversion.
 ///
 /// In mixedCase, word boundaries are indicated by capital letters, excepting
@@ -6,14 +8,10 @@
 /// ## Example:
 ///
 /// ```rust
-/// extern crate heck;
-/// fn main() {
-///     
-///     use heck::MixedCase;
+/// use heck::MixedCase;
 ///
-///     let sentence = "It is we who built these palaces and cities.";
-///     assert_eq!(sentence.to_mixed_case(), "itIsWeWhoBuiltThesePalacesAndCities");
-/// }
+/// let sentence = "It is we who built these palaces and cities.";
+/// assert_eq!(sentence.to_mixed_case(), "itIsWeWhoBuiltThesePalacesAndCities");
 /// ```
 pub trait MixedCase: ToOwned {
     /// Convert this type to mixed case.
@@ -22,10 +20,17 @@ pub trait MixedCase: ToOwned {
 
 impl MixedCase for str {
     fn to_mixed_case(&self) -> String {
-        ::transform(self, |s, out| {
-            if out.is_empty() { ::lowercase(s, out); }
-            else { ::capitalize(s, out) }
-        }, |_| {})
+        transform(
+            self,
+            |s, out| {
+                if out.is_empty() {
+                    lowercase(s, out);
+                } else {
+                    capitalize(s, out)
+                }
+            },
+            |_| {},
+        )
     }
 }
 
@@ -39,7 +44,7 @@ mod tests {
             fn $t() {
                 assert_eq!($s1.to_mixed_case(), $s2)
             }
-        }
+        };
     }
 
     t!(test1: "CamelCase" => "camelCase");
