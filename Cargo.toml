@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-clap = "4"
-crossbeam-channel = "0"
-log = "0"
-rand = "0"
-raptorq = "1"
-simple_logger = "4"
+clap = "4.1"
+crossbeam-channel = "0.5"
+log = "0.4"
+rand = "0.8"
+raptorq = "1.7"
+simple_logger = "4.0"
 
 [lib]
 name = "diode"
