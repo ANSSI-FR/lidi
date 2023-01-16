@@ -87,6 +87,9 @@ fn main_loop(
                         }
                     };
                     queue = Vec::with_capacity(nb_normal_packets as usize);
+                } else {
+                    // without data for some time we reset the current block_id
+                    desynchro = true;
                 }
                 continue;
             }
