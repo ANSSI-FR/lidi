@@ -85,7 +85,7 @@ fn connect_loop(
 }
 
 fn command_args(config: &mut Config) {
-    let args = Command::new("diode-down")
+    let args = Command::new(env!("CARGO_BIN_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
             Arg::new("from_tcp")
@@ -148,6 +148,12 @@ fn command_args(config: &mut Config) {
                 .value_name("nb_bytes")
                 .value_parser(clap::value_parser!(u16))
                 .help("MTU in bytes of output UDP link"),
+        )
+        .arg(
+            Arg::new("version")
+                .long("version")
+                .action(ArgAction::Version)
+                .help("Print version and exit"),
         )
         .get_matches();
 

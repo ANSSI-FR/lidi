@@ -77,7 +77,7 @@ impl From<SendError<decoding::Message>> for Error {
 }
 
 fn command_args(config: &mut Config) {
-    let args = Command::new("diode-up")
+    let args = Command::new(env!("CARGO_BIN_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
             Arg::new("from_udp")
@@ -134,6 +134,12 @@ fn command_args(config: &mut Config) {
                 .value_name("nb_seconds")
                 .value_parser(clap::value_parser!(u64))
                 .help("Duration in seconds after a transfer without incoming data is aborted"),
+        )
+        .arg(
+            Arg::new("version")
+                .long("version")
+                .action(ArgAction::Version)
+                .help("Print version and exit"),
         )
         .get_matches();
 
