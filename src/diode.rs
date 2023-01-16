@@ -44,10 +44,7 @@ impl Message {
                 let mut len_buf = [0u8; 8];
                 r.read_exact(&mut len_buf)?;
                 let len = u64::from_le_bytes(len_buf) as usize;
-                let mut data_buf = Vec::with_capacity(len);
-                unsafe {
-                    data_buf.set_len(len);
-                }
+                let mut data_buf = vec!(0; len);
                 r.read_exact(&mut data_buf)?;
                 Ok(Self::Data(data_buf))
             }
