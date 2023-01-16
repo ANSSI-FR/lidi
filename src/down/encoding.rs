@@ -15,7 +15,7 @@ pub(crate) struct Config {
 pub(crate) enum Error {
     Receive(RecvTimeoutError),
     Send(SendError<udp_send::Message>),
-    Serialization(Box<bincode::ErrorKind>),
+    Diode(diode::Error),
 }
 
 impl fmt::Display for Error {
@@ -23,7 +23,7 @@ impl fmt::Display for Error {
         match self {
             Self::Receive(e) => write!(fmt, "crossbeam recv error: {e}"),
             Self::Send(e) => write!(fmt, "crossbeam send error: {e}"),
-            Self::Serialization(e) => write!(fmt, "serialization error: {e}"),
+            Self::Diode(e) => write!(fmt, "diode error: {e}"),
         }
     }
 }
@@ -40,9 +40,9 @@ impl From<SendError<udp_send::Message>> for Error {
     }
 }
 
-impl From<Box<bincode::ErrorKind>> for Error {
-    fn from(e: Box<bincode::ErrorKind>) -> Self {
-        Self::Serialization(e)
+impl From<diode::Error> for Error {
+    fn from(e: diode::Error) -> Self {
+        Self::Diode(e)
     }
 }
 
@@ -74,10 +74,7 @@ fn main_loop(
 
     debug!("object transformation information = {:?} ", oti);
 
-    let overhead = bincode::serialized_size(&diode::ClientMessage {
-        client_id: 0,
-        payload: diode::Message::Padding(vec![]),
-    })? as usize;
+    let overhead = diode::ClientMessage::serialize_padding_overhead();
 
     debug!("padding encoding overhead is {} bytes", overhead);
 
@@ -100,17 +97,16 @@ fn main_loop(
                     padding_needed - overhead
                 };
                 debug!("flushing with {padding_len} padding bytes");
-                let padding = vec![0; padding_len];
                 diode::ClientMessage {
                     client_id: 0,
-                    payload: diode::Message::Padding(padding),
+                    payload: diode::Message::Padding(padding_len as u32),
                 }
             }
             Err(e) => return Err(Error::from(e)),
             Ok(message) => message,
         };
 
-        bincode::serialize_into(&mut queue, &message)?;
+        message.serialize_to(&mut queue)?;
 
         match message.payload {
             diode::Message::Start => debug!("start of encoding of client {:x}", message.client_id),

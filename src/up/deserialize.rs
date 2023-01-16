@@ -14,7 +14,7 @@ pub(crate) struct Config {
 pub(crate) enum Error {
     Io(io::Error),
     Crossbeam(SendError<diode::Message>),
-    Deserialization(Box<bincode::ErrorKind>),
+    Diode(diode::Error),
 }
 
 impl fmt::Display for Error {
@@ -22,7 +22,7 @@ impl fmt::Display for Error {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::Crossbeam(e) => write!(fmt, "crossbeam send error: {e}"),
-            Self::Deserialization(e) => write!(fmt, "deserialization error: {e}"),
+            Self::Diode(e) => write!(fmt, "diode error: {e}"),
         }
     }
 }
@@ -33,15 +33,15 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<Box<bincode::ErrorKind>> for Error {
-    fn from(e: Box<bincode::ErrorKind>) -> Self {
-        Self::Deserialization(e)
-    }
-}
-
 impl From<SendError<diode::Message>> for Error {
     fn from(e: SendError<diode::Message>) -> Self {
         Self::Crossbeam(e)
+    }
+}
+
+impl From<diode::Error> for Error {
+    fn from(e: diode::Error) -> Self {
+        Self::Diode(e)
     }
 }
 
@@ -66,7 +66,8 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
     };
 
     loop {
-        let message: diode::ClientMessage = bincode::deserialize_from(&mut decoding_recvr)?;
+        let message: diode::ClientMessage =
+            diode::ClientMessage::deserizalize_from(&mut decoding_recvr)?;
 
         trace!("received {}", message);
 

@@ -4,13 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bincode = "1"
 clap = "4"
 crossbeam-channel = "0"
 log = "0"
 rand = "0"
 raptorq = "1"
-serde = { version = "1", features = [ "derive" ] }
 simple_logger = "4"
 
 [lib]
