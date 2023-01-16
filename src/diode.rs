@@ -75,7 +75,7 @@ impl Message {
             Self::Data(data) => {
                 w.write_all(&ID_DATA.to_le_bytes())?;
                 w.write_all(&data.len().to_le_bytes())?;
-                w.write_all(&data)?;
+                w.write_all(data)?;
             },
             Self::Abort => w.write_all(&ID_ABORT.to_le_bytes())?,
             Self::End => w.write_all(&ID_END.to_le_bytes())?,
@@ -114,7 +114,7 @@ pub struct ClientMessage {
 }
 
 impl ClientMessage {
-    pub fn deserizalize_from<R: io::Read>(r: &mut R) -> Result<Self, Error> {
+    pub fn deserialize_from<R: io::Read>(r: &mut R) -> Result<Self, Error> {
         let mut id_buf = [0u8; 4];
         r.read_exact(&mut id_buf)?;
         let client_id = u32::from_le_bytes(id_buf);

@@ -67,7 +67,7 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
 
     loop {
         let message: diode::ClientMessage =
-            diode::ClientMessage::deserizalize_from(&mut decoding_recvr)?;
+            diode::ClientMessage::deserialize_from(&mut decoding_recvr)?;
 
         trace!("received {}", message);
 
