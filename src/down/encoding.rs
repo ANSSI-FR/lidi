@@ -1,6 +1,6 @@
 use crate::udp_send;
 use crossbeam_channel::{self, Receiver, RecvTimeoutError, SendError, Sender};
-use log::{debug, error, trace, warn};
+use log::{debug, error, info, trace, warn};
 use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder};
 use std::{collections::VecDeque, fmt, time::Duration};
 
@@ -66,7 +66,10 @@ fn main_loop(
     if nb_repair_packets == 0 {
         warn!("configuration produces 0 repair packets");
     } else {
-        debug!("will produce {nb_repair_packets} repair packets");
+        info!(
+            "{nb_repair_packets} repair packets ({} bytes) per encoding block will be produced",
+            nb_repair_packets * config.output_mtu as u32
+        );
     }
 
     let oti =
