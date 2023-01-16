@@ -19,7 +19,7 @@ struct Config {
     nb_transfers: u16,
 
     encoding_block_size: u64,
-    repair_ratio: f32,
+    repair_block_size: u32,
     flush_timeout: u64,
 
     to_udp: SocketAddr,
@@ -36,7 +36,7 @@ impl Default for Config {
             nb_transfers: 2,
 
             encoding_block_size: (mtu * 20) as u64, //optimal parameter -- to align with other size !
-            repair_ratio: 0.1,
+            repair_block_size: (mtu * 2) as u32,
             flush_timeout: 2,
 
             to_udp: SocketAddr::from_str("127.0.0.1:6000").unwrap(),
@@ -116,15 +116,15 @@ fn command_args(config: &mut Config) {
                 .action(ArgAction::Set)
                 .value_name("nb_bytes")
                 .value_parser(clap::value_parser!(u64))
-                .help("Size of RaptorQ block"),
+                .help("Size of RaptorQ block in bytes"),
         )
         .arg(
-            Arg::new("repair_ratio")
-                .long("repair_ratio")
+            Arg::new("repair_block_size")
+                .long("repair_block_size")
                 .action(ArgAction::Set)
                 .value_name("ratior")
-                .value_parser(clap::value_parser!(f32))
-                .help("Amount of repair packets [0.0; 1.0["),
+                .value_parser(clap::value_parser!(u32))
+                .help("Size of repair data in bytes"),
         )
         .arg(
             Arg::new("flush_timeout")
@@ -168,11 +168,8 @@ fn command_args(config: &mut Config) {
         config.encoding_block_size = *p;
     }
 
-    if let Some(p) = args.get_one::<f32>("repair_ratio") {
-        if 1.0 <= *p {
-            panic!("invalid repair_ratio parameter");
-        }
-        config.repair_ratio = *p;
+    if let Some(p) = args.get_one::<u32>("repair_block_size") {
+        config.repair_block_size = *p;
     }
 
     if let Some(p) = args.get_one::<u64>("flush_timeout") {
@@ -215,15 +212,15 @@ fn main() {
 
     let encoding_config = encoding::Config {
         logical_block_size: config.encoding_block_size,
-        repair_ratio: config.repair_ratio,
+        repair_block_size: config.repair_block_size,
         output_mtu: config.to_udp_mtu,
         flush_timeout: config.flush_timeout,
     };
 
     info!(
-        "encoding with block size of {} bytes and a repair_ratio of {}% and a flush timeout of {} second(s)",
+        "encoding with block size of {} bytes and repair block size of {} bytes and a flush timeout of {} second(s)",
         encoding_config.logical_block_size,
-        encoding_config.repair_ratio * 100.0,
+        encoding_config.repair_block_size,
         encoding_config.flush_timeout,
     );
 

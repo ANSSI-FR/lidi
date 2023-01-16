@@ -7,7 +7,7 @@ use std::{collections::VecDeque, fmt, time::Duration};
 #[derive(Clone)]
 pub(crate) struct Config {
     pub logical_block_size: u64,
-    pub repair_ratio: f32,
+    pub repair_block_size: u32,
     pub output_mtu: u16,
     pub flush_timeout: u64,
 }
@@ -61,8 +61,7 @@ fn main_loop(
     recvq: Receiver<diode::ClientMessage>,
     sendq: Sender<udp_send::Message>,
 ) -> Result<(), Error> {
-    let nb_repair_packets = config.logical_block_size / config.output_mtu as u64;
-    let nb_repair_packets = (nb_repair_packets as f32 * config.repair_ratio) as u32;
+    let nb_repair_packets = config.repair_block_size / config.output_mtu as u32;
 
     if nb_repair_packets == 0 {
         warn!("configuration produces 0 repair packets");
