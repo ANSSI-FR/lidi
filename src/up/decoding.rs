@@ -2,7 +2,6 @@ use crossbeam_channel::{Receiver, RecvTimeoutError};
 use log::{debug, error, trace, warn};
 use raptorq::{self, EncodingPacket, ObjectTransmissionInformation, SourceBlockDecoder};
 use std::{
-    collections::VecDeque,
     fmt,
     io::{self, Write},
     os::unix::net::UnixStream,
@@ -63,7 +62,7 @@ fn main_loop(
     let nb_normal_packets = config.logical_block_size / config.input_mtu as u64;
 
     let mut desynchro = true;
-    let mut queue = VecDeque::with_capacity(nb_normal_packets as usize);
+    let mut queue = Vec::with_capacity(nb_normal_packets as usize);
     let mut block_id = 0;
 
     loop {
@@ -76,7 +75,7 @@ fn main_loop(
                     let mut decoder =
                         SourceBlockDecoder::new2(block_id, &oti, config.logical_block_size);
 
-                    match decoder.decode(queue.clone()) {
+                    match decoder.decode(queue) {
                         None => {
                             warn!("lost block {block_id}");
                             desynchro = true;
@@ -87,7 +86,7 @@ fn main_loop(
                             block_id = block_id.wrapping_add(1);
                         }
                     };
-                    queue.clear();
+                    queue = Vec::with_capacity(nb_normal_packets as usize);
                 }
                 continue;
             }
@@ -105,7 +104,7 @@ fn main_loop(
 
         if message_block_id == block_id {
             trace!("queueing in block {block_id}");
-            queue.push_back(packet);
+            queue.push(packet);
             continue;
         }
 
@@ -117,7 +116,7 @@ fn main_loop(
         // message block_id is from next block, flushing current block
         let mut decoder = SourceBlockDecoder::new2(block_id, &oti, config.logical_block_size);
 
-        match decoder.decode(queue.clone()) {
+        match decoder.decode(queue) {
             None => warn!("lost block {block_id}"),
             Some(block) => {
                 trace!("block {} received with {} bytes!", block_id, block.len());
@@ -127,7 +126,7 @@ fn main_loop(
 
         block_id = message_block_id;
         trace!("queueing in block {block_id}");
-        queue.clear();
-        queue.push_back(packet);
+        queue = Vec::with_capacity(nb_normal_packets as usize);
+        queue.push(packet);
     }
 }
