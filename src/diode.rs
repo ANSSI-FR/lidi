@@ -45,6 +45,11 @@ pub fn adjust_encoding_block_size(mtu: u16, encoding_block_size: u64) -> u64 {
     (mtu as u64 - payload_size) * (encoding_block_size / (mtu as u64 - payload_size))
 }
 
+pub fn adjust_repair_block_size(mtu: u16, repair_block_size: u32) -> u32 {
+    let payload_size = 4;
+    (mtu as u32 - payload_size) * (repair_block_size / (mtu as u32 - payload_size))
+}
+
 pub fn init_logger() {
     if env::var("RUST_LOG").is_ok() {
        simple_logger::init_with_env().unwrap();

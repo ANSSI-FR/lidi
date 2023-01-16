@@ -201,6 +201,14 @@ fn main() {
         config.encoding_block_size
     );
 
+    config.repair_block_size =
+        diode::adjust_repair_block_size(config.to_udp_mtu, config.repair_block_size);
+
+    debug!(
+        "adjusting repair_block_size to {} bytes",
+        config.encoding_block_size
+    );
+
     info!(
         "accepting TCP clients at {} with read buffer of {} bytes",
         config.from_tcp, config.from_tcp_buffer_size
