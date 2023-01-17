@@ -35,9 +35,9 @@ impl Default for Config {
 
             nb_transfers: 2,
 
-            encoding_block_size: (mtu * 20) as u64, //optimal parameter -- to align with other size !
-            repair_block_size: (mtu * 2) as u32,
-            flush_timeout: 2,
+            encoding_block_size: (mtu * 40) as u64, //optimal parameter -- to align with other size !
+            repair_block_size: (mtu * 4) as u32,
+            flush_timeout: 1,
 
             to_udp: SocketAddr::from_str("127.0.0.1:6000").unwrap(),
             to_udp_mtu: mtu as u16,

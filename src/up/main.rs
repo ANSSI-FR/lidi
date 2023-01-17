@@ -32,7 +32,7 @@ impl Default for Config {
             from_udp: SocketAddr::from_str("127.0.0.1:6000").unwrap(),
             from_udp_mtu: mtu as u16,
 
-            encoding_block_size: (mtu * 20) as u64, //optimal parameter -- to align with other size !
+            encoding_block_size: (mtu * 40) as u64, //optimal parameter -- to align with other size !
             flush_timeout: 1,
 
             to_tcp: SocketAddr::from_str("127.0.0.1:7000").unwrap(),
