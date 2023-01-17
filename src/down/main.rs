@@ -149,12 +149,6 @@ fn command_args(config: &mut Config) {
                 .value_parser(clap::value_parser!(u16))
                 .help("MTU in bytes of output UDP link"),
         )
-        .arg(
-            Arg::new("version")
-                .long("version")
-                .action(ArgAction::Version)
-                .help("Print version and exit"),
-        )
         .get_matches();
 
     if let Some(p) = args.get_one::<String>("from_tcp") {

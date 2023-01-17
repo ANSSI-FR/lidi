@@ -135,12 +135,6 @@ fn command_args(config: &mut Config) {
                 .value_parser(clap::value_parser!(u64))
                 .help("Duration in seconds after a transfer without incoming data is aborted"),
         )
-        .arg(
-            Arg::new("version")
-                .long("version")
-                .action(ArgAction::Version)
-                .help("Print version and exit"),
-        )
         .get_matches();
 
     if let Some(p) = args.get_one::<String>("from_udp") {
