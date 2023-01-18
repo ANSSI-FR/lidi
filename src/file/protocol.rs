@@ -37,7 +37,6 @@ pub struct Header {
 }
 
 impl Header {
-    #[allow(unused)]
     pub fn serialize_to<W: Write>(&self, w: &mut W) -> Result<(), Error> {
         w.write_all(&self.file_name.len().to_le_bytes())?;
         w.write_all(self.file_name.as_bytes())?;
@@ -46,7 +45,6 @@ impl Header {
         Ok(())
     }
 
-    #[allow(unused)]
     pub fn deserialize_from<R: Read>(r: &mut R) -> Result<Self, Error> {
         let mut file_name_len = [0u8; 8];
         r.read_exact(&mut file_name_len)?;

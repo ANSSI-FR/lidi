@@ -1,6 +1,6 @@
-mod decoding;
-mod deserialize;
-mod tcp_serve;
+use diode::receive::decoding;
+use diode::receive::deserialize;
+use diode::protocol;
 
 use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{unbounded, SendError};

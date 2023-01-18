@@ -1,3 +1,4 @@
+use crate::protocol;
 use crossbeam_channel::{SendError, Sender};
 use log::{error, info, trace};
 use std::{
@@ -7,11 +8,11 @@ use std::{
 };
 
 #[derive(Clone)]
-pub(crate) struct Config {
+pub struct Config {
     pub buffer_size: usize,
 }
 
-pub(crate) enum Error {
+enum Error {
     Io(io::Error),
     Crossbeam(SendError<protocol::ClientMessage>),
 }
@@ -37,7 +38,7 @@ impl From<SendError<protocol::ClientMessage>> for Error {
     }
 }
 
-pub(crate) fn new(config: &Config, client: TcpStream, sendq: Sender<protocol::ClientMessage>) {
+pub fn new(config: &Config, client: TcpStream, sendq: Sender<protocol::ClientMessage>) {
     let client_id = protocol::new_client_id();
 
     if let Err(e) = main_loop(config, client_id, client, &sendq) {

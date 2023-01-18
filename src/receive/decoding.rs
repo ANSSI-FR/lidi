@@ -1,3 +1,4 @@
+use crate::protocol;
 use crossbeam_channel::{Receiver, RecvTimeoutError};
 use log::{debug, error, trace, warn};
 use raptorq::{self, EncodingPacket, ObjectTransmissionInformation, SourceBlockDecoder};
@@ -8,13 +9,13 @@ use std::{
     time::Duration,
 };
 
-pub(crate) struct Config {
+pub struct Config {
     pub logical_block_size: u64,
     pub flush_timeout: Duration,
     pub input_mtu: u16,
 }
 
-pub(crate) enum Error {
+enum Error {
     Receive(RecvTimeoutError),
     Io(io::Error),
 }
@@ -40,9 +41,9 @@ impl From<io::Error> for Error {
     }
 }
 
-pub(crate) type Message = EncodingPacket;
+pub type Message = EncodingPacket;
 
-pub(crate) fn new(config: Config, udp_recvq: Receiver<Message>, deserialize_socket: UnixStream) {
+pub fn new(config: Config, udp_recvq: Receiver<Message>, deserialize_socket: UnixStream) {
     if let Err(e) = main_loop(config, udp_recvq, deserialize_socket) {
         error!("decoding loop error: {e}");
     }

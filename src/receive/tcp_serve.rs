@@ -1,3 +1,4 @@
+use crate::protocol;
 use crossbeam_channel::{self, Receiver, RecvTimeoutError};
 use log::{error, info, trace, warn};
 use std::{
@@ -9,12 +10,12 @@ use std::{
 
 #[derive(Clone)]
 pub(crate) struct Config {
-    pub to_tcp: net::SocketAddr,
-    pub to_tcp_buffer_size: usize,
-    pub abort_timeout: Duration,
+    pub(crate) to_tcp: net::SocketAddr,
+    pub(crate) to_tcp_buffer_size: usize,
+    pub(crate) abort_timeout: Duration,
 }
 
-pub(crate) enum Error {
+enum Error {
     Io(io::Error),
     Crossbeam(RecvTimeoutError),
 }

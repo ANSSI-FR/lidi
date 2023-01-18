@@ -11,26 +11,6 @@ rand = "0.8"
 raptorq = "1.7"
 simple_logger = "4.0"
 
-[lib]
-name = "protocol"
-path = "src/protocol.rs"
-
-[[bin]]
-name = "diode-send"
-path = "src/down/main.rs"
-
-[[bin]]
-name = "diode-receive"
-path = "src/up/main.rs"
-
-[[bin]]
-name = "diode-send-file"
-path = "src/file/send.rs"
-
-[[bin]]
-name = "diode-receive-file"
-path = "src/file/receive.rs"
-
 [profile.release]
 lto = true
 opt-level = 3

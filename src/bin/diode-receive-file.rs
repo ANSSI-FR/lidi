@@ -1,4 +1,4 @@
-mod protocol;
+use diode::file::protocol;
 
 use clap::{Arg, ArgAction, Command};
 use log::{debug, error, info};

@@ -1,18 +1,19 @@
-use crate::tcp_serve;
+use crate::receive::tcp_serve;
+use crate::protocol;
 use crossbeam_channel::{unbounded, SendError, Sender};
 use log::{debug, error, trace};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 use std::{fmt, io, net, os::unix::net::UnixStream, thread};
 
-pub(crate) struct Config {
+pub struct Config {
     pub logical_block_size: u64,
     pub to_tcp: net::SocketAddr,
     pub to_tcp_buffer_size: usize,
     pub abort_timeout: Duration,
 }
 
-pub(crate) enum Error {
+enum Error {
     Io(io::Error),
     Crossbeam(SendError<protocol::Message>),
     Diode(protocol::Error),
@@ -46,7 +47,7 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub(crate) fn new(config: Config, decoding_recvr: UnixStream) {
+pub fn new(config: Config, decoding_recvr: UnixStream) {
     if let Err(e) = main_loop(config, decoding_recvr) {
         error!("deserialize loop error: {e}");
     }

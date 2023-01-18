@@ -1,18 +1,19 @@
-use crate::udp_send;
+use crate::send::udp_send;
+use crate::protocol;
 use crossbeam_channel::{self, Receiver, RecvTimeoutError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
 use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder};
 use std::{collections::VecDeque, fmt, time::Duration};
 
 #[derive(Clone)]
-pub(crate) struct Config {
+pub struct Config {
     pub logical_block_size: u64,
     pub repair_block_size: u32,
     pub output_mtu: u16,
     pub flush_timeout: Duration,
 }
 
-pub(crate) enum Error {
+enum Error {
     Receive(RecvTimeoutError),
     Send(SendError<udp_send::Message>),
     Diode(protocol::Error),
@@ -46,13 +47,13 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub(crate) fn new(
+pub fn new(
     config: Config,
     recvq: Receiver<protocol::ClientMessage>,
     sendq: Sender<udp_send::Message>,
 ) {
     if let Err(e) = main_loop(config, recvq, sendq) {
-        error!("encding loop error: {e}");
+        error!("encoding loop error: {e}");
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{env, fmt, io};
 
-pub enum Message {
+pub(crate) enum Message {
     Start,
     Data(Vec<u8>),
     Abort,
@@ -8,7 +8,7 @@ pub enum Message {
     Padding(u32),
 }
 
-pub enum Error {
+pub(crate) enum Error {
     Io(io::Error),
     Serialization(String),
 }
@@ -35,7 +35,7 @@ const ID_END: u8 = 0x04;
 const ID_PADDING: u8 = 0x05;
 
 impl Message {
-    pub fn deserialize_from<R: io::Read>(r: &mut R) -> Result<Self, Error> {
+    fn deserialize_from<R: io::Read>(r: &mut R) -> Result<Self, Error> {
         let mut kind_buf = [0u8; 1];
         r.read_exact(&mut kind_buf)?;
         match kind_buf[0] {
@@ -62,11 +62,11 @@ impl Message {
         }
     }
 
-    pub(crate) fn serialize_padding_overhead() -> usize {
+    fn serialize_padding_overhead() -> usize {
         1 + 4
     }
 
-    pub fn serialize_to<W: io::Write>(&self, w: &mut W) -> Result<(), Error> {
+    fn serialize_to<W: io::Write>(&self, w: &mut W) -> Result<(), Error> {
         match self {
             Self::Start => w.write_all(&ID_START.to_le_bytes())?,
             Self::Data(data) => {
@@ -99,19 +99,19 @@ impl fmt::Display for Message {
     }
 }
 
-pub type ClientId = u32;
+pub(crate) type ClientId = u32;
 
-pub fn new_client_id() -> ClientId {
+pub(crate) fn new_client_id() -> ClientId {
     rand::random::<ClientId>()
 }
 
 pub struct ClientMessage {
-    pub client_id: ClientId,
-    pub payload: Message,
+    pub(crate) client_id: ClientId,
+    pub(crate) payload: Message,
 }
 
 impl ClientMessage {
-    pub fn deserialize_from<R: io::Read>(r: &mut R) -> Result<Self, Error> {
+    pub(crate) fn deserialize_from<R: io::Read>(r: &mut R) -> Result<Self, Error> {
         let mut id_buf = [0u8; 4];
         r.read_exact(&mut id_buf)?;
         let client_id = u32::from_le_bytes(id_buf);
@@ -119,11 +119,11 @@ impl ClientMessage {
         Ok(Self { client_id, payload })
     }
 
-    pub fn serialize_padding_overhead() -> usize {
+    pub(crate) fn serialize_padding_overhead() -> usize {
         4 + Message::serialize_padding_overhead()
     }
 
-    pub fn serialize_to<W: io::Write>(&self, w: &mut W) -> Result<(), Error> {
+    pub(crate) fn serialize_to<W: io::Write>(&self, w: &mut W) -> Result<(), Error> {
         w.write_all(&self.client_id.to_le_bytes())?;
         self.payload.serialize_to(w)
     }
@@ -135,7 +135,7 @@ impl fmt::Display for ClientMessage {
     }
 }
 
-pub const RAPTORQ_PAYLOAD_SIZE: u64 = 4;
+pub(crate) const RAPTORQ_PAYLOAD_SIZE: u64 = 4;
 
 pub fn adjust_encoding_block_size(mtu: u16, encoding_block_size: u64) -> u64 {
     (mtu as u64 - RAPTORQ_PAYLOAD_SIZE)

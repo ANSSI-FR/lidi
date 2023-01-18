@@ -1,6 +1,7 @@
-mod encoding;
-mod tcp_client;
-mod udp_send;
+use diode::send::encoding;
+use diode::send::tcp_client;
+use diode::send::udp_send;
+use diode::protocol;
 
 use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};

@@ -6,12 +6,12 @@ use std::{
     net::{SocketAddr, UdpSocket},
 };
 
-pub(crate) struct Config {
+pub struct Config {
     pub to_udp: SocketAddr,
     pub mtu: u16,
 }
 
-pub(crate) enum Error {
+enum Error {
     Io(io::Error),
     Crossbeam(RecvError),
 }
@@ -37,9 +37,9 @@ impl From<RecvError> for Error {
     }
 }
 
-pub(crate) type Message = EncodingPacket;
+pub type Message = EncodingPacket;
 
-pub(crate) fn new(config: Config, recvq: Receiver<Message>) {
+pub fn new(config: Config, recvq: Receiver<Message>) {
     if let Err(e) = main_loop(config, recvq) {
         error!("UDP send loop error: {e}");
     }
