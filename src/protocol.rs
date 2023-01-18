@@ -58,7 +58,7 @@ impl Message {
                 r.read_exact(&mut padding)?;
                 Ok(Self::Padding(padlen))
             }
-            v => Err(Error::Serialization(format!("unexcepted value 0x{:x}", v))),
+            v => Err(Error::Serialization(format!("unexcepted value 0x{v:x}"))),
         }
     }
 
@@ -94,7 +94,7 @@ impl fmt::Display for Message {
             Self::Data(d) => write!(fmt, "Data({} bytes)", d.len()),
             Self::Abort => write!(fmt, "Abort"),
             Self::End => write!(fmt, "End"),
-            Self::Padding(p) => write!(fmt, "Padding({} bytes)", p),
+            Self::Padding(p) => write!(fmt, "Padding({p} bytes)"),
         }
     }
 }
