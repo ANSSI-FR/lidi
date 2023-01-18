@@ -1,6 +1,6 @@
 [package]
 name = "diode"
-version = "0.1.2"
+version = "0.2.1"
 edition = "2021"
 
 [dependencies]
@@ -12,16 +12,24 @@ raptorq = "1.7"
 simple_logger = "4.0"
 
 [lib]
-name = "diode"
-path = "src/diode.rs"
+name = "protocol"
+path = "src/protocol.rs"
 
 [[bin]]
-name = "diode-down"
+name = "diode-send"
 path = "src/down/main.rs"
 
 [[bin]]
-name = "diode-up"
+name = "diode-receive"
 path = "src/up/main.rs"
+
+[[bin]]
+name = "diode-send-file"
+path = "src/file/send.rs"
+
+[[bin]]
+name = "diode-receive-file"
+path = "src/file/receive.rs"
 
 [profile.release]
 lto = true

@@ -13,8 +13,8 @@ pub(crate) struct Config {
 
 pub(crate) enum Error {
     Io(io::Error),
-    Crossbeam(SendError<diode::Message>),
-    Diode(diode::Error),
+    Crossbeam(SendError<protocol::Message>),
+    Diode(protocol::Error),
 }
 
 impl fmt::Display for Error {
@@ -33,14 +33,14 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<SendError<diode::Message>> for Error {
-    fn from(e: SendError<diode::Message>) -> Self {
+impl From<SendError<protocol::Message>> for Error {
+    fn from(e: SendError<protocol::Message>) -> Self {
         Self::Crossbeam(e)
     }
 }
 
-impl From<diode::Error> for Error {
-    fn from(e: diode::Error) -> Self {
+impl From<protocol::Error> for Error {
+    fn from(e: protocol::Error) -> Self {
         Self::Diode(e)
     }
 }
@@ -55,9 +55,11 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
     let mut decoding_recvr =
         io::BufReader::with_capacity(config.logical_block_size as usize, decoding_recvr);
 
-    let mut active_transfers: BTreeMap<diode::ClientId, Sender<diode::Message>> = BTreeMap::new();
-    let mut ended_transfers: BTreeMap<diode::ClientId, Sender<diode::Message>> = BTreeMap::new();
-    let mut failed_transfers: BTreeSet<diode::ClientId> = BTreeSet::new();
+    let mut active_transfers: BTreeMap<protocol::ClientId, Sender<protocol::Message>> =
+        BTreeMap::new();
+    let mut ended_transfers: BTreeMap<protocol::ClientId, Sender<protocol::Message>> =
+        BTreeMap::new();
+    let mut failed_transfers: BTreeSet<protocol::ClientId> = BTreeSet::new();
 
     let tcp_serve_config = tcp_serve::Config {
         to_tcp: config.to_tcp,
@@ -66,8 +68,8 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
     };
 
     loop {
-        let message: diode::ClientMessage =
-            diode::ClientMessage::deserialize_from(&mut decoding_recvr)?;
+        let message: protocol::ClientMessage =
+            protocol::ClientMessage::deserialize_from(&mut decoding_recvr)?;
 
         trace!("received {}", message);
 
@@ -75,10 +77,13 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
             continue;
         }
 
-        let will_end = matches!(message.payload, diode::Message::Abort | diode::Message::End);
+        let will_end = matches!(
+            message.payload,
+            protocol::Message::Abort | protocol::Message::End
+        );
 
         match message.payload {
-            diode::Message::Padding(_) => {
+            protocol::Message::Padding(_) => {
                 // use padding messages to expunge ended transfers
                 ended_transfers.retain(|client_id, client_sendq| {
                     let retain = client_sendq.is_empty();
@@ -90,8 +95,8 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
                 continue;
             }
 
-            diode::Message::Start => {
-                let (client_sendq, client_recvq) = unbounded::<diode::Message>();
+            protocol::Message::Start => {
+                let (client_sendq, client_recvq) = unbounded::<protocol::Message>();
 
                 active_transfers.insert(message.client_id, client_sendq);
 

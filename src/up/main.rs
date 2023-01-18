@@ -218,10 +218,10 @@ fn main() {
 
     command_args(&mut config);
 
-    diode::init_logger();
+    protocol::init_logger();
 
     config.encoding_block_size =
-        diode::adjust_encoding_block_size(config.from_udp_mtu, config.encoding_block_size);
+        protocol::adjust_encoding_block_size(config.from_udp_mtu, config.encoding_block_size);
 
     debug!(
         "adjusting encoding_block_size to {} bytes",

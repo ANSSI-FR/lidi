@@ -15,7 +15,7 @@ pub(crate) struct Config {
 pub(crate) enum Error {
     Receive(RecvTimeoutError),
     Send(SendError<udp_send::Message>),
-    Diode(diode::Error),
+    Diode(protocol::Error),
 }
 
 impl fmt::Display for Error {
@@ -40,15 +40,15 @@ impl From<SendError<udp_send::Message>> for Error {
     }
 }
 
-impl From<diode::Error> for Error {
-    fn from(e: diode::Error) -> Self {
+impl From<protocol::Error> for Error {
+    fn from(e: protocol::Error) -> Self {
         Self::Diode(e)
     }
 }
 
 pub(crate) fn new(
     config: Config,
-    recvq: Receiver<diode::ClientMessage>,
+    recvq: Receiver<protocol::ClientMessage>,
     sendq: Sender<udp_send::Message>,
 ) {
     if let Err(e) = main_loop(config, recvq, sendq) {
@@ -58,7 +58,7 @@ pub(crate) fn new(
 
 fn main_loop(
     config: Config,
-    recvq: Receiver<diode::ClientMessage>,
+    recvq: Receiver<protocol::ClientMessage>,
     sendq: Sender<udp_send::Message>,
 ) -> Result<(), Error> {
     let nb_repair_packets = config.repair_block_size / config.output_mtu as u32;
@@ -77,7 +77,7 @@ fn main_loop(
 
     debug!("object transformation information = {:?} ", oti);
 
-    let overhead = diode::ClientMessage::serialize_padding_overhead();
+    let overhead = protocol::ClientMessage::serialize_padding_overhead();
 
     debug!("padding encoding overhead is {} bytes", overhead);
 
@@ -100,9 +100,9 @@ fn main_loop(
                     padding_needed - overhead
                 };
                 debug!("flushing with {padding_len} padding bytes");
-                diode::ClientMessage {
+                protocol::ClientMessage {
                     client_id: 0,
-                    payload: diode::Message::Padding(padding_len as u32),
+                    payload: protocol::Message::Padding(padding_len as u32),
                 }
             }
             Err(e) => return Err(Error::from(e)),
@@ -112,8 +112,10 @@ fn main_loop(
         message.serialize_to(&mut queue)?;
 
         match message.payload {
-            diode::Message::Start => debug!("start of encoding of client {:x}", message.client_id),
-            diode::Message::End => debug!("end of encoding of client {:x}", message.client_id),
+            protocol::Message::Start => {
+                debug!("start of encoding of client {:x}", message.client_id)
+            }
+            protocol::Message::End => debug!("end of encoding of client {:x}", message.client_id),
             _ => (),
         }
 

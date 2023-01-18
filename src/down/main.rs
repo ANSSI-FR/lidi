@@ -66,7 +66,7 @@ impl From<RecvError> for Error {
 fn connect_loop_aux(
     connect_recvq: Receiver<TcpStream>,
     tcp_client_config: tcp_client::Config,
-    tcp_sendq: Sender<diode::ClientMessage>,
+    tcp_sendq: Sender<protocol::ClientMessage>,
 ) -> Result<(), Error> {
     loop {
         let client = connect_recvq.recv()?;
@@ -77,7 +77,7 @@ fn connect_loop_aux(
 fn connect_loop(
     connect_recvq: Receiver<TcpStream>,
     tcp_client_config: tcp_client::Config,
-    tcp_senq: Sender<diode::ClientMessage>,
+    tcp_senq: Sender<protocol::ClientMessage>,
 ) {
     if let Err(e) = connect_loop_aux(connect_recvq, tcp_client_config, tcp_senq) {
         error!("failed to connect client: {e}");
@@ -191,10 +191,10 @@ fn main() {
 
     command_args(&mut config);
 
-    diode::init_logger();
+    protocol::init_logger();
 
     config.encoding_block_size =
-        diode::adjust_encoding_block_size(config.to_udp_mtu, config.encoding_block_size);
+        protocol::adjust_encoding_block_size(config.to_udp_mtu, config.encoding_block_size);
 
     debug!(
         "adjusting encoding_block_size to {} bytes",
@@ -235,7 +235,7 @@ fn main() {
     );
 
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
-    let (tcp_sendq, tcp_recvq) = bounded::<diode::ClientMessage>(config.nb_transfers as usize);
+    let (tcp_sendq, tcp_recvq) = bounded::<protocol::ClientMessage>(config.nb_transfers as usize);
     let (udp_sendq, udp_recvq) = unbounded::<udp_send::Message>();
 
     thread::spawn(move || udp_send::new(udp_send_config, udp_recvq));

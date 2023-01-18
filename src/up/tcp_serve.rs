@@ -40,7 +40,11 @@ impl From<RecvTimeoutError> for Error {
     }
 }
 
-pub(crate) fn new(config: Config, client_id: diode::ClientId, recvq: Receiver<diode::Message>) {
+pub(crate) fn new(
+    config: Config,
+    client_id: protocol::ClientId,
+    recvq: Receiver<protocol::Message>,
+) {
     if let Err(e) = main_loop(config, client_id, recvq) {
         error!("client {client_id:x}: TCP send loop error: {e}");
     }
@@ -48,8 +52,8 @@ pub(crate) fn new(config: Config, client_id: diode::ClientId, recvq: Receiver<di
 
 fn main_loop(
     config: Config,
-    client_id: diode::ClientId,
-    recvq: Receiver<diode::Message>,
+    client_id: protocol::ClientId,
+    recvq: Receiver<protocol::Message>,
 ) -> Result<(), Error> {
     info!("client {client_id:x}: starting transfer");
 
@@ -70,16 +74,16 @@ fn main_loop(
             Err(e) => return Err(Error::from(e)),
             Ok(message) => {
                 match message {
-                    diode::Message::Data(data) => {
+                    protocol::Message::Data(data) => {
                         trace!("client {client_id:x}: transfer {} bytes", data.len());
                         transmitted += data.len();
                         client.write_all(&data)?;
                     }
-                    diode::Message::Abort => {
+                    protocol::Message::Abort => {
                         warn!("client {client_id:x}: aborting transfer");
                         return Ok(());
                     }
-                    diode::Message::End => {
+                    protocol::Message::End => {
                         info!("client {client_id:x}: finished transfer, {transmitted} bytes transmitted");
                         client.flush()?;
                         return Ok(());

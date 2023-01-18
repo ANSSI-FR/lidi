@@ -13,7 +13,7 @@ pub(crate) struct Config {
 
 pub(crate) enum Error {
     Io(io::Error),
-    Crossbeam(SendError<diode::ClientMessage>),
+    Crossbeam(SendError<protocol::ClientMessage>),
 }
 
 impl fmt::Display for Error {
@@ -31,21 +31,21 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<SendError<diode::ClientMessage>> for Error {
-    fn from(e: SendError<diode::ClientMessage>) -> Self {
+impl From<SendError<protocol::ClientMessage>> for Error {
+    fn from(e: SendError<protocol::ClientMessage>) -> Self {
         Self::Crossbeam(e)
     }
 }
 
-pub(crate) fn new(config: &Config, client: TcpStream, sendq: Sender<diode::ClientMessage>) {
-    let client_id = diode::new_client_id();
+pub(crate) fn new(config: &Config, client: TcpStream, sendq: Sender<protocol::ClientMessage>) {
+    let client_id = protocol::new_client_id();
 
     if let Err(e) = main_loop(config, client_id, client, &sendq) {
         error!("client {client_id:x}: error: {e}");
 
-        if let Err(e) = sendq.send(diode::ClientMessage {
+        if let Err(e) = sendq.send(protocol::ClientMessage {
             client_id,
-            payload: diode::Message::Abort,
+            payload: protocol::Message::Abort,
         }) {
             error!("client {client_id:x}: failed to abort : {e}");
         }
@@ -54,9 +54,9 @@ pub(crate) fn new(config: &Config, client: TcpStream, sendq: Sender<diode::Clien
 
 fn main_loop(
     config: &Config,
-    client_id: diode::ClientId,
+    client_id: protocol::ClientId,
     mut client: TcpStream,
-    sendq: &Sender<diode::ClientMessage>,
+    sendq: &Sender<protocol::ClientMessage>,
 ) -> Result<(), Error> {
 
     info!("client {client_id:x}: connected");
@@ -68,9 +68,9 @@ fn main_loop(
     // close useless upstream
     client.shutdown(std::net::Shutdown::Write)?;
 
-    sendq.send(diode::ClientMessage {
+    sendq.send(protocol::ClientMessage {
         client_id,
-        payload: diode::Message::Start,
+        payload: protocol::Message::Start,
     })?;
 
     loop {
@@ -84,9 +84,9 @@ fn main_loop(
 
                     transmitted += cursor;
 
-                    sendq.send(diode::ClientMessage {
+                    sendq.send(protocol::ClientMessage {
                         client_id,
-                        payload: diode::Message::Data(buffer[..cursor].into()),
+                        payload: protocol::Message::Data(buffer[..cursor].into()),
                     })?;
                 }
                 break;
@@ -108,9 +108,9 @@ fn main_loop(
 
                 transmitted += buffer.len();
 
-                sendq.send(diode::ClientMessage {
+                sendq.send(protocol::ClientMessage {
                     client_id,
-                    payload: diode::Message::Data(buffer.clone()),
+                    payload: protocol::Message::Data(buffer.clone()),
                 })?;
 
                 cursor = 0;
@@ -118,9 +118,9 @@ fn main_loop(
         }
     }
 
-    sendq.send(diode::ClientMessage {
+    sendq.send(protocol::ClientMessage {
         client_id,
-        payload: diode::Message::End,
+        payload: protocol::Message::End,
     })?;
 
     info!("client {client_id:x}: disconnect, {transmitted} bytes transmitted");
