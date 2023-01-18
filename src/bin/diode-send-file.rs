@@ -3,6 +3,7 @@ use diode::file::protocol;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use log::{debug, error, info};
 use std::{
+    env,
     fmt,
     fs::OpenOptions,
     io::{self, Read, Write},
@@ -172,11 +173,19 @@ fn main() {
 
     let args = command_args(&mut config);
 
-    protocol::init_logger();
+    init_logger();
 
     if let Some(files) = args.get_many("file") {
         if let Err(e) = main_loop(config, files.collect()) {
             error!("{e}");
         }
+    }
+}
+
+fn init_logger() {
+    if env::var("RUST_LOG").is_ok() {
+        simple_logger::init_with_env().unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 }

@@ -1,8 +1,8 @@
 use diode::file::protocol;
-
 use clap::{Arg, ArgAction, Command};
 use log::{debug, error, info};
 use std::{
+    env,
     fmt,
     fs::{OpenOptions, Permissions},
     io::{self, Read, Write},
@@ -190,9 +190,17 @@ fn main() {
 
     command_args(&mut config);
 
-    protocol::init_logger();
+    init_logger();
 
     if let Err(e) = main_loop(config) {
         error!("{e}");
+    }
+}
+
+fn init_logger() {
+    if env::var("RUST_LOG").is_ok() {
+        simple_logger::init_with_env().unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 }

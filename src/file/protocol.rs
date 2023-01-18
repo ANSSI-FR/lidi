@@ -1,5 +1,5 @@
 use std::{
-    env, fmt, io,
+    fmt, io,
     io::{Read, Write},
     string::FromUtf8Error,
 };
@@ -67,13 +67,5 @@ impl Header {
             mode,
             file_length,
         })
-    }
-}
-
-pub fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env().unwrap();
-    } else {
-        simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 }

@@ -1,4 +1,4 @@
-use std::{env, fmt, io};
+use std::{fmt, io};
 
 pub(crate) enum Message {
     Start,
@@ -140,12 +140,4 @@ pub(crate) const RAPTORQ_PAYLOAD_SIZE: u64 = 4;
 pub fn adjust_encoding_block_size(mtu: u16, encoding_block_size: u64) -> u64 {
     (mtu as u64 - RAPTORQ_PAYLOAD_SIZE)
         * (encoding_block_size / (mtu as u64 - RAPTORQ_PAYLOAD_SIZE))
-}
-
-pub fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env().unwrap();
-    } else {
-        simple_logger::init_with_level(log::Level::Info).unwrap();
-    }
 }

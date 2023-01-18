@@ -1,12 +1,11 @@
 use diode::receive::decoding;
 use diode::receive::deserialize;
 use diode::protocol;
-
 use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{unbounded, SendError};
 use log::{debug, error, info};
 use std::{
-    fmt, io,
+    fmt, env, io,
     net::{self, SocketAddr, UdpSocket},
     os::unix::net::UnixStream,
     str::FromStr,
@@ -218,7 +217,7 @@ fn main() {
 
     command_args(&mut config);
 
-    protocol::init_logger();
+    init_logger();
 
     config.encoding_block_size =
         protocol::adjust_encoding_block_size(config.from_udp_mtu, config.encoding_block_size);
@@ -230,5 +229,13 @@ fn main() {
 
     if let Err(e) = main_loop(config) {
         error!("failed to launch main_loop: {e}");
+    }
+}
+
+fn init_logger() {
+    if env::var("RUST_LOG").is_ok() {
+        simple_logger::init_with_env().unwrap();
+    } else {
+        simple_logger::init_with_level(log::Level::Info).unwrap();
     }
 }
