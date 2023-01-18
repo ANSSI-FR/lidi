@@ -44,7 +44,7 @@ impl Message {
                 let mut len_buf = [0u8; 8];
                 r.read_exact(&mut len_buf)?;
                 let len = u64::from_le_bytes(len_buf) as usize;
-                let mut data_buf = vec!(0; len);
+                let mut data_buf = vec![0; len];
                 r.read_exact(&mut data_buf)?;
                 Ok(Self::Data(data_buf))
             }
@@ -54,7 +54,7 @@ impl Message {
                 let mut padlen_buf = [0u8; 4];
                 r.read_exact(&mut padlen_buf)?;
                 let padlen = u32::from_le_bytes(padlen_buf);
-                let mut padding = vec!(0; padlen as usize);
+                let mut padding = vec![0; padlen as usize];
                 r.read_exact(&mut padding)?;
                 Ok(Self::Padding(padlen))
             }
@@ -73,15 +73,15 @@ impl Message {
                 w.write_all(&ID_DATA.to_le_bytes())?;
                 w.write_all(&data.len().to_le_bytes())?;
                 w.write_all(data)?;
-            },
+            }
             Self::Abort => w.write_all(&ID_ABORT.to_le_bytes())?,
             Self::End => w.write_all(&ID_END.to_le_bytes())?,
             Self::Padding(padlen) => {
                 w.write_all(&ID_PADDING.to_le_bytes())?;
                 w.write_all(&padlen.to_le_bytes())?;
-                let padding = vec!(0; *padlen as usize);
+                let padding = vec![0; *padlen as usize];
                 w.write_all(&padding)?;
-            },
+            }
         };
         Ok(())
     }
@@ -135,9 +135,11 @@ impl fmt::Display for ClientMessage {
     }
 }
 
+pub const RAPTORQ_PAYLOAD_SIZE: u64 = 4;
+
 pub fn adjust_encoding_block_size(mtu: u16, encoding_block_size: u64) -> u64 {
-    let payload_size = 4;
-    (mtu as u64 - payload_size) * (encoding_block_size / (mtu as u64 - payload_size))
+    (mtu as u64 - RAPTORQ_PAYLOAD_SIZE)
+        * (encoding_block_size / (mtu as u64 - RAPTORQ_PAYLOAD_SIZE))
 }
 
 pub fn init_logger() {

@@ -10,7 +10,7 @@ use std::{
 
 pub(crate) struct Config {
     pub logical_block_size: u64,
-    pub flush_timeout: u64,
+    pub flush_timeout: Duration,
     pub input_mtu: u16,
 }
 
@@ -59,33 +59,46 @@ fn main_loop(
     let mut deserialize_socket =
         io::BufWriter::with_capacity(config.logical_block_size as usize, deserialize_socket);
 
-    let nb_normal_packets = config.logical_block_size / config.input_mtu as u64;
+    let nb_normal_packets =
+        config.logical_block_size / (config.input_mtu as u64 - protocol::RAPTORQ_PAYLOAD_SIZE);
+    debug!(
+        "need at least {} packets for normal decoding",
+        nb_normal_packets
+    );
 
     let mut desynchro = true;
     let mut queue = Vec::with_capacity(nb_normal_packets as usize);
     let mut block_id = 0;
 
     loop {
-        let packet = match udp_recvq.recv_timeout(Duration::from_secs(config.flush_timeout)) {
+        let packet = match udp_recvq.recv_timeout(config.flush_timeout) {
             Err(RecvTimeoutError::Timeout) => {
                 let qlen = queue.len();
                 if 0 < qlen {
                     // no more traffic but ongoing block, trying to decode
                     debug!("flush timeout with {qlen} packets");
-                    let mut decoder =
-                        SourceBlockDecoder::new2(block_id, &oti, config.logical_block_size);
 
-                    match decoder.decode(queue) {
-                        None => {
-                            warn!("lost block {block_id}");
-                            desynchro = true;
-                        }
-                        Some(block) => {
-                            trace!("block {} received with {} bytes!", block_id, block.len());
-                            deserialize_socket.write_all(&block)?;
-                            block_id = block_id.wrapping_add(1);
-                        }
-                    };
+                    if nb_normal_packets as usize <= qlen {
+                        debug!("trying to decode");
+                        let mut decoder =
+                            SourceBlockDecoder::new2(block_id, &oti, config.logical_block_size);
+
+                        match decoder.decode(queue) {
+                            None => {
+                                warn!("lost block {block_id}");
+                                desynchro = true;
+                            }
+                            Some(block) => {
+                                trace!("block {} received with {} bytes!", block_id, block.len());
+                                deserialize_socket.write_all(&block)?;
+                                block_id = block_id.wrapping_add(1);
+                            }
+                        };
+                    } else {
+                        debug!("no enough packets to decode, discarding");
+                        warn!("lost block {block_id}");
+                        desynchro = true;
+                    }
                     queue = Vec::with_capacity(nb_normal_packets as usize);
                 } else {
                     // without data for some time we reset the current block_id
@@ -111,8 +124,13 @@ fn main_loop(
             continue;
         }
 
+        if message_block_id.wrapping_add(1) == block_id {
+            trace!("discarding packet from previous block_id {message_block_id}");
+            continue;
+        }
+
         if message_block_id != block_id.wrapping_add(1) {
-            warn!("discarding packet with block_id {message_block_id} (current block_id is {block_id}");
+            warn!("discarding packet with block_id {message_block_id} (current block_id is {block_id})");
             continue;
         }
 

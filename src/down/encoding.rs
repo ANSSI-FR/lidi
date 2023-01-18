@@ -9,7 +9,7 @@ pub(crate) struct Config {
     pub logical_block_size: u64,
     pub repair_block_size: u32,
     pub output_mtu: u16,
-    pub flush_timeout: u64,
+    pub flush_timeout: Duration,
 }
 
 pub(crate) enum Error {
@@ -86,7 +86,7 @@ fn main_loop(
     let mut block_id = 0;
 
     loop {
-        let message = match recvq.recv_timeout(Duration::from_secs(config.flush_timeout)) {
+        let message = match recvq.recv_timeout(config.flush_timeout) {
             Err(RecvTimeoutError::Timeout) => {
                 trace!("flush timeout");
                 if queue.is_empty() {

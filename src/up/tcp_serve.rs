@@ -11,7 +11,7 @@ use std::{
 pub(crate) struct Config {
     pub to_tcp: net::SocketAddr,
     pub to_tcp_buffer_size: usize,
-    pub abort_timeout: u64,
+    pub abort_timeout: Duration,
 }
 
 pub(crate) enum Error {
@@ -66,7 +66,7 @@ fn main_loop(
     let mut transmitted = 0;
 
     loop {
-        match recvq.recv_timeout(Duration::from_secs(config.abort_timeout)) {
+        match recvq.recv_timeout(config.abort_timeout) {
             Err(RecvTimeoutError::Timeout) => {
                 warn!("client {client_id:x}: transfer tiemout, aborting");
                 return Err(Error::from(RecvTimeoutError::Timeout));

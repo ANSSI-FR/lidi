@@ -10,6 +10,7 @@ use std::{
     net::{SocketAddr, TcpListener, TcpStream},
     str::FromStr,
     thread,
+    time::Duration,
 };
 
 struct Config {
@@ -20,7 +21,7 @@ struct Config {
 
     encoding_block_size: u64,
     repair_block_size: u32,
-    flush_timeout: u64,
+    flush_timeout: Duration,
 
     to_udp: SocketAddr,
     to_udp_mtu: u16,
@@ -37,7 +38,7 @@ impl Default for Config {
 
             encoding_block_size: (mtu * 40) as u64, //optimal parameter -- to align with other size !
             repair_block_size: (mtu * 4) as u32,
-            flush_timeout: 1,
+            flush_timeout: Duration::from_millis(100),
 
             to_udp: SocketAddr::from_str("127.0.0.1:6000").unwrap(),
             to_udp_mtu: mtu as u16,
@@ -132,7 +133,7 @@ fn command_args(config: &mut Config) {
                 .action(ArgAction::Set)
                 .value_name("nb_seconds")
                 .value_parser(clap::value_parser!(u64))
-                .help("Duration in seconds after an incomplete RaptorQ block is flushed"),
+                .help("Duration in milliseconds after an incomplete RaptorQ block is flushed"),
         )
         .arg(
             Arg::new("to_udp")
@@ -173,7 +174,7 @@ fn command_args(config: &mut Config) {
     }
 
     if let Some(p) = args.get_one::<u64>("flush_timeout") {
-        config.flush_timeout = *p;
+        config.flush_timeout = Duration::from_millis(*p);
     }
 
     if let Some(p) = args.get_one::<String>("to_udp") {
@@ -218,10 +219,10 @@ fn main() {
     };
 
     info!(
-        "encoding with block size of {} bytes and repair block size of {} bytes and a flush timeout of {} second(s)",
+        "encoding with block size of {} bytes and repair block size of {} bytes and a flush timeout of {} milliseconds",
         encoding_config.logical_block_size,
         encoding_config.repair_block_size,
-        encoding_config.flush_timeout,
+        encoding_config.flush_timeout.as_millis(),
     );
 
     let udp_send_config = udp_send::Config {

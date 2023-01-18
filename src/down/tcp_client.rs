@@ -58,7 +58,6 @@ fn main_loop(
     mut client: TcpStream,
     sendq: &Sender<protocol::ClientMessage>,
 ) -> Result<(), Error> {
-
     info!("client {client_id:x}: connected");
 
     let mut buffer = vec![0; config.buffer_size];

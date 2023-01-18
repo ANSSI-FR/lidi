@@ -2,13 +2,14 @@ use crate::tcp_serve;
 use crossbeam_channel::{unbounded, SendError, Sender};
 use log::{debug, error, trace};
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Duration;
 use std::{fmt, io, net, os::unix::net::UnixStream, thread};
 
 pub(crate) struct Config {
     pub logical_block_size: u64,
     pub to_tcp: net::SocketAddr,
     pub to_tcp_buffer_size: usize,
-    pub abort_timeout: u64,
+    pub abort_timeout: Duration,
 }
 
 pub(crate) enum Error {

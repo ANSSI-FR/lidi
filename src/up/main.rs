@@ -11,6 +11,7 @@ use std::{
     os::unix::net::UnixStream,
     str::FromStr,
     thread,
+    time::Duration,
 };
 
 struct Config {
@@ -18,11 +19,11 @@ struct Config {
     from_udp_mtu: u16,
 
     encoding_block_size: u64,
-    flush_timeout: u64,
+    flush_timeout: Duration,
 
     to_tcp: SocketAddr,
     to_tcp_buffer_size: usize,
-    abort_timeout: u64,
+    abort_timeout: Duration,
 }
 
 impl Default for Config {
@@ -33,11 +34,11 @@ impl Default for Config {
             from_udp_mtu: mtu as u16,
 
             encoding_block_size: (mtu * 40) as u64, //optimal parameter -- to align with other size !
-            flush_timeout: 1,
+            flush_timeout: Duration::from_millis(500),
 
             to_tcp: SocketAddr::from_str("127.0.0.1:7000").unwrap(),
             to_tcp_buffer_size: mtu * 10,
-            abort_timeout: 60,
+            abort_timeout: Duration::from_secs(10),
         }
     }
 }
@@ -106,11 +107,9 @@ fn command_args(config: &mut Config) {
             Arg::new("flush_timeout")
                 .long("flush_timeout")
                 .action(ArgAction::Set)
-                .value_name("nb_seconds")
+                .value_name("nb_milliseconds")
                 .value_parser(clap::value_parser!(u64))
-                .help(
-                    "Duration in seconds after the last received complete RaptorQ block is flushed",
-                ),
+                .help("Duration in milliseconds after resetting RaptorQ status"),
         )
         .arg(
             Arg::new("to_tcp")
@@ -151,7 +150,7 @@ fn command_args(config: &mut Config) {
     }
 
     if let Some(p) = args.get_one::<u64>("flush_timeout") {
-        config.flush_timeout = *p;
+        config.flush_timeout = Duration::from_millis(*p);
     }
 
     if let Some(p) = args.get_one::<String>("to_tcp") {
@@ -164,7 +163,7 @@ fn command_args(config: &mut Config) {
     }
 
     if let Some(p) = args.get_one::<u64>("abort_timeout") {
-        config.abort_timeout = *p;
+        config.abort_timeout = Duration::from_secs(*p);
     }
 }
 
@@ -193,15 +192,16 @@ fn main_loop(config: Config) -> Result<(), Error> {
     };
 
     info!(
-        "decoding with block size of {} bytes and a flush timeout of {} second(s)",
-        decoding_config.logical_block_size, decoding_config.flush_timeout,
+        "decoding with block size of {} bytes and flush timeout of {} miiilseconds",
+        decoding_config.logical_block_size,
+        decoding_config.flush_timeout.as_millis(),
     );
 
     thread::spawn(move || decoding::new(decoding_config, udp_recvq, decoding_sends));
 
     info!(
         "sending TCP traffic to {} with abort timeout of {} second(s)",
-        config.to_tcp, config.abort_timeout,
+        config.to_tcp, config.abort_timeout.as_secs(),
     );
 
     let mut buffer = vec![0; config.from_udp_mtu as usize];
