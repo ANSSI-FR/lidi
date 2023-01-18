@@ -1,4 +1,4 @@
-use clap::{Arg, ArgAction, Command};
+use clap::{Arg, Command};
 use diode::file::protocol;
 use log::{debug, error, info};
 use std::{
@@ -19,13 +19,42 @@ struct Config {
     output_directory: PathBuf,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            from_tcp: SocketAddr::from_str("127.0.0.1:7000").unwrap(),
-            buffer_size: 4096 * 1024,
-            output_directory: PathBuf::from("."),
-        }
+fn command_args() -> Config {
+    let args = Command::new(env!("CARGO_BIN_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .arg(
+            Arg::new("from_tcp")
+                .long("from_tcp")
+                .value_name("ip:port")
+                .default_value("127.0.0.1:7000")
+                .help("Address and port to listen for diode-up"),
+        )
+        .arg(
+            Arg::new("buffer_size")
+                .long("buffer_size")
+                .value_name("nb_bytes")
+                .default_value("4194304") // 4096 * 1024
+                .value_parser(clap::value_parser!(usize))
+                .help("Size of TCP write buffer"),
+        )
+        .arg(
+            Arg::new("output_directory")
+                .value_name("dir")
+                .default_value(".")
+                .help("Output directory"),
+        )
+        .get_matches();
+
+    let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
+        .expect("invalid from_tcp parameter");
+    let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
+    let output_directory =
+        PathBuf::from(args.get_one::<String>("output_directory").expect("default"));
+
+    Config {
+        from_tcp,
+        buffer_size,
+        output_directory,
     }
 }
 
@@ -54,48 +83,6 @@ impl From<io::Error> for Error {
 impl From<protocol::Error> for Error {
     fn from(e: protocol::Error) -> Self {
         Self::Diode(e)
-    }
-}
-
-fn command_args(config: &mut Config) {
-    let args = Command::new(env!("CARGO_BIN_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("from_tcp")
-                .long("from_tcp")
-                .action(ArgAction::Set)
-                .value_name("ip:port")
-                .help("Address and port to listen for diode-up"),
-        )
-        .arg(
-            Arg::new("buffer_size")
-                .long("buffer_size")
-                .action(ArgAction::Set)
-                .value_name("nb_bytes")
-                .value_parser(clap::value_parser!(usize))
-                .help("Size of TCP write buffer"),
-        )
-        .arg(
-            Arg::new("output_directory")
-                .required(true)
-                .action(ArgAction::Set)
-                .value_name("dir")
-                .value_parser(clap::value_parser!(String))
-                .help("Output directory"),
-        )
-        .get_matches();
-
-    if let Some(p) = args.get_one::<String>("from_tcp") {
-        let p = SocketAddr::from_str(p).expect("invalid from_tcp parameter");
-        config.from_tcp = p;
-    }
-
-    if let Some(p) = args.get_one::<usize>("buffer_size") {
-        config.buffer_size = *p;
-    }
-
-    if let Some(p) = args.get_one::<String>("output_directory") {
-        config.output_directory = PathBuf::from(&p);
     }
 }
 
@@ -185,9 +172,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
 }
 
 fn main() {
-    let mut config = Config::default();
-
-    command_args(&mut config);
+    let config = command_args();
 
     init_logger();
 

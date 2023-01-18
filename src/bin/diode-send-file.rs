@@ -1,6 +1,6 @@
 use diode::file::protocol;
 
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::{Arg, ArgAction, Command};
 use log::{debug, error, info};
 use std::{
     env, fmt,
@@ -15,14 +15,44 @@ use std::{
 struct Config {
     to_tcp: SocketAddr,
     buffer_size: usize,
+    files: Vec<String>,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            to_tcp: SocketAddr::from_str("127.0.0.1:5000").unwrap(),
-            buffer_size: 4096 * 1024,
-        }
+fn command_args() -> Config {
+    let args = Command::new(env!("CARGO_BIN_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .arg(
+            Arg::new("to_tcp")
+                .long("to_tcp")
+                .value_name("ip:port")
+                .default_value("127.0.0.1:5000")
+                .help("Address and port to connect to diode-down"),
+        )
+        .arg(
+            Arg::new("buffer_size")
+                .long("buffer_size")
+                .value_name("nb_bytes")
+                .default_value("4194304") // 4096 * 1024
+                .value_parser(clap::value_parser!(usize))
+                .help("Size of file read/TCP write buffer"),
+        )
+        .arg(
+            Arg::new("file")
+                .action(ArgAction::Append)
+                .allow_hyphen_values(true)
+                .required(true),
+        )
+        .get_matches();
+
+    let to_tcp = SocketAddr::from_str(args.get_one::<String>("to_tcp").expect("default"))
+        .expect("invalid to_tcp parameter");
+    let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
+    let files = args.get_many("file").expect("required").cloned().collect();
+
+    Config {
+        to_tcp,
+        buffer_size,
+        files,
     }
 }
 
@@ -52,43 +82,6 @@ impl From<protocol::Error> for Error {
     fn from(e: protocol::Error) -> Self {
         Self::Diode(e)
     }
-}
-
-fn command_args(config: &mut Config) -> ArgMatches {
-    let args = Command::new(env!("CARGO_BIN_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("to_tcp")
-                .long("to_tcp")
-                .action(ArgAction::Set)
-                .value_name("ip:port")
-                .help("Address and port to connect to diode-down"),
-        )
-        .arg(
-            Arg::new("buffer_size")
-                .long("buffer_size")
-                .action(ArgAction::Set)
-                .value_name("nb_bytes")
-                .value_parser(clap::value_parser!(usize))
-                .help("Size of file read/TCP write buffer"),
-        )
-        .arg(
-            Arg::new("file")
-                .action(ArgAction::Append)
-                .allow_hyphen_values(true),
-        )
-        .get_matches();
-
-    if let Some(p) = args.get_one::<String>("to_tcp") {
-        let p = SocketAddr::from_str(p).expect("invalid to_tcp parameter");
-        config.to_tcp = p;
-    }
-
-    if let Some(p) = args.get_one::<usize>("buffer_size") {
-        config.buffer_size = *p;
-    }
-
-    args
 }
 
 fn file_loop(config: &Config, file_path: &String) -> Result<usize, Error> {
@@ -159,8 +152,8 @@ fn file_loop(config: &Config, file_path: &String) -> Result<usize, Error> {
     }
 }
 
-fn main_loop(config: Config, files: Vec<&String>) -> Result<(), Error> {
-    for file in files {
+fn main_loop(config: Config) -> Result<(), Error> {
+    for file in &config.files {
         let total = file_loop(&config, file)?;
         info!("file send, {total} bytes sent");
     }
@@ -168,16 +161,12 @@ fn main_loop(config: Config, files: Vec<&String>) -> Result<(), Error> {
 }
 
 fn main() {
-    let mut config = Config::default();
-
-    let args = command_args(&mut config);
+    let config = command_args();
 
     init_logger();
 
-    if let Some(files) = args.get_many("file") {
-        if let Err(e) = main_loop(config, files.collect()) {
-            error!("{e}");
-        }
+    if let Err(e) = main_loop(config) {
+        error!("{e}");
     }
 }
 
