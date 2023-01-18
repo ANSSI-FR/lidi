@@ -3,8 +3,7 @@ use diode::file::protocol;
 use clap::{Arg, ArgAction, ArgMatches, Command};
 use log::{debug, error, info};
 use std::{
-    env,
-    fmt,
+    env, fmt,
     fs::OpenOptions,
     io::{self, Read, Write},
     net::{SocketAddr, TcpStream},

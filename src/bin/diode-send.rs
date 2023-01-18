@@ -1,12 +1,12 @@
+use clap::{Arg, ArgAction, Command};
+use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
+use diode::protocol;
 use diode::send::encoding;
 use diode::send::tcp_client;
 use diode::send::udp_send;
-use diode::protocol;
-use clap::{Arg, ArgAction, Command};
-use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
 use log::{debug, error, info};
 use std::{
-    fmt, env,
+    env, fmt,
     net::{SocketAddr, TcpListener, TcpStream},
     str::FromStr,
     thread,

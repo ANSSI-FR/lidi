@@ -1,5 +1,5 @@
-use crate::send::udp_send;
 use crate::protocol;
+use crate::send::udp_send;
 use crossbeam_channel::{self, Receiver, RecvTimeoutError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
 use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder};

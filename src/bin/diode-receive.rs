@@ -1,11 +1,11 @@
-use diode::receive::decoding;
-use diode::receive::deserialize;
-use diode::protocol;
 use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{unbounded, SendError};
+use diode::protocol;
+use diode::receive::decoding;
+use diode::receive::deserialize;
 use log::{debug, error, info};
 use std::{
-    fmt, env, io,
+    env, fmt, io,
     net::{self, SocketAddr, UdpSocket},
     os::unix::net::UnixStream,
     str::FromStr,
@@ -200,7 +200,8 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     info!(
         "sending TCP traffic to {} with abort timeout of {} second(s)",
-        config.to_tcp, config.abort_timeout.as_secs(),
+        config.to_tcp,
+        config.abort_timeout.as_secs(),
     );
 
     let mut buffer = vec![0; config.from_udp_mtu as usize];

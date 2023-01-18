@@ -1,9 +1,8 @@
-use diode::file::protocol;
 use clap::{Arg, ArgAction, Command};
+use diode::file::protocol;
 use log::{debug, error, info};
 use std::{
-    env,
-    fmt,
+    env, fmt,
     fs::{OpenOptions, Permissions},
     io::{self, Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
