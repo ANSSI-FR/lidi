@@ -1,5 +1,8 @@
 # lidi
 
+[![Github CI](https://github.com/ANSSI-FR/lidi/workflows/Rust/badge.svg)](https://github.com/ANSSI-FR/lidi/actions)
+[![Github CI](https://github.com/ANSSI-FR/lidi/workflows/Clippy/badge.svg)](https://github.com/ANSSI-FR/lidi/actions)
+
 ## What is lidi?
 
 Lidi (leedee) allows you to copy a raw TCP stream or files over a unidirectional link.
