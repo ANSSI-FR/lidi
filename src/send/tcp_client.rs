@@ -1,6 +1,6 @@
-use crate::protocol;
+use crate::{protocol, semaphore};
 use crossbeam_channel::{SendError, Sender};
-use log::{error, info, trace};
+use log::{debug, error, info, trace};
 use std::{
     fmt,
     io::{self, Read},
@@ -38,7 +38,18 @@ impl From<SendError<protocol::ClientMessage>> for Error {
     }
 }
 
-pub fn new(config: &Config, client: TcpStream, sendq: Sender<protocol::ClientMessage>) {
+pub fn new(
+    config: &Config,
+    multiplex_control: semaphore::Semaphore,
+    client: TcpStream,
+    sendq: Sender<protocol::ClientMessage>,
+) {
+    debug!("try to acquire multiplex access..");
+
+    multiplex_control.acquire();
+
+    debug!("multiplex access acquired");
+
     let client_id = protocol::new_client_id();
 
     if let Err(e) = main_loop(config, client_id, client, &sendq) {
@@ -51,6 +62,8 @@ pub fn new(config: &Config, client: TcpStream, sendq: Sender<protocol::ClientMes
             error!("client {client_id:x}: failed to abort : {e}");
         }
     }
+
+    multiplex_control.release()
 }
 
 fn main_loop(

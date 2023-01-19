@@ -1,5 +1,4 @@
-use crate::protocol;
-use crate::receive::tcp_serve;
+use crate::{protocol, receive::tcp_serve, semaphore};
 use crossbeam_channel::{unbounded, SendError, Sender};
 use log::{debug, error, trace};
 use std::collections::{BTreeMap, BTreeSet};
@@ -7,6 +6,7 @@ use std::time::Duration;
 use std::{fmt, io, net, os::unix::net::UnixStream, thread};
 
 pub struct Config {
+    pub nb_multiplex: u16,
     pub logical_block_size: u64,
     pub to_tcp: net::SocketAddr,
     pub to_tcp_buffer_size: usize,
@@ -69,6 +69,8 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
         abort_timeout: config.abort_timeout,
     };
 
+    let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);
+
     loop {
         let message: protocol::ClientMessage =
             protocol::ClientMessage::deserialize_from(&mut decoding_recvr)?;
@@ -103,9 +105,15 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
                 active_transfers.insert(message.client_id, client_sendq);
 
                 let tcp_serve_config = tcp_serve_config.clone();
+                let multiplex_control = multiplex_control.clone();
 
                 thread::spawn(move || {
-                    tcp_serve::new(tcp_serve_config, message.client_id, client_recvq)
+                    tcp_serve::new(
+                        tcp_serve_config,
+                        multiplex_control,
+                        message.client_id,
+                        client_recvq,
+                    )
                 });
 
                 continue;

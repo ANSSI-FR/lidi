@@ -1,9 +1,9 @@
 use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
-use diode::protocol;
-use diode::send::encoding;
-use diode::send::tcp_client;
-use diode::send::udp_send;
+use diode::{
+    protocol, semaphore,
+    send::{encoding, tcp_client, udp_send},
+};
 use log::{debug, error, info};
 use std::{
     env, fmt,
@@ -17,7 +17,8 @@ struct Config {
     from_tcp: SocketAddr,
     from_tcp_buffer_size: usize,
 
-    nb_transfers: u16,
+    nb_clients: u16,
+    nb_multiplex: u16,
 
     encoding_block_size: u64,
     repair_block_size: u32,
@@ -34,7 +35,8 @@ impl Default for Config {
             from_tcp: SocketAddr::from_str("127.0.0.1:5000").unwrap(),
             from_tcp_buffer_size: mtu * 10,
 
-            nb_transfers: 2,
+            nb_clients: 2,
+            nb_multiplex: 2,
 
             encoding_block_size: (mtu * 40) as u64, //optimal parameter -- to align with other size !
             repair_block_size: (mtu * 4) as u32,
@@ -64,27 +66,6 @@ impl From<RecvError> for Error {
     }
 }
 
-fn connect_loop_aux(
-    connect_recvq: Receiver<TcpStream>,
-    tcp_client_config: tcp_client::Config,
-    tcp_sendq: Sender<protocol::ClientMessage>,
-) -> Result<(), Error> {
-    loop {
-        let client = connect_recvq.recv()?;
-        tcp_client::new(&tcp_client_config, client, tcp_sendq.clone());
-    }
-}
-
-fn connect_loop(
-    connect_recvq: Receiver<TcpStream>,
-    tcp_client_config: tcp_client::Config,
-    tcp_senq: Sender<protocol::ClientMessage>,
-) {
-    if let Err(e) = connect_loop_aux(connect_recvq, tcp_client_config, tcp_senq) {
-        error!("failed to connect client: {e}");
-    }
-}
-
 fn command_args(config: &mut Config) {
     let args = Command::new(env!("CARGO_BIN_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
@@ -104,12 +85,20 @@ fn command_args(config: &mut Config) {
                 .help("Size of TCP read buffer"),
         )
         .arg(
-            Arg::new("nb_transfers")
-                .long("nb_transfers")
+            Arg::new("nb_clients")
+                .long("nb_clients")
                 .action(ArgAction::Set)
                 .value_name("nb")
                 .value_parser(clap::value_parser!(u16))
                 .help("Number of simultaneous transfers"),
+        )
+        .arg(
+            Arg::new("nb_multiplex")
+                .long("nb_multiplex")
+                .action(ArgAction::Set)
+                .value_name("nb")
+                .value_parser(clap::value_parser!(u16))
+                .help("Number of multiplexed transfers"),
         )
         .arg(
             Arg::new("encoding_block_size")
@@ -161,8 +150,12 @@ fn command_args(config: &mut Config) {
         config.from_tcp_buffer_size = *p;
     }
 
-    if let Some(p) = args.get_one::<u16>("nb_transfers") {
-        config.nb_transfers = *p;
+    if let Some(p) = args.get_one::<u16>("nb_clients") {
+        config.nb_clients = *p;
+    }
+
+    if let Some(p) = args.get_one::<u16>("nb_multiplex") {
+        config.nb_multiplex = *p;
     }
 
     if let Some(p) = args.get_one::<u64>("encoding_block_size") {
@@ -184,6 +177,39 @@ fn command_args(config: &mut Config) {
 
     if let Some(p) = args.get_one::<u16>("to_udp_mtu") {
         config.to_udp_mtu = *p;
+    }
+}
+
+fn connect_loop_aux(
+    connect_recvq: Receiver<TcpStream>,
+    tcp_client_config: tcp_client::Config,
+    multiplex_control: semaphore::Semaphore,
+    tcp_sendq: Sender<protocol::ClientMessage>,
+) -> Result<(), Error> {
+    loop {
+        let client = connect_recvq.recv()?;
+        tcp_client::new(
+            &tcp_client_config,
+            multiplex_control.clone(),
+            client,
+            tcp_sendq.clone(),
+        );
+    }
+}
+
+fn connect_loop(
+    connect_recvq: Receiver<TcpStream>,
+    tcp_client_config: tcp_client::Config,
+    multiplex_control: semaphore::Semaphore,
+    tcp_senq: Sender<protocol::ClientMessage>,
+) {
+    if let Err(e) = connect_loop_aux(
+        connect_recvq,
+        tcp_client_config,
+        multiplex_control,
+        tcp_senq,
+    ) {
+        error!("failed to connect client: {e}");
     }
 }
 
@@ -236,19 +262,32 @@ fn main() {
     );
 
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
-    let (tcp_sendq, tcp_recvq) = bounded::<protocol::ClientMessage>(config.nb_transfers as usize);
+    let (tcp_sendq, tcp_recvq) = bounded::<protocol::ClientMessage>(config.nb_clients as usize);
     let (udp_sendq, udp_recvq) = unbounded::<udp_send::Message>();
 
     thread::spawn(move || udp_send::new(udp_send_config, udp_recvq));
 
     thread::spawn(move || encoding::new(encoding_config, tcp_recvq, udp_sendq));
 
-    info!("accepting {} simultaneous transfers", config.nb_transfers);
-    for _ in 0..config.nb_transfers {
+    let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);
+
+    info!(
+        "accepting {} simultaneous transfers with {} multiplexed transfers",
+        config.nb_clients, config.nb_multiplex
+    );
+    for _ in 0..config.nb_clients {
         let connect_recvq = connect_recvq.clone();
         let tcp_client_config = tcp_client_config.clone();
+        let multiplex_control = multiplex_control.clone();
         let tcp_sendq = tcp_sendq.clone();
-        thread::spawn(move || connect_loop(connect_recvq, tcp_client_config, tcp_sendq));
+        thread::spawn(move || {
+            connect_loop(
+                connect_recvq,
+                tcp_client_config,
+                multiplex_control,
+                tcp_sendq,
+            )
+        });
     }
 
     let tcp_listener = match TcpListener::bind(config.from_tcp) {

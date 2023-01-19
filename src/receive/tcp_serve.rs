@@ -1,6 +1,6 @@
-use crate::protocol;
+use crate::{protocol, semaphore};
 use crossbeam_channel::{self, Receiver, RecvTimeoutError};
-use log::{error, info, trace, warn};
+use log::{debug, error, info, trace, warn};
 use std::{
     fmt,
     io::{self, Write},
@@ -43,12 +43,21 @@ impl From<RecvTimeoutError> for Error {
 
 pub(crate) fn new(
     config: Config,
+    multiplex_control: semaphore::Semaphore,
     client_id: protocol::ClientId,
     recvq: Receiver<protocol::Message>,
 ) {
+    debug!("try to acquire multiplex access..");
+
+    multiplex_control.acquire();
+
+    debug!("multiplex access acquired");
+
     if let Err(e) = main_loop(config, client_id, recvq) {
         error!("client {client_id:x}: TCP send loop error: {e}");
     }
+
+    multiplex_control.release()
 }
 
 fn main_loop(

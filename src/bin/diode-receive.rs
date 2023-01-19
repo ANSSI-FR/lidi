@@ -17,6 +17,8 @@ struct Config {
     from_udp: SocketAddr,
     from_udp_mtu: u16,
 
+    nb_multiplex: u16,
+
     encoding_block_size: u64,
     flush_timeout: Duration,
 
@@ -31,6 +33,8 @@ impl Default for Config {
         Self {
             from_udp: SocketAddr::from_str("127.0.0.1:6000").unwrap(),
             from_udp_mtu: mtu as u16,
+
+            nb_multiplex: 2,
 
             encoding_block_size: (mtu * 40) as u64, //optimal parameter -- to align with other size !
             flush_timeout: Duration::from_millis(500),
@@ -95,6 +99,14 @@ fn command_args(config: &mut Config) {
                 .help("MTU of the incoming UDP link"),
         )
         .arg(
+            Arg::new("nb_multiplex")
+                .long("nb_multiplex")
+                .action(ArgAction::Set)
+                .value_name("nb")
+                .value_parser(clap::value_parser!(u16))
+                .help("Number of multiplexed transfers"),
+        )
+        .arg(
             Arg::new("encoding_block_size")
                 .long("encoding_block_size")
                 .action(ArgAction::Set)
@@ -144,6 +156,10 @@ fn command_args(config: &mut Config) {
         config.from_udp_mtu = *p;
     }
 
+    if let Some(p) = args.get_one::<u16>("nb_multiplex") {
+        config.nb_multiplex = *p;
+    }
+
     if let Some(p) = args.get_one::<u64>("encoding_block_size") {
         config.encoding_block_size = *p;
     }
@@ -176,6 +192,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
     let (udp_sendq, udp_recvq) = unbounded::<decoding::Message>();
 
     let deserialize_config = deserialize::Config {
+        nb_multiplex: config.nb_multiplex,
         logical_block_size: config.encoding_block_size,
         to_tcp: config.to_tcp,
         to_tcp_buffer_size: config.to_tcp_buffer_size,
@@ -199,9 +216,10 @@ fn main_loop(config: Config) -> Result<(), Error> {
     thread::spawn(move || decoding::new(decoding_config, udp_recvq, decoding_sends));
 
     info!(
-        "sending TCP traffic to {} with abort timeout of {} second(s)",
+        "sending TCP traffic to {} with abort timeout of {} second(s) an {} multiplexed transfers",
         config.to_tcp,
         config.abort_timeout.as_secs(),
+        config.nb_multiplex,
     );
 
     let mut buffer = vec![0; config.from_udp_mtu as usize];
