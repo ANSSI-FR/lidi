@@ -1,4 +1,4 @@
-use clap::{Arg, ArgAction, Command};
+use clap::{Arg, Command};
 use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
 use diode::{
     protocol, semaphore,
@@ -28,23 +28,106 @@ struct Config {
     to_udp_mtu: u16,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        let mtu = 1500;
-        Self {
-            from_tcp: SocketAddr::from_str("127.0.0.1:5000").unwrap(),
-            from_tcp_buffer_size: mtu * 10,
+fn command_args() -> Config {
+    let args = Command::new(env!("CARGO_BIN_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .arg(
+            Arg::new("from_tcp")
+                .long("from_tcp")
+                .value_name("ip:port")
+                .default_value("127.0.0.1:5000")
+                .help("From where to read data"),
+        )
+        .arg(
+            Arg::new("from_tcp_buffer_size")
+                .long("from_tcp_buffer_size")
+                .value_name("nb_bytes")
+                .default_value("15000") // mtu * 10
+                .value_parser(clap::value_parser!(usize))
+                .help("Size of TCP read buffer"),
+        )
+        .arg(
+            Arg::new("nb_clients")
+                .long("nb_clients")
+                .value_name("nb")
+                .default_value("2")
+                .value_parser(clap::value_parser!(u16))
+                .help("Number of simultaneous transfers"),
+        )
+        .arg(
+            Arg::new("nb_multiplex")
+                .long("nb_multiplex")
+                .value_name("nb")
+                .default_value("2")
+                .value_parser(clap::value_parser!(u16))
+                .help("Number of multiplexed transfers"),
+        )
+        .arg(
+            Arg::new("encoding_block_size")
+                .long("encoding_block_size")
+                .value_name("nb_bytes")
+                .default_value("60000") // (mtu * 40), optimal parameter -- to align with other size !
+                .value_parser(clap::value_parser!(u64))
+                .help("Size of RaptorQ block in bytes"),
+        )
+        .arg(
+            Arg::new("repair_block_size")
+                .long("repair_block_size")
+                .value_name("ratior")
+                .default_value("6000") // mtu * 4
+                .value_parser(clap::value_parser!(u32))
+                .help("Size of repair data in bytes"),
+        )
+        .arg(
+            Arg::new("flush_timeout")
+                .long("flush_timeout")
+                .value_name("nb_milliseconds")
+                .default_value("100")
+                .value_parser(clap::value_parser!(u64))
+                .help("Duration in milliseconds after an incomplete RaptorQ block is flushed"),
+        )
+        .arg(
+            Arg::new("to_udp")
+                .long("to_udp")
+                .value_name("ip:port")
+                .default_value("127.0.0.1:6000")
+                .help("Where to send data"),
+        )
+        .arg(
+            Arg::new("to_udp_mtu")
+                .long("to_udp_mtu")
+                .value_name("nb_bytes")
+                .default_value("1500") // mtu
+                .value_parser(clap::value_parser!(u16))
+                .help("MTU in bytes of output UDP link"),
+        )
+        .get_matches();
 
-            nb_clients: 2,
-            nb_multiplex: 2,
+    let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
+        .expect("invalid from_tcp parameter");
+    let from_tcp_buffer_size = *args
+        .get_one::<usize>("from_tcp_buffer_size")
+        .expect("default");
+    let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
+    let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
+    let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
+    let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
+    let flush_timeout =
+        Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
+    let to_udp = SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
+        .expect("invalid to_udp parameter");
+    let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
 
-            encoding_block_size: (mtu * 40) as u64, //optimal parameter -- to align with other size !
-            repair_block_size: (mtu * 4) as u32,
-            flush_timeout: Duration::from_millis(100),
-
-            to_udp: SocketAddr::from_str("127.0.0.1:6000").unwrap(),
-            to_udp_mtu: mtu as u16,
-        }
+    Config {
+        from_tcp,
+        from_tcp_buffer_size,
+        nb_clients,
+        nb_multiplex,
+        encoding_block_size,
+        repair_block_size,
+        flush_timeout,
+        to_udp,
+        to_udp_mtu,
     }
 }
 
@@ -63,120 +146,6 @@ impl fmt::Display for Error {
 impl From<RecvError> for Error {
     fn from(e: RecvError) -> Self {
         Self::Crossbeam(e)
-    }
-}
-
-fn command_args(config: &mut Config) {
-    let args = Command::new(env!("CARGO_BIN_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("from_tcp")
-                .long("from_tcp")
-                .action(ArgAction::Set)
-                .value_name("ip:port")
-                .help("From where to read data"),
-        )
-        .arg(
-            Arg::new("from_tcp_buffer_size")
-                .long("from_tcp_buffer_size")
-                .action(ArgAction::Set)
-                .value_name("nb_bytes")
-                .value_parser(clap::value_parser!(usize))
-                .help("Size of TCP read buffer"),
-        )
-        .arg(
-            Arg::new("nb_clients")
-                .long("nb_clients")
-                .action(ArgAction::Set)
-                .value_name("nb")
-                .value_parser(clap::value_parser!(u16))
-                .help("Number of simultaneous transfers"),
-        )
-        .arg(
-            Arg::new("nb_multiplex")
-                .long("nb_multiplex")
-                .action(ArgAction::Set)
-                .value_name("nb")
-                .value_parser(clap::value_parser!(u16))
-                .help("Number of multiplexed transfers"),
-        )
-        .arg(
-            Arg::new("encoding_block_size")
-                .long("encoding_block_size")
-                .action(ArgAction::Set)
-                .value_name("nb_bytes")
-                .value_parser(clap::value_parser!(u64))
-                .help("Size of RaptorQ block in bytes"),
-        )
-        .arg(
-            Arg::new("repair_block_size")
-                .long("repair_block_size")
-                .action(ArgAction::Set)
-                .value_name("ratior")
-                .value_parser(clap::value_parser!(u32))
-                .help("Size of repair data in bytes"),
-        )
-        .arg(
-            Arg::new("flush_timeout")
-                .long("flush_timeout")
-                .action(ArgAction::Set)
-                .value_name("nb_seconds")
-                .value_parser(clap::value_parser!(u64))
-                .help("Duration in milliseconds after an incomplete RaptorQ block is flushed"),
-        )
-        .arg(
-            Arg::new("to_udp")
-                .long("to_udp")
-                .action(ArgAction::Set)
-                .value_name("ip:port")
-                .help("Where to send data"),
-        )
-        .arg(
-            Arg::new("to_udp_mtu")
-                .long("to_udp_mtu")
-                .action(ArgAction::Set)
-                .value_name("nb_bytes")
-                .value_parser(clap::value_parser!(u16))
-                .help("MTU in bytes of output UDP link"),
-        )
-        .get_matches();
-
-    if let Some(p) = args.get_one::<String>("from_tcp") {
-        let p = SocketAddr::from_str(p).expect("invalid from_tcp parameter");
-        config.from_tcp = p;
-    }
-
-    if let Some(p) = args.get_one::<usize>("from_tcp_buffer_size") {
-        config.from_tcp_buffer_size = *p;
-    }
-
-    if let Some(p) = args.get_one::<u16>("nb_clients") {
-        config.nb_clients = *p;
-    }
-
-    if let Some(p) = args.get_one::<u16>("nb_multiplex") {
-        config.nb_multiplex = *p;
-    }
-
-    if let Some(p) = args.get_one::<u64>("encoding_block_size") {
-        config.encoding_block_size = *p;
-    }
-
-    if let Some(p) = args.get_one::<u32>("repair_block_size") {
-        config.repair_block_size = *p;
-    }
-
-    if let Some(p) = args.get_one::<u64>("flush_timeout") {
-        config.flush_timeout = Duration::from_millis(*p);
-    }
-
-    if let Some(p) = args.get_one::<String>("to_udp") {
-        let p = SocketAddr::from_str(p).expect("invalid to_udp parameter");
-        config.to_udp = p;
-    }
-
-    if let Some(p) = args.get_one::<u16>("to_udp_mtu") {
-        config.to_udp_mtu = *p;
     }
 }
 
@@ -214,9 +183,7 @@ fn connect_loop(
 }
 
 fn main() {
-    let mut config = Config::default();
-
-    command_args(&mut config);
+    let mut config = command_args();
 
     init_logger();
 
