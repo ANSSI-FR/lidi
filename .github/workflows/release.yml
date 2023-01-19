@@ -1,0 +1,25 @@
+name: Release
+
+on:
+  push:
+    tags: [ v* ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+  upload:
+    runs-on: ubuntu-latest 
+    steps:
+      - uses: actions/checkout@v3
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: diode-send, diode-receive, diode-send-file, diode-receive-file
+          token: ${{ secrets.GITHUB_TOKEN }}
