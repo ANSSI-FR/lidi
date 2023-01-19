@@ -27,7 +27,7 @@ fn command_args() -> Config {
                 .long("from_tcp")
                 .value_name("ip:port")
                 .default_value("127.0.0.1:7000")
-                .help("Address and port to listen for diode-up"),
+                .help("Address and port to listen for diode-receive"),
         )
         .arg(
             Arg::new("buffer_size")
