@@ -21,6 +21,6 @@ jobs:
       - uses: actions/checkout@v3
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
-          bin: diode-send, diode-receive, diode-send-file, diode-receive-file
+          bin: diode-send,diode-receive,diode-send-file,diode-receive-file
           archive: lidi-$tag
           token: ${{ secrets.GITHUB_TOKEN }}
