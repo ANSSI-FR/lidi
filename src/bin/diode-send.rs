@@ -157,12 +157,7 @@ fn connect_loop_aux(
 ) -> Result<(), Error> {
     loop {
         let client = connect_recvq.recv()?;
-        tcp_client::new(
-            &tcp_client_config,
-            multiplex_control.clone(),
-            client,
-            tcp_sendq.clone(),
-        );
+        tcp_client::new(&tcp_client_config, &multiplex_control, &tcp_sendq, client);
     }
 }
 
@@ -242,6 +237,7 @@ fn main() {
         "accepting {} simultaneous transfers with {} multiplexed transfers",
         config.nb_clients, config.nb_multiplex
     );
+
     for _ in 0..config.nb_clients {
         let connect_recvq = connect_recvq.clone();
         let tcp_client_config = tcp_client_config.clone();

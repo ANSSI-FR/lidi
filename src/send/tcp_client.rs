@@ -40,9 +40,9 @@ impl From<SendError<protocol::ClientMessage>> for Error {
 
 pub fn new(
     config: &Config,
-    multiplex_control: semaphore::Semaphore,
+    multiplex_control: &semaphore::Semaphore,
+    sendq: &Sender<protocol::ClientMessage>,
     client: TcpStream,
-    sendq: Sender<protocol::ClientMessage>,
 ) {
     debug!("try to acquire multiplex access..");
 
@@ -52,7 +52,7 @@ pub fn new(
 
     let client_id = protocol::new_client_id();
 
-    if let Err(e) = main_loop(config, client_id, client, &sendq) {
+    if let Err(e) = main_loop(config, client_id, client, sendq) {
         error!("client {client_id:x}: error: {e}");
 
         if let Err(e) = sendq.send(protocol::ClientMessage {

@@ -5,7 +5,6 @@ use log::{debug, error, info, trace, warn};
 use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder};
 use std::{collections::VecDeque, fmt, time::Duration};
 
-#[derive(Clone)]
 pub struct Config {
     pub logical_block_size: u64,
     pub repair_block_size: u32,

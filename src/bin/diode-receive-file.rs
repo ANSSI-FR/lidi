@@ -12,7 +12,6 @@ use std::{
     thread,
 };
 
-#[derive(Clone)]
 struct Config {
     from_tcp: SocketAddr,
     buffer_size: usize,
@@ -86,7 +85,7 @@ impl From<protocol::Error> for Error {
     }
 }
 
-fn client_main_loop_aux(config: Config, mut diode: TcpStream) -> Result<usize, Error> {
+fn client_main_loop_aux(config: &Config, mut diode: TcpStream) -> Result<usize, Error> {
     info!("new client connected");
 
     diode.shutdown(std::net::Shutdown::Write)?;
@@ -146,7 +145,7 @@ fn client_main_loop_aux(config: Config, mut diode: TcpStream) -> Result<usize, E
     }
 }
 
-fn client_main_loop(config: Config, client: TcpStream) {
+fn client_main_loop(config: &Config, client: TcpStream) {
     match client_main_loop_aux(config, client) {
         Err(e) => error!("{e}"),
         Ok(total) => info!("file received, {total} bytes received"),
@@ -162,11 +161,16 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     let server = TcpListener::bind(config.from_tcp)?;
 
-    for client in server.incoming() {
-        let config = config.clone();
-        let client = client?;
-        thread::spawn(move || client_main_loop(config, client));
-    }
+    thread::scope(|scope| {
+        for client in server.incoming() {
+            match client {
+                Err(e) => error!("failed to accept client: {e}"),
+                Ok(client) => {
+                    scope.spawn(|| client_main_loop(&config, client));
+                }
+            }
+        }
+    });
 
     Ok(())
 }
