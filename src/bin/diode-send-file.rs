@@ -1,24 +1,10 @@
-use diode::file::{self, protocol};
+use diode::file::{self, send as fsend};
 
 use clap::{Arg, ArgAction, Command};
-use log::{debug, error, info};
-use std::{
-    env,
-    fs::OpenOptions,
-    io::{Read, Write},
-    net::{SocketAddr, TcpStream},
-    os::unix::prelude::PermissionsExt,
-    path::PathBuf,
-    str::FromStr,
-};
+use log::{error, info};
+use std::{env, net::SocketAddr, str::FromStr};
 
-struct Config {
-    to_tcp: SocketAddr,
-    buffer_size: usize,
-    files: Vec<String>,
-}
-
-fn command_args() -> Config {
+fn command_args() -> fsend::Config {
     let args = Command::new(env!("CARGO_BIN_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
@@ -49,84 +35,16 @@ fn command_args() -> Config {
     let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
     let files = args.get_many("file").expect("required").cloned().collect();
 
-    Config {
+    fsend::Config {
         to_tcp,
         buffer_size,
         files,
     }
 }
 
-fn file_loop(config: &Config, file_path: &String) -> Result<usize, file::Error> {
-    debug!("opening file \"{}\"", file_path);
-
-    let file_path = PathBuf::from(file_path);
-
-    if !file_path.is_file() {
-        return Err(file::Error::Other("not a file".to_string()));
-    }
-
-    let mut file = OpenOptions::new()
-        .read(true)
-        .write(false)
-        .create(false)
-        .open(&file_path)?;
-
-    let file_name = file_path
-        .file_name()
-        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?
-        .to_os_string()
-        .into_string()
-        .map_err(|_| file::Error::Other("conversion from OsString to String failed".to_string()))?;
-
-    debug!("file name is \"{file_name}\"");
-
-    debug!("connecting to {}", config.to_tcp);
-
-    let mut diode = TcpStream::connect(config.to_tcp)?;
-
-    diode.shutdown(std::net::Shutdown::Read)?;
-
-    let metadata = file.metadata()?;
-    let permissions = metadata.permissions();
-
-    let header = protocol::Header {
-        file_name,
-        mode: permissions.mode(),
-        file_length: metadata.len(),
-    };
-
-    header.serialize_to(&mut diode)?;
-
-    let mut buffer = vec![0; config.buffer_size];
-    let mut cursor = 0;
-    let mut total = 0;
-
-    loop {
-        match file.read(&mut buffer[cursor..])? {
-            0 => {
-                if 0 < cursor {
-                    total += cursor;
-                    diode.write_all(&buffer[..cursor])?;
-                }
-                diode.flush()?;
-                return Ok(total);
-            }
-            nread => {
-                if (cursor + nread) < config.buffer_size {
-                    cursor += nread;
-                    continue;
-                }
-                total += config.buffer_size;
-                diode.write_all(&buffer)?;
-                cursor = 0;
-            }
-        }
-    }
-}
-
-fn main_loop(config: Config) -> Result<(), file::Error> {
+fn main_loop(config: fsend::Config) -> Result<(), file::Error> {
     for file in &config.files {
-        let total = file_loop(&config, file)?;
+        let total = fsend::send_file(&config, file)?;
         info!("file send, {total} bytes sent");
     }
     Ok(())
