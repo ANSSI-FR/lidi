@@ -1,10 +1,10 @@
 use clap::{Arg, Command};
-use diode::file::protocol;
+use diode::file::{self, protocol};
 use log::{debug, error, info};
 use std::{
-    env, fmt,
+    env,
     fs::{OpenOptions, Permissions},
-    io::{self, Read, Write},
+    io::{Read, Write},
     net::{SocketAddr, TcpListener, TcpStream},
     os::unix::fs::PermissionsExt,
     path::PathBuf,
@@ -57,35 +57,7 @@ fn command_args() -> Config {
     }
 }
 
-enum Error {
-    Io(io::Error),
-    Diode(protocol::Error),
-    Other(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::Diode(e) => write!(fmt, "diode error: {e}"),
-            Self::Other(e) => write!(fmt, "error: {e}"),
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<protocol::Error> for Error {
-    fn from(e: protocol::Error) -> Self {
-        Self::Diode(e)
-    }
-}
-
-fn client_main_loop_aux(config: &Config, mut diode: TcpStream) -> Result<usize, Error> {
+fn client_main_loop_aux(config: &Config, mut diode: TcpStream) -> Result<usize, file::Error> {
     info!("new client connected");
 
     diode.shutdown(std::net::Shutdown::Write)?;
@@ -97,13 +69,13 @@ fn client_main_loop_aux(config: &Config, mut diode: TcpStream) -> Result<usize, 
     let file_path = PathBuf::from(header.file_name);
     let file_name = file_path
         .file_name()
-        .ok_or(Error::Other("unwrap of file_name failed".to_string()))?;
+        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?;
     let file_path = config.output_directory.join(PathBuf::from(file_name));
 
     debug!("storing at \"{}\"", file_path.display());
 
     if file_path.exists() {
-        return Err(Error::Other(format!(
+        return Err(file::Error::Other(format!(
             "file \"{}\" already exists",
             file_path.display()
         )));
@@ -152,9 +124,9 @@ fn client_main_loop(config: &Config, client: TcpStream) {
     }
 }
 
-fn main_loop(config: Config) -> Result<(), Error> {
+fn main_loop(config: Config) -> Result<(), file::Error> {
     if !config.output_directory.is_dir() {
-        return Err(Error::Other(
+        return Err(file::Error::Other(
             "output_directory is not a directory".to_string(),
         ));
     }

@@ -1,11 +1,11 @@
-use diode::file::protocol;
+use diode::file::{self, protocol};
 
 use clap::{Arg, ArgAction, Command};
 use log::{debug, error, info};
 use std::{
-    env, fmt,
+    env,
     fs::OpenOptions,
-    io::{self, Read, Write},
+    io::{Read, Write},
     net::{SocketAddr, TcpStream},
     os::unix::prelude::PermissionsExt,
     path::PathBuf,
@@ -56,41 +56,13 @@ fn command_args() -> Config {
     }
 }
 
-enum Error {
-    Io(io::Error),
-    Diode(protocol::Error),
-    Other(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::Diode(e) => write!(fmt, "diode error: {e}"),
-            Self::Other(e) => write!(fmt, "error: {e}"),
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<protocol::Error> for Error {
-    fn from(e: protocol::Error) -> Self {
-        Self::Diode(e)
-    }
-}
-
-fn file_loop(config: &Config, file_path: &String) -> Result<usize, Error> {
+fn file_loop(config: &Config, file_path: &String) -> Result<usize, file::Error> {
     debug!("opening file \"{}\"", file_path);
 
     let file_path = PathBuf::from(file_path);
 
     if !file_path.is_file() {
-        return Err(Error::Other("not a file".to_string()));
+        return Err(file::Error::Other("not a file".to_string()));
     }
 
     let mut file = OpenOptions::new()
@@ -101,10 +73,10 @@ fn file_loop(config: &Config, file_path: &String) -> Result<usize, Error> {
 
     let file_name = file_path
         .file_name()
-        .ok_or(Error::Other("unwrap of file_name failed".to_string()))?
+        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?
         .to_os_string()
         .into_string()
-        .map_err(|_| Error::Other("conversion from OsString to String failed".to_string()))?;
+        .map_err(|_| file::Error::Other("conversion from OsString to String failed".to_string()))?;
 
     debug!("file name is \"{file_name}\"");
 
@@ -152,7 +124,7 @@ fn file_loop(config: &Config, file_path: &String) -> Result<usize, Error> {
     }
 }
 
-fn main_loop(config: Config) -> Result<(), Error> {
+fn main_loop(config: Config) -> Result<(), file::Error> {
     for file in &config.files {
         let total = file_loop(&config, file)?;
         info!("file send, {total} bytes sent");
