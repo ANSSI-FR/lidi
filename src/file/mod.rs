@@ -2,7 +2,13 @@ pub mod protocol;
 pub mod receive;
 pub mod send;
 
-use std::{fmt, io};
+use std::{fmt, io, net::SocketAddr};
+
+#[derive(Clone)]
+pub struct Config {
+    pub socket_addr: SocketAddr,
+    pub buffer_size: usize,
+}
 
 pub enum Error {
     Io(io::Error),

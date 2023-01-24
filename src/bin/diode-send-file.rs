@@ -1,10 +1,9 @@
-use diode::file::{self, send as fsend};
-
+use diode::file;
 use clap::{Arg, ArgAction, Command};
-use log::{error, info};
+use log::error;
 use std::{env, net::SocketAddr, str::FromStr};
 
-fn command_args() -> fsend::Config {
+fn main() {
     let args = Command::new(env!("CARGO_BIN_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
@@ -35,27 +34,14 @@ fn command_args() -> fsend::Config {
     let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
     let files = args.get_many("file").expect("required").cloned().collect();
 
-    fsend::Config {
-        to_tcp,
+    let config = file::Config {
+        socket_addr: to_tcp,
         buffer_size,
-        files,
-    }
-}
-
-fn main_loop(config: fsend::Config) -> Result<(), file::Error> {
-    for file in &config.files {
-        let total = fsend::send_file(&config, file)?;
-        info!("file send, {total} bytes sent");
-    }
-    Ok(())
-}
-
-fn main() {
-    let config = command_args();
+    };
 
     init_logger();
 
-    if let Err(e) = main_loop(config) {
+    if let Err(e) = file::send::send_files(config, files) {
         error!("{e}");
     }
 }

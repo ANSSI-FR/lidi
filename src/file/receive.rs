@@ -1,20 +1,43 @@
-use crate::file::{self, protocol};
+use crate::file::{Config, Error, protocol};
 use log::{debug, info};
 use std::{
+    thread,
     fs::{OpenOptions, Permissions},
     io::{Read, Write},
-    net::{SocketAddr, TcpStream},
+    net::{TcpListener, TcpStream},
     os::unix::fs::PermissionsExt,
     path::PathBuf,
 };
 
-pub struct Config {
-    pub from_tcp: SocketAddr,
-    pub buffer_size: usize,
-    pub output_directory: PathBuf,
+pub fn receive_files(config: Config, output_dir: PathBuf) -> Result<(), Error> {
+    println!("debug");
+    if !output_dir.is_dir() {
+        return Err(Error::Other(
+            "output_directory is not a directory".to_string(),
+        ));
+    }
+    println!("debug");
+
+    let server = TcpListener::bind(config.socket_addr)?;
+    println!("debug");
+
+    thread::scope(|scope| -> Result<(), Error> {
+        println!("waiting for connection?");
+        for incoming in server.incoming() {
+            let client = incoming?;
+            scope.spawn(|| -> Result<(), Error> {
+                let total = receive_file(&config, client, &output_dir)?;
+                info!("file received, {total} bytes received");
+                Ok(())
+            });
+        }
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
-pub fn receive_file(config: &Config, mut diode: TcpStream) -> Result<usize, file::Error> {
+pub fn receive_file(config: &Config, mut diode: TcpStream, output_dir: &PathBuf) -> Result<usize, Error> {
     info!("new client connected");
 
     diode.shutdown(std::net::Shutdown::Write)?;
@@ -26,13 +49,13 @@ pub fn receive_file(config: &Config, mut diode: TcpStream) -> Result<usize, file
     let file_path = PathBuf::from(header.file_name);
     let file_name = file_path
         .file_name()
-        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?;
-    let file_path = config.output_directory.join(PathBuf::from(file_name));
+        .ok_or(Error::Other("unwrap of file_name failed".to_string()))?;
+    let file_path = output_dir.join(PathBuf::from(file_name));
 
     debug!("storing at \"{}\"", file_path.display());
 
     if file_path.exists() {
-        return Err(file::Error::Other(format!(
+        return Err(Error::Other(format!(
             "file \"{}\" already exists",
             file_path.display()
         )));

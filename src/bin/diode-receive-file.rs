@@ -1,15 +1,14 @@
 use clap::{Arg, Command};
-use diode::file::{self, receive as frecv};
-use log::{error, info};
+use diode::file;
+use log::error;
 use std::{
     env,
-    net::{SocketAddr, TcpListener, TcpStream},
+    net::SocketAddr,
     path::PathBuf,
     str::FromStr,
-    thread,
 };
 
-fn command_args() -> frecv::Config {
+fn main() {
     let args = Command::new(env!("CARGO_BIN_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
@@ -41,49 +40,14 @@ fn command_args() -> frecv::Config {
     let output_directory =
         PathBuf::from(args.get_one::<String>("output_directory").expect("default"));
 
-    frecv::Config {
-        from_tcp,
+    let config = file::Config {
+        socket_addr: from_tcp,
         buffer_size,
-        output_directory,
-    }
-}
-
-fn handle_client(config: &frecv::Config, client: TcpStream) {
-    match frecv::receive_file(config, client) {
-        Err(e) => error!("{e}"),
-        Ok(total) => info!("file received, {total} bytes received"),
-    }
-}
-
-fn main_loop(config: frecv::Config) -> Result<(), file::Error> {
-    if !config.output_directory.is_dir() {
-        return Err(file::Error::Other(
-            "output_directory is not a directory".to_string(),
-        ));
-    }
-
-    let server = TcpListener::bind(config.from_tcp)?;
-
-    thread::scope(|scope| {
-        for client in server.incoming() {
-            match client {
-                Err(e) => error!("failed to accept client: {e}"),
-                Ok(client) => {
-                    scope.spawn(|| handle_client(&config, client));
-                }
-            }
-        }
-    });
-
-    Ok(())
-}
-
-fn main() {
-    let config = command_args();
+    };
 
     init_logger();
 
-    if let Err(e) = main_loop(config) {
+    if let Err(e) = file::receive::receive_files(config, output_directory) {
         error!("{e}");
     }
 }

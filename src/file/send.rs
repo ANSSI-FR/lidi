@@ -1,26 +1,28 @@
-use crate::file::{self, protocol};
-use log::debug;
+use crate::file::{Config, Error, protocol};
+use log::{debug, info};
 use std::{
     fs::OpenOptions,
     io::{Read, Write},
-    net::{SocketAddr, TcpStream},
+    net::TcpStream,
     os::unix::prelude::PermissionsExt,
     path::PathBuf,
 };
 
-pub struct Config {
-    pub to_tcp: SocketAddr,
-    pub buffer_size: usize,
-    pub files: Vec<String>,
+pub fn send_files(config: Config, files: Vec<String>) -> Result<(), Error> {
+    for file in &files {
+        let total = send_file(&config, file)?;
+        info!("file send, {total} bytes sent");
+    }
+    Ok(())
 }
 
-pub fn send_file(config: &Config, file_path: &String) -> Result<usize, file::Error> {
+pub fn send_file(config: &Config, file_path: &String) -> Result<usize, Error> {
     debug!("opening file \"{}\"", file_path);
 
     let file_path = PathBuf::from(file_path);
 
     if !file_path.is_file() {
-        return Err(file::Error::Other("not a file".to_string()));
+        return Err(Error::Other("not a file".to_string()));
     }
 
     let mut file = OpenOptions::new()
@@ -31,16 +33,16 @@ pub fn send_file(config: &Config, file_path: &String) -> Result<usize, file::Err
 
     let file_name = file_path
         .file_name()
-        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?
+        .ok_or(Error::Other("unwrap of file_name failed".to_string()))?
         .to_os_string()
         .into_string()
-        .map_err(|_| file::Error::Other("conversion from OsString to String failed".to_string()))?;
+        .map_err(|_| Error::Other("conversion from OsString to String failed".to_string()))?;
 
     debug!("file name is \"{file_name}\"");
 
-    debug!("connecting to {}", config.to_tcp);
+    debug!("connecting to {}", config.socket_addr);
 
-    let mut diode = TcpStream::connect(config.to_tcp)?;
+    let mut diode = TcpStream::connect(config.socket_addr)?;
 
     diode.shutdown(std::net::Shutdown::Read)?;
 
