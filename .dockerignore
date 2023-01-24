@@ -1,0 +1,7 @@
+*
+!src
+!Cargo.toml
+!Cargo.lock
+!diode-file-bindings/src
+!diode-file-bindings/Cargo.toml
+!diode-file-bindings/Cargo.lock
