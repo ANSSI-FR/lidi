@@ -8,7 +8,8 @@ use std::{
 };
 
 #[no_mangle]
-pub extern "C" fn diode_new_config(ptr_addr: *const c_char, buffer_size: u32) -> *mut file::Config {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn diode_new_config(ptr_addr: *const c_char, buffer_size: u32) -> *mut file::Config {
     if ptr_addr.is_null() {
         return ptr::null_mut();
     }
@@ -24,7 +25,8 @@ pub extern "C" fn diode_new_config(ptr_addr: *const c_char, buffer_size: u32) ->
 }
 
 #[no_mangle]
-pub extern "C" fn diode_free_config(ptr: *mut file::Config) -> () {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn diode_free_config(ptr: *mut file::Config) {
     if ptr.is_null() {
         return;
     }
@@ -34,7 +36,8 @@ pub extern "C" fn diode_free_config(ptr: *mut file::Config) -> () {
 }
 
 #[no_mangle]
-pub extern "C" fn diode_send_file(ptr: *mut file::Config, ptr_filepath: *const c_char) -> u32 {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn diode_send_file(ptr: *mut file::Config, ptr_filepath: *const c_char) -> u32 {
     if ptr.is_null() {
         return 0;
     }
@@ -46,11 +49,12 @@ pub extern "C" fn diode_send_file(ptr: *mut file::Config, ptr_filepath: *const c
     let cstr_filepath = unsafe { CStr::from_ptr(ptr_filepath) };
     let rust_filepath = String::from_utf8_lossy(cstr_filepath.to_bytes()).to_string();
 
-    file::send::send_file(&config, &rust_filepath).unwrap_or(0) as u32
+    file::send::send_file(config, &rust_filepath).unwrap_or(0) as u32
 }
 
 #[no_mangle]
-pub extern "C" fn diode_receive_files(ptr: *mut file::Config, ptr_odir: *const c_char) {
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn diode_receive_files(ptr: *mut file::Config, ptr_odir: *const c_char) {
     if ptr.is_null() {
         return;
     }
