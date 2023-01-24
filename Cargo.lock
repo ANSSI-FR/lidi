@@ -96,6 +96,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "diode-file-bindings"
+version = "0.4.1"
+dependencies = [
+ "diode",
+]
+
+[[package]]
 name = "errno"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"

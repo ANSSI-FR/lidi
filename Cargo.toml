@@ -16,3 +16,6 @@ simple_logger = "4.0"
 lto = true
 opt-level = 3
 debug = false
+
+[workspace]
+members = [".", "diode-file-bindings"]

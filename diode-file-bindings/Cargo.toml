@@ -1,0 +1,11 @@
+[package]
+name = "diode-file-bindings"
+version = "0.4.1"
+edition = "2021"
+license = "GPL-3.0"
+
+[dependencies]
+diode = { path = ".." }
+
+[lib]
+crate-type = ["dylib"]

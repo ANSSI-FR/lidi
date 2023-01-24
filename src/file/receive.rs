@@ -10,19 +10,15 @@ use std::{
 };
 
 pub fn receive_files(config: Config, output_dir: PathBuf) -> Result<(), Error> {
-    println!("debug");
     if !output_dir.is_dir() {
         return Err(Error::Other(
             "output_directory is not a directory".to_string(),
         ));
     }
-    println!("debug");
 
     let server = TcpListener::bind(config.socket_addr)?;
-    println!("debug");
 
     thread::scope(|scope| -> Result<(), Error> {
-        println!("waiting for connection?");
         for incoming in server.incoming() {
             let client = incoming?;
             scope.spawn(|| -> Result<(), Error> {
