@@ -1,12 +1,12 @@
-use crate::file::{Config, Error, protocol};
+use crate::file::{protocol, Config, Error};
 use log::{debug, info};
 use std::{
-    thread,
     fs::{OpenOptions, Permissions},
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     os::unix::fs::PermissionsExt,
-    path::PathBuf,
+    path::{Path, PathBuf},
+    thread,
 };
 
 pub fn receive_files(config: Config, output_dir: PathBuf) -> Result<(), Error> {
@@ -33,7 +33,11 @@ pub fn receive_files(config: Config, output_dir: PathBuf) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn receive_file(config: &Config, mut diode: TcpStream, output_dir: &PathBuf) -> Result<usize, Error> {
+pub fn receive_file(
+    config: &Config,
+    mut diode: TcpStream,
+    output_dir: &Path,
+) -> Result<usize, Error> {
     info!("new client connected");
 
     diode.shutdown(std::net::Shutdown::Write)?;

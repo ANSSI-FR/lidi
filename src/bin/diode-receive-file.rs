@@ -1,12 +1,7 @@
 use clap::{Arg, Command};
 use diode::file;
 use log::error;
-use std::{
-    env,
-    net::SocketAddr,
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{env, net::SocketAddr, path::PathBuf, str::FromStr};
 
 fn main() {
     let args = Command::new(env!("CARGO_BIN_NAME"))

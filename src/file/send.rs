@@ -1,4 +1,4 @@
-use crate::file::{Config, Error, protocol};
+use crate::file::{protocol, Config, Error};
 use log::{debug, info};
 use std::{
     fs::OpenOptions,

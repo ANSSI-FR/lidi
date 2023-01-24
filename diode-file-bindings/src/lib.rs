@@ -2,16 +2,13 @@ use diode::file;
 use std::{
     ffi::{c_char, CStr},
     net::SocketAddr,
-    ptr,
     path::PathBuf,
+    ptr,
     str::FromStr,
 };
 
 #[no_mangle]
-pub extern "C" fn diode_new_config(
-    ptr_addr: *const c_char,
-    buffer_size: u32,
-) -> *mut file::Config {
+pub extern "C" fn diode_new_config(ptr_addr: *const c_char, buffer_size: u32) -> *mut file::Config {
     if ptr_addr.is_null() {
         return ptr::null_mut();
     }

@@ -1,5 +1,5 @@
-use diode::file;
 use clap::{Arg, ArgAction, Command};
+use diode::file;
 use log::error;
 use std::{env, net::SocketAddr, str::FromStr};
 
