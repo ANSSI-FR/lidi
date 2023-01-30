@@ -9,7 +9,10 @@ use std::{
 
 #[no_mangle]
 #[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn diode_new_config(ptr_addr: *const c_char, buffer_size: u32) -> *mut file::Config {
+pub unsafe extern "C" fn diode_new_config(
+    ptr_addr: *const c_char,
+    buffer_size: u32,
+) -> *mut file::Config {
     if ptr_addr.is_null() {
         return ptr::null_mut();
     }
@@ -37,7 +40,10 @@ pub unsafe extern "C" fn diode_free_config(ptr: *mut file::Config) {
 
 #[no_mangle]
 #[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn diode_send_file(ptr: *mut file::Config, ptr_filepath: *const c_char) -> u32 {
+pub unsafe extern "C" fn diode_send_file(
+    ptr: *mut file::Config,
+    ptr_filepath: *const c_char,
+) -> u32 {
     if ptr.is_null() {
         return 0;
     }
