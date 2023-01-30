@@ -16,7 +16,7 @@ impl Semaphore {
         }
         *counter = counter
             .checked_sub(1)
-            .unwrap_or_else(|| panic!("semaphore counter decrement failed: {}", counter));
+            .unwrap_or_else(|| panic!("semaphore counter decrement failed: {counter}"));
     }
 
     pub(crate) fn release(&self) {
@@ -24,7 +24,7 @@ impl Semaphore {
         let mut counter = lock.lock().unwrap();
         *counter = counter
             .checked_add(1)
-            .unwrap_or_else(|| panic!("semaphore counter increment failed: {}", counter));
+            .unwrap_or_else(|| panic!("semaphore counter increment failed: {counter}"));
         cv.notify_one();
     }
 }
