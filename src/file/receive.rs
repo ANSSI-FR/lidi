@@ -1,5 +1,5 @@
 use crate::file::{protocol, Config, Error};
-use log::{debug, info};
+use log::{debug, error, info};
 use std::{
     fs::{OpenOptions, Permissions},
     io::{Read, Write},
@@ -21,10 +21,9 @@ pub fn receive_files(config: Config, output_dir: PathBuf) -> Result<(), Error> {
     thread::scope(|scope| -> Result<(), Error> {
         for incoming in server.incoming() {
             let client = incoming?;
-            scope.spawn(|| -> Result<(), Error> {
-                let total = receive_file(&config, client, &output_dir)?;
-                info!("file received, {total} bytes received");
-                Ok(())
+            scope.spawn(|| match receive_file(&config, client, &output_dir) {
+                Ok(total) => info!("file received, {total} bytes received"),
+                Err(e) => error!("failed to receive file: {e}"),
             });
         }
         Ok(())
