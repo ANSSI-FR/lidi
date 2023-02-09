@@ -7,6 +7,7 @@ use std::{
 };
 
 pub struct Config {
+    pub to_bind: SocketAddr,
     pub to_udp: SocketAddr,
     pub mtu: u16,
 }
@@ -46,11 +47,10 @@ pub fn new(config: Config, recvq: Receiver<Message>) {
 }
 
 fn main_loop(config: Config, recvq: Receiver<Message>) -> Result<(), Error> {
-    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    let socket = UdpSocket::bind(config.to_bind)?;
 
     loop {
         let packet = recvq.recv()?;
-
         socket.send_to(&packet.serialize(), config.to_udp)?;
     }
 }

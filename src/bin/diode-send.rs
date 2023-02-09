@@ -1,4 +1,4 @@
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
 use diode::{
     protocol, semaphore,
@@ -24,6 +24,7 @@ struct Config {
     repair_block_size: u32,
     flush_timeout: Duration,
 
+    to_bind: Vec<SocketAddr>,
     to_udp: SocketAddr,
     to_udp_mtu: u16,
 }
@@ -87,6 +88,14 @@ fn command_args() -> Config {
                 .help("Duration in milliseconds after an incomplete RaptorQ block is flushed"),
         )
         .arg(
+            Arg::new("to_bind")
+                .long("to_bind")
+                .value_name("ip:port")
+                .action(ArgAction::Append)
+                .default_values(vec!["0.0.0.0:0"])
+                .help("Binding IP; multiple values accepted"),
+        )
+        .arg(
             Arg::new("to_udp")
                 .long("to_udp")
                 .value_name("ip:port")
@@ -114,6 +123,14 @@ fn command_args() -> Config {
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
     let flush_timeout =
         Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
+    let to_bind_str: Vec<&String> = args
+        .get_many::<String>("to_bind")
+        .expect("default")
+        .collect();
+    let mut to_bind = Vec::with_capacity(to_bind_str.len());
+    for addr in to_bind_str.into_iter() {
+        to_bind.push(SocketAddr::from_str(addr).expect("invalid to_bind address"));
+    }
     let to_udp = SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
@@ -126,6 +143,7 @@ fn command_args() -> Config {
         encoding_block_size,
         repair_block_size,
         flush_timeout,
+        to_bind,
         to_udp,
         to_udp_mtu,
     }
@@ -213,21 +231,25 @@ fn main() {
         encoding_config.flush_timeout.as_millis(),
     );
 
-    let udp_send_config = udp_send::Config {
-        to_udp: config.to_udp,
-        mtu: config.to_udp_mtu,
-    };
-
-    info!(
-        "sending UDP traffic to {} with MTU {}",
-        udp_send_config.to_udp, udp_send_config.mtu
-    );
-
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
     let (tcp_sendq, tcp_recvq) = bounded::<protocol::ClientMessage>(config.nb_clients as usize);
     let (udp_sendq, udp_recvq) = unbounded::<udp_send::Message>();
 
-    thread::spawn(move || udp_send::new(udp_send_config, udp_recvq));
+    for to_bind in config.to_bind {
+        let udp_send_config = udp_send::Config {
+            to_bind,
+            to_udp: config.to_udp,
+            mtu: config.to_udp_mtu,
+        };
+
+        info!(
+            "sending UDP traffic to {} with MTU {} binding to {}",
+            udp_send_config.to_udp, udp_send_config.mtu, to_bind
+        );
+
+        let udp_recvq = udp_recvq.clone();
+        thread::spawn(move || udp_send::new(udp_send_config, udp_recvq));
+    }
 
     thread::spawn(move || encoding::new(encoding_config, tcp_recvq, udp_sendq));
 
