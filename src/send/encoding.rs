@@ -1,7 +1,7 @@
 use crate::protocol;
 use crossbeam_channel::{self, Receiver, RecvTimeoutError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
-use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder};
+use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder, SourceBlockEncodingPlan};
 use std::{collections::VecDeque, fmt, time::Duration};
 
 use super::devector;
@@ -76,6 +76,10 @@ fn main_loop(
     let oti =
         ObjectTransmissionInformation::with_defaults(config.logical_block_size, config.output_mtu);
 
+    let sbep = SourceBlockEncodingPlan::generate(
+        (config.logical_block_size / oti.symbol_size() as u64) as u16,
+    );
+
     debug!("object transformation information = {:?} ", oti);
 
     let overhead = protocol::ClientMessage::serialize_padding_overhead();
@@ -125,7 +129,7 @@ fn main_loop(
             trace!("flushing queue len = {}", queue.len());
             let data = &queue.make_contiguous()[..config.logical_block_size as usize];
 
-            let encoder = SourceBlockEncoder::new2(block_id, &oti, data);
+            let encoder = SourceBlockEncoder::with_encoding_plan2(block_id, &oti, data, &sbep);
 
             let _ = queue.drain(0..config.logical_block_size as usize);
             trace!("after flushing queue len = {}", queue.len());
