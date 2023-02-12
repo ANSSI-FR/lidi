@@ -107,14 +107,17 @@ fn main_loop(config: Config, decoding_recvr: UnixStream) -> Result<(), Error> {
                 let tcp_serve_config = tcp_serve_config.clone();
                 let multiplex_control = multiplex_control.clone();
 
-                thread::spawn(move || {
-                    tcp_serve::new(
-                        tcp_serve_config,
-                        multiplex_control,
-                        message.client_id,
-                        client_recvq,
-                    )
-                });
+                thread::Builder::new()
+                    .name(format!("client {}", message.client_id))
+                    .spawn(move || {
+                        tcp_serve::new(
+                            tcp_serve_config,
+                            multiplex_control,
+                            message.client_id,
+                            client_recvq,
+                        )
+                    })
+                    .unwrap();
 
                 continue;
             }

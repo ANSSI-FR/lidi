@@ -172,7 +172,10 @@ fn main_loop(config: Config) -> Result<(), Error> {
         abort_timeout: config.abort_timeout,
     };
 
-    thread::spawn(move || deserialize::new(deserialize_config, decoding_recvs));
+    thread::Builder::new()
+        .name("deserialize".to_string())
+        .spawn(move || deserialize::new(deserialize_config, decoding_recvs))
+        .unwrap();
 
     let decoding_config = decoding::Config {
         logical_block_size: config.encoding_block_size,
@@ -186,7 +189,10 @@ fn main_loop(config: Config) -> Result<(), Error> {
         decoding_config.flush_timeout.as_millis(),
     );
 
-    thread::spawn(move || decoding::new(decoding_config, udp_recvq, decoding_sends));
+    thread::Builder::new()
+        .name("decoding".to_string())
+        .spawn(move || decoding::new(decoding_config, udp_recvq, decoding_sends))
+        .unwrap();
 
     info!(
         "sending TCP traffic to {} with abort timeout of {} second(s) an {} multiplexed transfers",

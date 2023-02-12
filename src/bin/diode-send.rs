@@ -2,7 +2,7 @@ use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
 use diode::{
     protocol, semaphore,
-    send::{encoding, tcp_client, udp_send},
+    send::{devector, encoding, tcp_client, udp_send},
 };
 use log::{debug, error, info};
 use std::{
@@ -175,7 +175,12 @@ fn connect_loop_aux(
 ) -> Result<(), Error> {
     loop {
         let client = connect_recvq.recv()?;
-        tcp_client::new(&tcp_client_config, &multiplex_control, &tcp_sendq, client);
+        tcp_client::new(
+            &tcp_client_config,
+            &multiplex_control,
+            tcp_sendq.clone(),
+            client,
+        );
     }
 }
 
@@ -233,6 +238,7 @@ fn main() {
 
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
     let (tcp_sendq, tcp_recvq) = bounded::<protocol::ClientMessage>(config.nb_clients as usize);
+    let (devector_sendq, devector_recvq) = unbounded::<Vec<udp_send::Message>>();
     let (udp_sendq, udp_recvq) = unbounded::<udp_send::Message>();
 
     for to_bind in config.to_bind {
@@ -248,10 +254,21 @@ fn main() {
         );
 
         let udp_recvq = udp_recvq.clone();
-        thread::spawn(move || udp_send::new(udp_send_config, udp_recvq));
+        thread::Builder::new()
+            .name(format!("udp-send {}", to_bind))
+            .spawn(move || udp_send::new(udp_send_config, udp_recvq))
+            .unwrap();
     }
 
-    thread::spawn(move || encoding::new(encoding_config, tcp_recvq, udp_sendq));
+    thread::Builder::new()
+        .name("encoding".to_string())
+        .spawn(move || encoding::new(encoding_config, tcp_recvq, devector_sendq))
+        .unwrap();
+
+    thread::Builder::new()
+        .name("devector".to_string())
+        .spawn(move || devector::new(devector_recvq, udp_sendq))
+        .unwrap();
 
     let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);
 
@@ -265,14 +282,17 @@ fn main() {
         let tcp_client_config = tcp_client_config.clone();
         let multiplex_control = multiplex_control.clone();
         let tcp_sendq = tcp_sendq.clone();
-        thread::spawn(move || {
-            connect_loop(
-                connect_recvq,
-                tcp_client_config,
-                multiplex_control,
-                tcp_sendq,
-            )
-        });
+        thread::Builder::new()
+            .name("tcp-client".to_string())
+            .spawn(move || {
+                connect_loop(
+                    connect_recvq,
+                    tcp_client_config,
+                    multiplex_control,
+                    tcp_sendq,
+                )
+            })
+            .unwrap();
     }
 
     let tcp_listener = match TcpListener::bind(config.from_tcp) {

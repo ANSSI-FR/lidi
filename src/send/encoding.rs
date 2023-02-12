@@ -1,9 +1,10 @@
 use crate::protocol;
-use crate::send::udp_send;
 use crossbeam_channel::{self, Receiver, RecvTimeoutError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
 use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder};
 use std::{collections::VecDeque, fmt, time::Duration};
+
+use super::devector;
 
 pub struct Config {
     pub logical_block_size: u64,
@@ -14,7 +15,7 @@ pub struct Config {
 
 enum Error {
     Receive(RecvTimeoutError),
-    Send(SendError<udp_send::Message>),
+    Send(SendError<devector::Message>),
     Diode(protocol::Error),
 }
 
@@ -34,8 +35,8 @@ impl From<RecvTimeoutError> for Error {
     }
 }
 
-impl From<SendError<udp_send::Message>> for Error {
-    fn from(e: SendError<udp_send::Message>) -> Self {
+impl From<SendError<devector::Message>> for Error {
+    fn from(e: SendError<devector::Message>) -> Self {
         Self::Send(e)
     }
 }
@@ -49,7 +50,7 @@ impl From<protocol::Error> for Error {
 pub fn new(
     config: Config,
     recvq: Receiver<protocol::ClientMessage>,
-    sendq: Sender<udp_send::Message>,
+    sendq: Sender<devector::Message>,
 ) {
     if let Err(e) = main_loop(config, recvq, sendq) {
         error!("encoding loop error: {e}");
@@ -59,7 +60,7 @@ pub fn new(
 fn main_loop(
     config: Config,
     recvq: Receiver<protocol::ClientMessage>,
-    sendq: Sender<udp_send::Message>,
+    sendq: Sender<devector::Message>,
 ) -> Result<(), Error> {
     let nb_repair_packets = config.repair_block_size / config.output_mtu as u32;
 
@@ -129,27 +130,11 @@ fn main_loop(
             let _ = queue.drain(0..config.logical_block_size as usize);
             trace!("after flushing queue len = {}", queue.len());
 
-            let mut total_sent = 0;
-            let mut total_packets = 0;
-            let mut total_repair = 0;
-
-            for packet in encoder.source_packets() {
-                total_packets += 1;
-                total_sent += packet.data().len();
-                sendq.send(packet)?;
-            }
+            sendq.send(encoder.source_packets())?;
 
             if 0 < nb_repair_packets {
-                for packet in encoder.repair_packets(0, nb_repair_packets) {
-                    total_repair += 1;
-                    total_sent += packet.data().len();
-                    sendq.send(packet)?;
-                }
+                sendq.send(encoder.repair_packets(0, nb_repair_packets))?;
             }
-
-            trace!(
-                "{total_sent} bytes sent, {total_packets} packets + {total_repair} repair_packets = {}", total_packets + total_repair
-            );
 
             block_id = block_id.wrapping_add(1);
         }
