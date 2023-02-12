@@ -4,7 +4,7 @@ use diode::{
     protocol, semaphore,
     send::{devector, encoding, tcp_client, udp_send},
 };
-use log::{debug, error, info};
+use log::{error, info};
 use std::{
     env, fmt,
     net::{SocketAddr, TcpListener, TcpStream},
@@ -201,17 +201,9 @@ fn connect_loop(
 }
 
 fn main() {
-    let mut config = command_args();
+    let config = command_args();
 
     init_logger();
-
-    config.encoding_block_size =
-        protocol::adjust_encoding_block_size(config.to_udp_mtu, config.encoding_block_size);
-
-    debug!(
-        "adjusting encoding_block_size to {} bytes",
-        config.encoding_block_size
-    );
 
     info!(
         "accepting TCP clients at {} with read buffer of {} bytes",
@@ -222,19 +214,14 @@ fn main() {
         buffer_size: config.from_tcp_buffer_size,
     };
 
+    let object_transmission_info =
+        protocol::object_transmission_information(config.to_udp_mtu, config.encoding_block_size);
+
     let encoding_config = encoding::Config {
-        logical_block_size: config.encoding_block_size,
+        object_transmission_info,
         repair_block_size: config.repair_block_size,
-        output_mtu: config.to_udp_mtu,
         flush_timeout: config.flush_timeout,
     };
-
-    info!(
-        "encoding with block size of {} bytes and repair block size of {} bytes and a flush timeout of {} milliseconds",
-        encoding_config.logical_block_size,
-        encoding_config.repair_block_size,
-        encoding_config.flush_timeout.as_millis(),
-    );
 
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
     let (tcp_sendq, tcp_recvq) = bounded::<protocol::ClientMessage>(config.nb_clients as usize);

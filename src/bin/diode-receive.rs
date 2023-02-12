@@ -3,7 +3,7 @@ use crossbeam_channel::{unbounded, SendError};
 use diode::protocol;
 use diode::receive::decoding;
 use diode::receive::deserialize;
-use log::{debug, error, info};
+use log::{error, info};
 use std::{
     env, fmt, io,
     net::{self, SocketAddr, UdpSocket},
@@ -177,17 +177,13 @@ fn main_loop(config: Config) -> Result<(), Error> {
         .spawn(move || deserialize::new(deserialize_config, decoding_recvs))
         .unwrap();
 
+    let object_transmission_info =
+        protocol::object_transmission_information(config.from_udp_mtu, config.encoding_block_size);
+
     let decoding_config = decoding::Config {
-        logical_block_size: config.encoding_block_size,
-        input_mtu: config.from_udp_mtu,
+        object_transmission_info,
         flush_timeout: config.flush_timeout,
     };
-
-    info!(
-        "decoding with block size of {} bytes and flush timeout of {} miiilseconds",
-        decoding_config.logical_block_size,
-        decoding_config.flush_timeout.as_millis(),
-    );
 
     thread::Builder::new()
         .name("decoding".to_string())
@@ -211,17 +207,9 @@ fn main_loop(config: Config) -> Result<(), Error> {
 }
 
 fn main() {
-    let mut config = command_args();
+    let config = command_args();
 
     init_logger();
-
-    config.encoding_block_size =
-        protocol::adjust_encoding_block_size(config.from_udp_mtu, config.encoding_block_size);
-
-    debug!(
-        "adjusting encoding_block_size to {} bytes",
-        config.encoding_block_size
-    );
 
     if let Err(e) = main_loop(config) {
         error!("failed to launch main_loop: {e}");

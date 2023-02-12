@@ -7,9 +7,8 @@ use std::{collections::VecDeque, fmt, time::Duration};
 use super::devector;
 
 pub struct Config {
-    pub logical_block_size: u64,
+    pub object_transmission_info: ObjectTransmissionInformation,
     pub repair_block_size: u32,
-    pub output_mtu: u16,
     pub flush_timeout: Duration,
 }
 
@@ -62,31 +61,30 @@ fn main_loop(
     recvq: Receiver<protocol::ClientMessage>,
     sendq: Sender<devector::Message>,
 ) -> Result<(), Error> {
-    let nb_repair_packets = config.repair_block_size / config.output_mtu as u32;
+    let nb_repair_packets =
+        config.repair_block_size / protocol::data_mtu(&config.object_transmission_info) as u32;
 
-    if nb_repair_packets == 0 {
-        warn!("configuration produces 0 repair packets");
-    } else {
-        info!(
-            "{nb_repair_packets} repair packets ({} bytes) per encoding block will be produced",
-            nb_repair_packets * config.output_mtu as u32
-        );
-    }
+    let encoding_block_size = config.object_transmission_info.transfer_length() as usize;
 
-    let oti =
-        ObjectTransmissionInformation::with_defaults(config.logical_block_size, config.output_mtu);
-
-    let sbep = SourceBlockEncodingPlan::generate(
-        (config.logical_block_size / oti.symbol_size() as u64) as u16,
+    info!(
+        "encoding will produce {} packets ({} bytes per block) + {} repair packets + flush timeout of {} ms",
+        protocol::nb_encoding_packets(&config.object_transmission_info), encoding_block_size, nb_repair_packets, config.flush_timeout.as_millis()
     );
 
-    debug!("object transformation information = {:?} ", oti);
+    if nb_repair_packets == 0 {
+        warn!("configuration produces 0 repair packet");
+    }
+
+    let sbep = SourceBlockEncodingPlan::generate(
+        (config.object_transmission_info.transfer_length()
+            / config.object_transmission_info.symbol_size() as u64) as u16,
+    );
 
     let overhead = protocol::ClientMessage::serialize_padding_overhead();
 
     debug!("padding encoding overhead is {} bytes", overhead);
 
-    let mut queue = VecDeque::with_capacity(config.logical_block_size as usize);
+    let mut queue = VecDeque::with_capacity(encoding_block_size);
 
     let mut block_id = 0;
 
@@ -97,7 +95,7 @@ fn main_loop(
                 if queue.is_empty() {
                     continue;
                 }
-                let padding_needed = config.logical_block_size as usize - queue.len();
+                let padding_needed = encoding_block_size - queue.len();
                 let padding_len = if padding_needed < overhead {
                     debug!("top much padding overhead !");
                     0
@@ -124,14 +122,19 @@ fn main_loop(
             _ => (),
         }
 
-        while (config.logical_block_size as usize) <= queue.len() {
+        while encoding_block_size <= queue.len() {
             // full block, we can flush
             trace!("flushing queue len = {}", queue.len());
-            let data = &queue.make_contiguous()[..config.logical_block_size as usize];
+            let data = &queue.make_contiguous()[..encoding_block_size];
 
-            let encoder = SourceBlockEncoder::with_encoding_plan2(block_id, &oti, data, &sbep);
+            let encoder = SourceBlockEncoder::with_encoding_plan2(
+                block_id,
+                &config.object_transmission_info,
+                data,
+                &sbep,
+            );
 
-            let _ = queue.drain(0..config.logical_block_size as usize);
+            let _ = queue.drain(0..encoding_block_size);
             trace!("after flushing queue len = {}", queue.len());
 
             sendq.send(encoder.source_packets())?;

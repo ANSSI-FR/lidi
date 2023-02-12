@@ -1,6 +1,6 @@
 use crate::protocol;
 use crossbeam_channel::{Receiver, RecvTimeoutError};
-use log::{debug, error, trace, warn};
+use log::{debug, error, info, trace, warn};
 use raptorq::{self, EncodingPacket, ObjectTransmissionInformation, SourceBlockDecoder};
 use std::{
     fmt,
@@ -10,9 +10,8 @@ use std::{
 };
 
 pub struct Config {
-    pub logical_block_size: u64,
+    pub object_transmission_info: ObjectTransmissionInformation,
     pub flush_timeout: Duration,
-    pub input_mtu: u16,
 }
 
 enum Error {
@@ -54,17 +53,19 @@ fn main_loop(
     udp_recvq: Receiver<Message>,
     deserialize_socket: UnixStream,
 ) -> Result<(), Error> {
-    let oti =
-        ObjectTransmissionInformation::with_defaults(config.logical_block_size, config.input_mtu);
+    let encoding_block_size = config.object_transmission_info.transfer_length();
 
     let mut deserialize_socket =
-        io::BufWriter::with_capacity(config.logical_block_size as usize, deserialize_socket);
+        io::BufWriter::with_capacity(encoding_block_size as usize, deserialize_socket);
 
-    let nb_normal_packets =
-        config.logical_block_size / (config.input_mtu as u64 - protocol::RAPTORQ_PAYLOAD_SIZE);
-    debug!(
-        "need at least {} packets for normal decoding",
-        nb_normal_packets
+    let nb_normal_packets = config.object_transmission_info.transfer_length()
+        / config.object_transmission_info.symbol_size() as u64;
+
+    info!(
+        "decoding will expect {} packets ({} bytes per block) + flush timeout of {} ms",
+        protocol::nb_encoding_packets(&config.object_transmission_info),
+        encoding_block_size,
+        config.flush_timeout.as_millis()
     );
 
     let mut desynchro = true;
@@ -81,8 +82,11 @@ fn main_loop(
 
                     if nb_normal_packets as usize <= qlen {
                         debug!("trying to decode");
-                        let mut decoder =
-                            SourceBlockDecoder::new2(block_id, &oti, config.logical_block_size);
+                        let mut decoder = SourceBlockDecoder::new2(
+                            block_id,
+                            &config.object_transmission_info,
+                            encoding_block_size,
+                        );
 
                         match decoder.decode(queue) {
                             None => {
@@ -136,7 +140,11 @@ fn main_loop(
         }
 
         // message block_id is from next block, flushing current block
-        let mut decoder = SourceBlockDecoder::new2(block_id, &oti, config.logical_block_size);
+        let mut decoder = SourceBlockDecoder::new2(
+            block_id,
+            &config.object_transmission_info,
+            encoding_block_size,
+        );
 
         match decoder.decode(queue) {
             None => warn!("lost block {block_id}"),

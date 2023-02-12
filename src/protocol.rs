@@ -135,9 +135,28 @@ impl fmt::Display for ClientMessage {
     }
 }
 
-pub(crate) const RAPTORQ_PAYLOAD_SIZE: u64 = 4;
+const PACKET_HEADER_SIZE: u16 = 20 + 8;
+const RAPTORQ_ALIGNMENT: u16 = 8;
 
-pub fn adjust_encoding_block_size(mtu: u16, encoding_block_size: u64) -> u64 {
-    (mtu as u64 - RAPTORQ_PAYLOAD_SIZE)
-        * (encoding_block_size / (mtu as u64 - RAPTORQ_PAYLOAD_SIZE))
+pub fn object_transmission_information(
+    mtu: u16,
+    logical_block_size: u64,
+) -> raptorq::ObjectTransmissionInformation {
+    let data_mtu: u16 = RAPTORQ_ALIGNMENT * ((mtu - PACKET_HEADER_SIZE) / RAPTORQ_ALIGNMENT);
+
+    let nb_encoding_packets = logical_block_size / data_mtu as u64;
+
+    let encoding_block_size = data_mtu as u64 * nb_encoding_packets;
+
+    let data_mtu = (encoding_block_size / nb_encoding_packets) as u16;
+
+    raptorq::ObjectTransmissionInformation::with_defaults(encoding_block_size, data_mtu)
+}
+
+pub(crate) fn data_mtu(oti: &raptorq::ObjectTransmissionInformation) -> u16 {
+    oti.symbol_size()
+}
+
+pub(crate) fn nb_encoding_packets(oti: &raptorq::ObjectTransmissionInformation) -> u64 {
+    oti.transfer_length() / data_mtu(oti) as u64
 }
