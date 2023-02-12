@@ -86,7 +86,7 @@ fn command_args() -> Config {
         )
         .arg(
             Arg::new("abort_timeout")
-                .long("abnrt_timeout")
+                .long("abort_timeout")
                 .value_name("nb_seconds")
                 .default_value("10")
                 .value_parser(clap::value_parser!(u64))
