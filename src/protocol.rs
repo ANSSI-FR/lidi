@@ -143,7 +143,8 @@ pub fn object_transmission_information(
     mtu: u16,
     logical_block_size: u64,
 ) -> raptorq::ObjectTransmissionInformation {
-    let data_mtu: u16 = RAPTORQ_ALIGNMENT * ((mtu - PACKET_HEADER_SIZE  - RAPTORQ_HEADER_SIZE) / RAPTORQ_ALIGNMENT);
+    let data_mtu: u16 =
+        RAPTORQ_ALIGNMENT * ((mtu - PACKET_HEADER_SIZE - RAPTORQ_HEADER_SIZE) / RAPTORQ_ALIGNMENT);
 
     let nb_encoding_packets = logical_block_size / data_mtu as u64;
 

@@ -200,7 +200,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
     let mut buffer = vec![0; config.from_udp_mtu as usize];
 
     loop {
-        let (nread, _) = socket.recv_from(&mut buffer)?;
+        let nread = socket.recv(&mut buffer)?;
         let packet = decoding::Message::deserialize(&buffer[..nread]);
         udp_sendq.send(packet)?;
     }
