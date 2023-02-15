@@ -88,10 +88,10 @@ impl UdpMessages<UdpSend> {
         for bufchunk in buffers.chunks_mut(self.vlen) {
             let to_send = bufchunk.len();
 
-            for i in 0..to_send {
-                self.msgvec[i].msg_len = bufchunk[i].len() as u32;
-                self.iovecs[i].iov_base = bufchunk[i].as_mut_ptr() as *mut libc::c_void;
-                self.iovecs[i].iov_len = bufchunk[i].len();
+            for (i, buf) in bufchunk.iter_mut().enumerate() {
+                self.msgvec[i].msg_len = buf.len() as u32;
+                self.iovecs[i].iov_base = buf.as_mut_ptr() as *mut libc::c_void;
+                self.iovecs[i].iov_len = buf.len();
             }
 
             let nb_msg;
