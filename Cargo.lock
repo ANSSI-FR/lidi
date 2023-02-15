@@ -89,6 +89,7 @@ version = "0.6.2"
 dependencies = [
  "clap",
  "crossbeam-channel",
+ "libc",
  "log",
  "rand",
  "raptorq",

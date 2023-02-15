@@ -2,7 +2,7 @@ use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
 use diode::{
     protocol, semaphore,
-    send::{devector, encoding, tcp_client, udp_send},
+    send::{encoding, tcp_client, udp_send},
 };
 use log::{error, info};
 use std::{
@@ -27,6 +27,7 @@ struct Config {
     to_bind: Vec<SocketAddr>,
     to_udp: SocketAddr,
     to_udp_mtu: u16,
+    to_udp_max_messages: u16,
 }
 
 fn command_args() -> Config {
@@ -110,6 +111,14 @@ fn command_args() -> Config {
                 .value_parser(clap::value_parser!(u16))
                 .help("MTU in bytes of output UDP link"),
         )
+        .arg(
+            Arg::new("to_udp_max_messages")
+                .long("to_udp_max_messages")
+                .value_name("nb_messages")
+                .default_value("40")
+                .value_parser(clap::value_parser!(u16))
+                .help("Number of UDP messages/datagram to write at once"),
+        )
         .get_matches();
 
     let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
@@ -134,6 +143,7 @@ fn command_args() -> Config {
     let to_udp = SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
+    let to_udp_max_messages = *args.get_one::<u16>("to_udp_max_messages").expect("default");
 
     Config {
         from_tcp,
@@ -146,6 +156,7 @@ fn command_args() -> Config {
         to_bind,
         to_udp,
         to_udp_mtu,
+        to_udp_max_messages,
     }
 }
 
@@ -225,14 +236,14 @@ fn main() {
 
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
     let (tcp_sendq, tcp_recvq) = bounded::<protocol::ClientMessage>(config.nb_clients as usize);
-    let (devector_sendq, devector_recvq) = unbounded::<Vec<udp_send::Message>>();
-    let (udp_sendq, udp_recvq) = unbounded::<udp_send::Message>();
+    let (udp_sendq, udp_recvq) = unbounded::<Vec<udp_send::Message>>();
 
     for to_bind in config.to_bind {
         let udp_send_config = udp_send::Config {
             to_bind,
             to_udp: config.to_udp,
             mtu: config.to_udp_mtu,
+            max_messages: config.to_udp_max_messages,
         };
 
         info!(
@@ -249,12 +260,7 @@ fn main() {
 
     thread::Builder::new()
         .name("encoding".to_string())
-        .spawn(move || encoding::new(encoding_config, tcp_recvq, devector_sendq))
-        .unwrap();
-
-    thread::Builder::new()
-        .name("devector".to_string())
-        .spawn(move || devector::new(devector_recvq, udp_sendq))
+        .spawn(move || encoding::new(encoding_config, tcp_recvq, udp_sendq))
         .unwrap();
 
     let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);

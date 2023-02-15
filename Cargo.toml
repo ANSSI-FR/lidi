@@ -7,6 +7,7 @@ license = "GPL-3.0"
 [dependencies]
 clap = "4.1"
 crossbeam-channel = "0.5"
+libc = "0.2"
 log = "0.4"
 rand = "0.8"
 raptorq = "1.7"

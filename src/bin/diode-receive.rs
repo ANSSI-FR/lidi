@@ -1,8 +1,7 @@
 use clap::{Arg, Command};
 use crossbeam_channel::{unbounded, SendError};
-use diode::protocol;
-use diode::receive::decoding;
-use diode::receive::deserialize;
+use diode::receive::{decoding, deserialize};
+use diode::{protocol, udp};
 use log::{error, info};
 use std::{
     env, fmt, io,
@@ -16,6 +15,7 @@ use std::{
 struct Config {
     from_udp: SocketAddr,
     from_udp_mtu: u16,
+    from_udp_max_messages: u16,
 
     nb_multiplex: u16,
 
@@ -44,6 +44,14 @@ fn command_args() -> Config {
                 .default_value("1500") // mtu
                 .value_parser(clap::value_parser!(u16))
                 .help("MTU of the incoming UDP link"),
+        )
+        .arg(
+            Arg::new("from_udp_max_messages")
+                .long("from_udp_max_messages")
+                .value_name("nb_messages")
+                .default_value("40")
+                .value_parser(clap::value_parser!(u16))
+                .help("Number of UDP messages/datagram to read at once"),
         )
         .arg(
             Arg::new("nb_multiplex")
@@ -97,6 +105,9 @@ fn command_args() -> Config {
     let from_udp = SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
         .expect("invalid from_udp_parameter");
     let from_udp_mtu = *args.get_one::<u16>("from_udp_mtu").expect("default");
+    let from_udp_max_messages = *args
+        .get_one::<u16>("from_udp_max_messages")
+        .expect("default");
     let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let flush_timeout =
@@ -112,6 +123,7 @@ fn command_args() -> Config {
     Config {
         from_udp,
         from_udp_mtu,
+        from_udp_max_messages,
         nb_multiplex,
         encoding_block_size,
         flush_timeout,
@@ -197,12 +209,17 @@ fn main_loop(config: Config) -> Result<(), Error> {
         config.nb_multiplex,
     );
 
-    let mut buffer = vec![0; config.from_udp_mtu as usize];
+    let mut udp_messages = udp::UdpMessages::new_receiver(
+        socket,
+        usize::from(config.from_udp_max_messages),
+        usize::from(config.from_udp_mtu),
+    );
 
     loop {
-        let nread = socket.recv(&mut buffer)?;
-        let packet = decoding::Message::deserialize(&buffer[..nread]);
-        udp_sendq.send(packet)?;
+        udp_messages.recv_mmsg().try_for_each(|msg| {
+            let packet = decoding::Message::deserialize(msg);
+            udp_sendq.send(packet)
+        })?;
     }
 }
 

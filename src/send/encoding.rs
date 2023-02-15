@@ -1,10 +1,9 @@
 use crate::protocol;
+use crate::send::udp_send;
 use crossbeam_channel::{self, Receiver, RecvTimeoutError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
 use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder, SourceBlockEncodingPlan};
 use std::{collections::VecDeque, fmt, time::Duration};
-
-use super::devector;
 
 pub struct Config {
     pub object_transmission_info: ObjectTransmissionInformation,
@@ -14,7 +13,7 @@ pub struct Config {
 
 enum Error {
     Receive(RecvTimeoutError),
-    Send(SendError<devector::Message>),
+    Send(SendError<Vec<udp_send::Message>>),
     Diode(protocol::Error),
 }
 
@@ -34,8 +33,8 @@ impl From<RecvTimeoutError> for Error {
     }
 }
 
-impl From<SendError<devector::Message>> for Error {
-    fn from(e: SendError<devector::Message>) -> Self {
+impl From<SendError<Vec<udp_send::Message>>> for Error {
+    fn from(e: SendError<Vec<udp_send::Message>>) -> Self {
         Self::Send(e)
     }
 }
@@ -49,7 +48,7 @@ impl From<protocol::Error> for Error {
 pub fn new(
     config: Config,
     recvq: Receiver<protocol::ClientMessage>,
-    sendq: Sender<devector::Message>,
+    sendq: Sender<Vec<udp_send::Message>>,
 ) {
     if let Err(e) = main_loop(config, recvq, sendq) {
         error!("encoding loop error: {e}");
@@ -59,7 +58,7 @@ pub fn new(
 fn main_loop(
     config: Config,
     recvq: Receiver<protocol::ClientMessage>,
-    sendq: Sender<devector::Message>,
+    sendq: Sender<Vec<udp_send::Message>>,
 ) -> Result<(), Error> {
     let nb_repair_packets =
         config.repair_block_size / protocol::data_mtu(&config.object_transmission_info) as u32;
