@@ -85,17 +85,13 @@ impl UdpMessages<UdpSend> {
     }
 
     pub fn send_mmsg(&mut self, mut buffers: Vec<Vec<u8>>) {
-        let mut nb_messages = buffers.len();
-        let mut message_offset = 0;
-
-        while nb_messages > 0 {
-            let to_send = usize::min(nb_messages, self.vlen);
+        for bufchunk in buffers.chunks_mut(self.vlen) {
+            let to_send = bufchunk.len();
 
             for i in 0..to_send {
-                self.msgvec[i].msg_len = buffers[message_offset + i].len() as u32;
-                self.iovecs[i].iov_base =
-                    buffers[message_offset + i].as_mut_ptr() as *mut libc::c_void;
-                self.iovecs[i].iov_len = buffers[message_offset + i].len();
+                self.msgvec[i].msg_len = bufchunk[i].len() as u32;
+                self.iovecs[i].iov_base = bufchunk[i].as_mut_ptr() as *mut libc::c_void;
+                self.iovecs[i].iov_len = bufchunk[i].len();
             }
 
             let nb_msg;
@@ -114,9 +110,6 @@ impl UdpMessages<UdpSend> {
             if nb_msg as usize != to_send {
                 log::warn!("nb prepared messages doesn't match with nb sent messages");
             }
-
-            message_offset += to_send;
-            nb_messages -= to_send;
         }
     }
 }
