@@ -48,7 +48,7 @@ fn command_args() -> Config {
             Arg::new("from_udp_max_messages")
                 .long("from_udp_max_messages")
                 .value_name("nb_messages")
-                .default_value("40")
+                .default_value("44")
                 .value_parser(clap::value_parser!(u16))
                 .help("Number of UDP messages/datagram to read at once"),
         )
