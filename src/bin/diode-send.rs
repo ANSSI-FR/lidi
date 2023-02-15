@@ -253,7 +253,7 @@ fn main() {
 
         let udp_recvq = udp_recvq.clone();
         thread::Builder::new()
-            .name(format!("udp-send {}", to_bind))
+            .name(format!("udp-send {to_bind}"))
             .spawn(move || udp_send::new(udp_send_config, udp_recvq))
             .unwrap();
     }
