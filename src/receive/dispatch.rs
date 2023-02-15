@@ -103,7 +103,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<Message>) -> Result<(), Er
                 let multiplex_control = multiplex_control.clone();
 
                 thread::Builder::new()
-                    .name(format!("client {}", client_id))
+                    .name(format!("client {client_id}"))
                     .spawn(move || {
                         tcp_serve::new(tcp_serve_config, multiplex_control, client_id, client_recvq)
                     })
