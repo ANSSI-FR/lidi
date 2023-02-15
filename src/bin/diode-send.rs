@@ -132,14 +132,11 @@ fn command_args() -> Config {
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
     let flush_timeout =
         Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
-    let to_bind_str: Vec<&String> = args
+    let to_bind: Vec<SocketAddr> = args
         .get_many::<String>("to_bind")
         .expect("default")
+        .map(|addr| SocketAddr::from_str(addr).expect("invalid to_bind address"))
         .collect();
-    let mut to_bind = Vec::with_capacity(to_bind_str.len());
-    for addr in to_bind_str.into_iter() {
-        to_bind.push(SocketAddr::from_str(addr).expect("invalid to_bind address"));
-    }
     let to_udp = SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
