@@ -92,10 +92,10 @@ impl UdpMessages<UdpSend> {
             let to_send = usize::min(nb_messages, self.vlen);
 
             for i in 0..to_send {
-                self.msgvec[i].msg_len = buffers[i].len() as u32;
+                self.msgvec[i].msg_len = buffers[message_offset + i].len() as u32;
                 self.iovecs[i].iov_base =
                     buffers[message_offset + i].as_mut_ptr() as *mut libc::c_void;
-                self.iovecs[i].iov_len = buffers[i].len();
+                self.iovecs[i].iov_len = buffers[message_offset + i].len();
             }
 
             let nb_msg;
