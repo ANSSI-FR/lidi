@@ -14,7 +14,7 @@ pub struct Config {
 
 enum Error {
     Io(io::Error),
-    Crossbeam(SendError<protocol::ClientMessage>),
+    Crossbeam(SendError<protocol::Message>),
 }
 
 impl fmt::Display for Error {
@@ -32,8 +32,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<SendError<protocol::ClientMessage>> for Error {
-    fn from(e: SendError<protocol::ClientMessage>) -> Self {
+impl From<SendError<protocol::Message>> for Error {
+    fn from(e: SendError<protocol::Message>) -> Self {
         Self::Crossbeam(e)
     }
 }
@@ -41,7 +41,7 @@ impl From<SendError<protocol::ClientMessage>> for Error {
 pub fn new(
     config: &Config,
     multiplex_control: &semaphore::Semaphore,
-    sendq: Sender<protocol::ClientMessage>,
+    sendq: Sender<protocol::Message>,
     client: TcpStream,
 ) {
     debug!("try to acquire multiplex access..");
@@ -55,7 +55,7 @@ pub fn new(
     if let Err(e) = main_loop(config, client_id, client, &sendq) {
         error!("client {client_id:x}: error: {e}");
 
-        if let Err(e) = sendq.send(protocol::ClientMessage::new(
+        if let Err(e) = sendq.send(protocol::Message::new(
             protocol::MessageType::Abort,
             config.buffer_size,
             client_id,
@@ -72,7 +72,7 @@ fn main_loop(
     config: &Config,
     client_id: protocol::ClientId,
     mut client: TcpStream,
-    sendq: &Sender<protocol::ClientMessage>,
+    sendq: &Sender<protocol::Message>,
 ) -> Result<(), Error> {
     info!("client {client_id:x}: connected");
 
@@ -91,6 +91,7 @@ fn main_loop(
         match client.read(&mut buffer[cursor..])? {
             0 => {
                 trace!("client {client_id:x}: end of stream");
+
                 if 0 < cursor {
                     // handling incomplete last packet
                     trace!("client {client_id:x}: send last buffer");
@@ -103,19 +104,29 @@ fn main_loop(
                         protocol::MessageType::Data
                     };
 
-                    let message = protocol::ClientMessage::new(
+                    sendq.send(protocol::Message::new(
                         message_type,
                         config.buffer_size,
                         client_id,
                         Some(&buffer[..cursor]),
-                    );
-
-                    sendq.send(message)?;
+                    ))?;
                 }
-                break;
+
+                sendq.send(protocol::Message::new(
+                    protocol::MessageType::End,
+                    config.buffer_size,
+                    client_id,
+                    None,
+                ))?;
+
+                info!("client {client_id:x}: disconnect, {transmitted} bytes transmitted");
+
+                return Ok(());
             }
+
             nread => {
                 trace!("client {client_id:x}: {nread} bytes read");
+
                 if (cursor + nread) < config.buffer_size as usize {
                     // buffer is not full
                     trace!("client {client_id:x}: buffer is not full, looping");
@@ -137,30 +148,17 @@ fn main_loop(
                     protocol::MessageType::Data
                 };
 
-                let message = protocol::ClientMessage::new(
+                is_first = false;
+
+                sendq.send(protocol::Message::new(
                     message_type,
                     config.buffer_size,
                     client_id,
                     Some(&buffer),
-                );
-
-                is_first = false;
-
-                sendq.send(message)?;
+                ))?;
 
                 cursor = 0;
             }
         }
     }
-
-    sendq.send(protocol::ClientMessage::new(
-        protocol::MessageType::End,
-        config.buffer_size,
-        client_id,
-        None,
-    ))?;
-
-    info!("client {client_id:x}: disconnect, {transmitted} bytes transmitted");
-
-    Ok(())
 }

@@ -1,6 +1,6 @@
 use crate::{protocol, receive::tcp_serve, semaphore};
 use crossbeam_channel::{unbounded, Receiver, RecvError, SendError, Sender};
-use log::{error, trace};
+use log::{debug, error, trace};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 use std::{fmt, io, net, thread};
@@ -15,7 +15,7 @@ pub struct Config {
 
 enum Error {
     Io(io::Error),
-    CrossbeamSend(SendError<protocol::ClientMessage>),
+    CrossbeamSend(SendError<protocol::Message>),
     CrossbeamRecv(RecvError),
     Diode(protocol::Error),
 }
@@ -37,8 +37,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<SendError<protocol::ClientMessage>> for Error {
-    fn from(e: SendError<protocol::ClientMessage>) -> Self {
+impl From<SendError<protocol::Message>> for Error {
+    fn from(e: SendError<protocol::Message>) -> Self {
         Self::CrossbeamSend(e)
     }
 }
@@ -55,18 +55,16 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub type Message = protocol::ClientMessage;
-
-pub fn new(config: Config, decoding_recvq: Receiver<Message>) {
+pub fn new(config: Config, decoding_recvq: Receiver<protocol::Message>) {
     if let Err(e) = main_loop(config, decoding_recvq) {
         error!("deserialize loop error: {e}");
     }
 }
 
-fn main_loop(config: Config, decoding_recvq: Receiver<Message>) -> Result<(), Error> {
-    let mut active_transfers: BTreeMap<protocol::ClientId, Sender<tcp_serve::Message>> =
+fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Result<(), Error> {
+    let mut active_transfers: BTreeMap<protocol::ClientId, Sender<protocol::Message>> =
         BTreeMap::new();
-    let mut ended_transfers: BTreeMap<protocol::ClientId, Sender<tcp_serve::Message>> =
+    let mut ended_transfers: BTreeMap<protocol::ClientId, Sender<protocol::Message>> =
         BTreeMap::new();
     let mut failed_transfers: BTreeSet<protocol::ClientId> = BTreeSet::new();
 
@@ -81,7 +79,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<Message>) -> Result<(), Er
     loop {
         let message = decoding_recvq.recv()?;
 
-        trace!("received {}", message);
+        trace!("received {message}");
 
         let client_id = message.client_id();
 
@@ -95,7 +93,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<Message>) -> Result<(), Er
 
         match message_type {
             protocol::MessageType::Start => {
-                let (client_sendq, client_recvq) = unbounded::<tcp_serve::Message>();
+                let (client_sendq, client_recvq) = unbounded::<protocol::Message>();
 
                 active_transfers.insert(client_id, client_sendq);
 
@@ -103,20 +101,30 @@ fn main_loop(config: Config, decoding_recvq: Receiver<Message>) -> Result<(), Er
                 let multiplex_control = multiplex_control.clone();
 
                 thread::Builder::new()
-                    .name(format!("client {client_id}"))
+                    .name(format!("client {client_id:x}"))
                     .spawn(move || {
                         tcp_serve::new(tcp_serve_config, multiplex_control, client_id, client_recvq)
                     })
                     .unwrap();
+
+                ended_transfers.retain(|client_id, client_sendq| {
+                    let retain = client_sendq.is_empty();
+                    if !retain {
+                        debug!("purging ended transfer of client {client_id:x}");
+                    }
+                    retain
+                });
             }
+
             protocol::MessageType::Abort | protocol::MessageType::End => will_end = true,
+
             _ => (),
         }
 
         let client_sendq = active_transfers.get(&client_id).unwrap();
 
         if let Err(e) = client_sendq.send(message) {
-            error!("failed to send payload to client {:x}: {e}", client_id);
+            error!("failed to send payload to client {client_id:x}: {e}");
             active_transfers.remove(&client_id);
             failed_transfers.insert(client_id);
             continue;

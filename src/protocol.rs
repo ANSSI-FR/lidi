@@ -60,11 +60,11 @@ pub(crate) fn new_client_id() -> ClientId {
     rand::random::<ClientId>()
 }
 
-pub struct ClientMessage(Vec<u8>);
+pub struct Message(Vec<u8>);
 
 const SERIALIZE_OVERHEAD: usize = 4 + 1 + 4;
 
-impl ClientMessage {
+impl Message {
     pub(crate) fn new(
         message: MessageType,
         message_length: u32,
@@ -134,7 +134,7 @@ impl ClientMessage {
     }
 }
 
-impl fmt::Display for ClientMessage {
+impl fmt::Display for Message {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             fmt,

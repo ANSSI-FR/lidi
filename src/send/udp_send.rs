@@ -40,15 +40,13 @@ impl From<RecvError> for Error {
     }
 }
 
-pub type Message = EncodingPacket;
-
-pub fn new(config: Config, recvq: Receiver<Vec<Message>>) {
+pub fn new(config: Config, recvq: Receiver<Vec<EncodingPacket>>) {
     if let Err(e) = main_loop(config, recvq) {
         error!("UDP send loop error: {e}");
     }
 }
 
-fn main_loop(config: Config, recvq: Receiver<Vec<Message>>) -> Result<(), Error> {
+fn main_loop(config: Config, recvq: Receiver<Vec<EncodingPacket>>) -> Result<(), Error> {
     let socket = UdpSocket::bind(config.to_bind)?;
     socket.connect(config.to_udp).unwrap();
 

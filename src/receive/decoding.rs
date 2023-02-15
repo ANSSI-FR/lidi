@@ -1,4 +1,4 @@
-use crate::{protocol, receive::dispatch};
+use crate::protocol;
 use crossbeam_channel::{Receiver, RecvTimeoutError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
 use raptorq::{self, EncodingPacket, ObjectTransmissionInformation, SourceBlockDecoder};
@@ -11,7 +11,7 @@ pub struct Config {
 
 enum Error {
     Receive(RecvTimeoutError),
-    Crossbeam(SendError<dispatch::Message>),
+    Crossbeam(SendError<protocol::Message>),
 }
 
 impl fmt::Display for Error {
@@ -29,18 +29,16 @@ impl From<RecvTimeoutError> for Error {
     }
 }
 
-impl From<SendError<dispatch::Message>> for Error {
-    fn from(e: SendError<dispatch::Message>) -> Self {
+impl From<SendError<protocol::Message>> for Error {
+    fn from(e: SendError<protocol::Message>) -> Self {
         Self::Crossbeam(e)
     }
 }
 
-pub type Message = EncodingPacket;
-
 pub fn new(
     config: Config,
-    udp_recvq: Receiver<Message>,
-    dispatch_sendq: Sender<dispatch::Message>,
+    udp_recvq: Receiver<EncodingPacket>,
+    dispatch_sendq: Sender<protocol::Message>,
 ) {
     if let Err(e) = main_loop(config, udp_recvq, dispatch_sendq) {
         error!("decoding loop error: {e}");
@@ -49,8 +47,8 @@ pub fn new(
 
 fn main_loop(
     config: Config,
-    udp_recvq: Receiver<Message>,
-    dispatch_sendq: Sender<dispatch::Message>,
+    udp_recvq: Receiver<EncodingPacket>,
+    dispatch_sendq: Sender<protocol::Message>,
 ) -> Result<(), Error> {
     let encoding_block_size = config.object_transmission_info.transfer_length();
 
@@ -91,7 +89,7 @@ fn main_loop(
                             }
                             Some(block) => {
                                 trace!("block {} received with {} bytes!", block_id, block.len());
-                                dispatch_sendq.send(protocol::ClientMessage::deserialize(block))?;
+                                dispatch_sendq.send(protocol::Message::deserialize(block))?;
                                 block_id = block_id.wrapping_add(1);
                             }
                         };
@@ -146,7 +144,7 @@ fn main_loop(
             None => warn!("lost block {block_id}"),
             Some(block) => {
                 trace!("block {} received with {} bytes!", block_id, block.len());
-                dispatch_sendq.send(protocol::ClientMessage::deserialize(block))?;
+                dispatch_sendq.send(protocol::Message::deserialize(block))?;
             }
         }
 

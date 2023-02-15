@@ -1,8 +1,9 @@
 use crate::protocol;
-use crate::send::udp_send;
 use crossbeam_channel::{self, Receiver, RecvError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
-use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder, SourceBlockEncodingPlan};
+use raptorq::{
+    EncodingPacket, ObjectTransmissionInformation, SourceBlockEncoder, SourceBlockEncodingPlan,
+};
 use std::fmt;
 
 pub struct Config {
@@ -12,7 +13,7 @@ pub struct Config {
 
 enum Error {
     Receive(RecvError),
-    Send(SendError<Vec<udp_send::Message>>),
+    Send(SendError<Vec<EncodingPacket>>),
     Diode(protocol::Error),
 }
 
@@ -32,8 +33,8 @@ impl From<RecvError> for Error {
     }
 }
 
-impl From<SendError<Vec<udp_send::Message>>> for Error {
-    fn from(e: SendError<Vec<udp_send::Message>>) -> Self {
+impl From<SendError<Vec<EncodingPacket>>> for Error {
+    fn from(e: SendError<Vec<EncodingPacket>>) -> Self {
         Self::Send(e)
     }
 }
@@ -44,18 +45,16 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub fn new(config: Config, recvq: Receiver<Message>, sendq: Sender<Vec<udp_send::Message>>) {
+pub fn new(config: Config, recvq: Receiver<protocol::Message>, sendq: Sender<Vec<EncodingPacket>>) {
     if let Err(e) = main_loop(config, recvq, sendq) {
         error!("encoding loop error: {e}");
     }
 }
 
-pub type Message = protocol::ClientMessage;
-
 fn main_loop(
     config: Config,
-    recvq: Receiver<Message>,
-    sendq: Sender<Vec<udp_send::Message>>,
+    recvq: Receiver<protocol::Message>,
+    sendq: Sender<Vec<EncodingPacket>>,
 ) -> Result<(), Error> {
     let nb_repair_packets =
         config.repair_block_size / protocol::data_mtu(&config.object_transmission_info) as u32;
@@ -103,11 +102,13 @@ fn main_loop(
             &sbep,
         );
 
-        sendq.send(encoder.source_packets())?;
+        let mut packets = encoder.source_packets();
 
         if 0 < nb_repair_packets {
-            sendq.send(encoder.repair_packets(0, nb_repair_packets))?;
+            packets.extend(encoder.repair_packets(0, nb_repair_packets));
         }
+
+        sendq.send(packets)?;
 
         block_id = block_id.wrapping_add(1);
     }

@@ -49,13 +49,11 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub type Message = protocol::ClientMessage;
-
 pub(crate) fn new(
     config: Config,
     multiplex_control: semaphore::Semaphore,
     client_id: protocol::ClientId,
-    recvq: Receiver<Message>,
+    recvq: Receiver<protocol::Message>,
 ) {
     debug!("try to acquire multiplex access..");
 
@@ -73,7 +71,7 @@ pub(crate) fn new(
 fn main_loop(
     config: Config,
     client_id: protocol::ClientId,
-    recvq: Receiver<protocol::ClientMessage>,
+    recvq: Receiver<protocol::Message>,
 ) -> Result<(), Error> {
     info!("client {client_id:x}: starting transfer");
 

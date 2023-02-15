@@ -5,6 +5,7 @@ use diode::{
     send::{encoding, tcp_client, udp_send},
 };
 use log::{error, info};
+use raptorq::EncodingPacket;
 use std::{
     env, fmt,
     net::{SocketAddr, TcpListener, TcpStream},
@@ -153,7 +154,7 @@ fn connect_loop_aux(
     connect_recvq: Receiver<TcpStream>,
     tcp_client_config: tcp_client::Config,
     multiplex_control: semaphore::Semaphore,
-    tcp_sendq: Sender<protocol::ClientMessage>,
+    tcp_sendq: Sender<protocol::Message>,
 ) -> Result<(), Error> {
     loop {
         let client = connect_recvq.recv()?;
@@ -170,7 +171,7 @@ fn connect_loop(
     connect_recvq: Receiver<TcpStream>,
     tcp_client_config: tcp_client::Config,
     multiplex_control: semaphore::Semaphore,
-    tcp_senq: Sender<protocol::ClientMessage>,
+    tcp_senq: Sender<protocol::Message>,
 ) {
     if let Err(e) = connect_loop_aux(
         connect_recvq,
@@ -194,7 +195,7 @@ fn main() {
 
     let tcp_client_config = tcp_client::Config {
         buffer_size: (object_transmission_info.transfer_length()
-            - protocol::ClientMessage::serialize_overhead() as u64) as u32,
+            - protocol::Message::serialize_overhead() as u64) as u32,
     };
 
     info!("TCP buffer size is {} bytes", tcp_client_config.buffer_size);
@@ -205,8 +206,8 @@ fn main() {
     };
 
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
-    let (tcp_sendq, tcp_recvq) = bounded::<protocol::ClientMessage>(config.nb_clients as usize);
-    let (udp_sendq, udp_recvq) = unbounded::<Vec<udp_send::Message>>();
+    let (tcp_sendq, tcp_recvq) = bounded::<protocol::Message>(config.nb_clients as usize);
+    let (udp_sendq, udp_recvq) = unbounded::<Vec<EncodingPacket>>();
 
     for to_bind in config.to_bind {
         let udp_send_config = udp_send::Config {

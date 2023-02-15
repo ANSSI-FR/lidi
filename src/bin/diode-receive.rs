@@ -3,6 +3,7 @@ use crossbeam_channel::{unbounded, SendError};
 use diode::receive::{decoding, dispatch};
 use diode::{protocol, udp};
 use log::{error, info};
+use raptorq::EncodingPacket;
 use std::{
     env, fmt, io,
     net::{self, SocketAddr, UdpSocket},
@@ -122,7 +123,7 @@ fn command_args() -> Config {
 enum Error {
     Io(io::Error),
     AddrParseError(net::AddrParseError),
-    Crossbeam(SendError<decoding::Message>),
+    Crossbeam(SendError<EncodingPacket>),
 }
 
 impl fmt::Display for Error {
@@ -147,8 +148,8 @@ impl From<net::AddrParseError> for Error {
     }
 }
 
-impl From<SendError<decoding::Message>> for Error {
-    fn from(e: SendError<decoding::Message>) -> Self {
+impl From<SendError<EncodingPacket>> for Error {
+    fn from(e: SendError<EncodingPacket>) -> Self {
         Self::Crossbeam(e)
     }
 }
@@ -158,16 +159,16 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     let socket = UdpSocket::bind(config.from_udp)?;
 
-    let (decoding_sendq, decoding_recvq) = unbounded::<dispatch::Message>();
+    let (decoding_sendq, decoding_recvq) = unbounded::<protocol::Message>();
 
-    let (udp_sendq, udp_recvq) = unbounded::<decoding::Message>();
+    let (udp_sendq, udp_recvq) = unbounded::<EncodingPacket>();
 
     let dispatch_config = dispatch::Config {
         nb_multiplex: config.nb_multiplex,
         logical_block_size: config.encoding_block_size,
         to_tcp: config.to_tcp,
         to_tcp_buffer_size: config.encoding_block_size as usize
-            - protocol::ClientMessage::serialize_overhead(),
+            - protocol::Message::serialize_overhead(),
         abort_timeout: config.abort_timeout,
     };
 
@@ -204,7 +205,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     loop {
         udp_messages.recv_mmsg().try_for_each(|msg| {
-            let packet = decoding::Message::deserialize(msg);
+            let packet = EncodingPacket::deserialize(msg);
             udp_sendq.send(packet)
         })?;
     }
