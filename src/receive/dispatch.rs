@@ -108,7 +108,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
                     .unwrap();
 
                 ended_transfers.retain(|client_id, client_sendq| {
-                    let retain = client_sendq.is_empty();
+                    let retain = !client_sendq.is_empty();
                     if !retain {
                         debug!("purging ended transfer of client {client_id:x}");
                     }
