@@ -9,7 +9,7 @@ use std::{
 
 #[derive(Clone)]
 pub struct Config {
-    pub buffer_size: usize,
+    pub buffer_size: u32,
 }
 
 enum Error {
@@ -55,10 +55,12 @@ pub fn new(
     if let Err(e) = main_loop(config, client_id, client, &sendq) {
         error!("client {client_id:x}: error: {e}");
 
-        if let Err(e) = sendq.send(protocol::ClientMessage {
+        if let Err(e) = sendq.send(protocol::ClientMessage::new(
+            protocol::MessageType::Abort,
+            config.buffer_size,
             client_id,
-            payload: protocol::Message::Abort,
-        }) {
+            None,
+        )) {
             error!("client {client_id:x}: failed to abort : {e}");
         }
     }
@@ -74,20 +76,18 @@ fn main_loop(
 ) -> Result<(), Error> {
     info!("client {client_id:x}: connected");
 
-    let mut buffer = vec![0; config.buffer_size];
+    let mut buffer = vec![0; config.buffer_size as usize];
     let mut cursor = 0;
     let mut transmitted = 0;
 
     // close useless upstream
     client.shutdown(std::net::Shutdown::Write)?;
 
-    sendq.send(protocol::ClientMessage {
-        client_id,
-        payload: protocol::Message::Start,
-    })?;
+    let mut is_first = true;
 
     loop {
         trace!("client {client_id:x}: read...");
+
         match client.read(&mut buffer[cursor..])? {
             0 => {
                 trace!("client {client_id:x}: end of stream");
@@ -97,16 +97,26 @@ fn main_loop(
 
                     transmitted += cursor;
 
-                    sendq.send(protocol::ClientMessage {
+                    let message_type = if is_first {
+                        protocol::MessageType::Start
+                    } else {
+                        protocol::MessageType::Data
+                    };
+
+                    let message = protocol::ClientMessage::new(
+                        message_type,
+                        config.buffer_size,
                         client_id,
-                        payload: protocol::Message::Data(buffer[..cursor].into()),
-                    })?;
+                        Some(&buffer[..cursor]),
+                    );
+
+                    sendq.send(message)?;
                 }
                 break;
             }
             nread => {
                 trace!("client {client_id:x}: {nread} bytes read");
-                if (cursor + nread) < config.buffer_size {
+                if (cursor + nread) < config.buffer_size as usize {
                     // buffer is not full
                     trace!("client {client_id:x}: buffer is not full, looping");
                     cursor += nread;
@@ -121,20 +131,34 @@ fn main_loop(
 
                 transmitted += buffer.len();
 
-                sendq.send(protocol::ClientMessage {
+                let message_type = if is_first {
+                    protocol::MessageType::Start
+                } else {
+                    protocol::MessageType::Data
+                };
+
+                let message = protocol::ClientMessage::new(
+                    message_type,
+                    config.buffer_size,
                     client_id,
-                    payload: protocol::Message::Data(buffer.clone()),
-                })?;
+                    Some(&buffer),
+                );
+
+                is_first = false;
+
+                sendq.send(message)?;
 
                 cursor = 0;
             }
         }
     }
 
-    sendq.send(protocol::ClientMessage {
+    sendq.send(protocol::ClientMessage::new(
+        protocol::MessageType::End,
+        config.buffer_size,
         client_id,
-        payload: protocol::Message::End,
-    })?;
+        None,
+    ))?;
 
     info!("client {client_id:x}: disconnect, {transmitted} bytes transmitted");
 

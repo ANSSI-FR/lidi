@@ -18,6 +18,7 @@ pub(crate) struct Config {
 enum Error {
     Io(io::Error),
     Crossbeam(RecvTimeoutError),
+    Diode(protocol::Error),
 }
 
 impl fmt::Display for Error {
@@ -25,6 +26,7 @@ impl fmt::Display for Error {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::Crossbeam(e) => write!(fmt, "crossbeam send error: {e}"),
+            Self::Diode(e) => write!(fmt, "diode error: {e}"),
         }
     }
 }
@@ -41,11 +43,19 @@ impl From<RecvTimeoutError> for Error {
     }
 }
 
+impl From<protocol::Error> for Error {
+    fn from(e: protocol::Error) -> Self {
+        Self::Diode(e)
+    }
+}
+
+pub type Message = protocol::ClientMessage;
+
 pub(crate) fn new(
     config: Config,
     multiplex_control: semaphore::Semaphore,
     client_id: protocol::ClientId,
-    recvq: Receiver<protocol::Message>,
+    recvq: Receiver<Message>,
 ) {
     debug!("try to acquire multiplex access..");
 
@@ -63,7 +73,7 @@ pub(crate) fn new(
 fn main_loop(
     config: Config,
     client_id: protocol::ClientId,
-    recvq: Receiver<protocol::Message>,
+    recvq: Receiver<protocol::ClientMessage>,
 ) -> Result<(), Error> {
     info!("client {client_id:x}: starting transfer");
 
@@ -83,22 +93,27 @@ fn main_loop(
             }
             Err(e) => return Err(Error::from(e)),
             Ok(message) => {
-                match message {
-                    protocol::Message::Data(data) => {
-                        trace!("client {client_id:x}: transfer {} bytes", data.len());
-                        transmitted += data.len();
-                        client.write_all(&data)?;
-                    }
-                    protocol::Message::Abort => {
+                let message_type = message.message_type()?;
+
+                let payload = message.payload();
+
+                if !payload.is_empty() {
+                    trace!("client {client_id:x}: payload {} bytes", payload.len());
+                    transmitted += payload.len();
+                    client.write_all(payload)?;
+                }
+
+                match message_type {
+                    protocol::MessageType::Abort => {
                         warn!("client {client_id:x}: aborting transfer");
                         return Ok(());
                     }
-                    protocol::Message::End => {
+                    protocol::MessageType::End => {
                         info!("client {client_id:x}: finished transfer, {transmitted} bytes transmitted");
                         client.flush()?;
                         return Ok(());
                     }
-                    _ => unreachable!(),
+                    _ => (),
                 }
             }
         }

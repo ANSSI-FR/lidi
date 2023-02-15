@@ -10,19 +10,16 @@ use std::{
     net::{SocketAddr, TcpListener, TcpStream},
     str::FromStr,
     thread,
-    time::Duration,
 };
 
 struct Config {
     from_tcp: SocketAddr,
-    from_tcp_buffer_size: usize,
 
     nb_clients: u16,
     nb_multiplex: u16,
 
     encoding_block_size: u64,
     repair_block_size: u32,
-    flush_timeout: Duration,
 
     to_bind: Vec<SocketAddr>,
     to_udp: SocketAddr,
@@ -39,14 +36,6 @@ fn command_args() -> Config {
                 .value_name("ip:port")
                 .default_value("127.0.0.1:5000")
                 .help("From where to read data"),
-        )
-        .arg(
-            Arg::new("from_tcp_buffer_size")
-                .long("from_tcp_buffer_size")
-                .value_name("nb_bytes")
-                .default_value("15000") // mtu * 10
-                .value_parser(clap::value_parser!(usize))
-                .help("Size of TCP read buffer"),
         )
         .arg(
             Arg::new("nb_clients")
@@ -79,14 +68,6 @@ fn command_args() -> Config {
                 .default_value("6000") // mtu * 4
                 .value_parser(clap::value_parser!(u32))
                 .help("Size of repair data in bytes"),
-        )
-        .arg(
-            Arg::new("flush_timeout")
-                .long("flush_timeout")
-                .value_name("nb_milliseconds")
-                .default_value("100")
-                .value_parser(clap::value_parser!(u64))
-                .help("Duration in milliseconds after an incomplete RaptorQ block is flushed"),
         )
         .arg(
             Arg::new("to_bind")
@@ -123,15 +104,10 @@ fn command_args() -> Config {
 
     let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
         .expect("invalid from_tcp parameter");
-    let from_tcp_buffer_size = *args
-        .get_one::<usize>("from_tcp_buffer_size")
-        .expect("default");
     let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
     let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
-    let flush_timeout =
-        Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
     let to_bind: Vec<SocketAddr> = args
         .get_many::<String>("to_bind")
         .expect("default")
@@ -144,12 +120,10 @@ fn command_args() -> Config {
 
     Config {
         from_tcp,
-        from_tcp_buffer_size,
         nb_clients,
         nb_multiplex,
         encoding_block_size,
         repair_block_size,
-        flush_timeout,
         to_bind,
         to_udp,
         to_udp_mtu,
@@ -213,22 +187,21 @@ fn main() {
 
     init_logger();
 
-    info!(
-        "accepting TCP clients at {} with read buffer of {} bytes",
-        config.from_tcp, config.from_tcp_buffer_size
-    );
-
-    let tcp_client_config = tcp_client::Config {
-        buffer_size: config.from_tcp_buffer_size,
-    };
+    info!("accepting TCP clients at {}", config.from_tcp);
 
     let object_transmission_info =
         protocol::object_transmission_information(config.to_udp_mtu, config.encoding_block_size);
 
+    let tcp_client_config = tcp_client::Config {
+        buffer_size: (object_transmission_info.transfer_length()
+            - protocol::ClientMessage::serialize_overhead() as u64) as u32,
+    };
+
+    info!("TCP buffer size is {} bytes", tcp_client_config.buffer_size);
+
     let encoding_config = encoding::Config {
         object_transmission_info,
         repair_block_size: config.repair_block_size,
-        flush_timeout: config.flush_timeout,
     };
 
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);

@@ -1,12 +1,11 @@
 use clap::{Arg, Command};
 use crossbeam_channel::{unbounded, SendError};
-use diode::receive::{decoding, deserialize};
+use diode::receive::{decoding, dispatch};
 use diode::{protocol, udp};
 use log::{error, info};
 use std::{
     env, fmt, io,
     net::{self, SocketAddr, UdpSocket},
-    os::unix::net::UnixStream,
     str::FromStr,
     thread,
     time::Duration,
@@ -23,7 +22,6 @@ struct Config {
     flush_timeout: Duration,
 
     to_tcp: SocketAddr,
-    to_tcp_buffer_size: usize,
     abort_timeout: Duration,
 }
 
@@ -85,14 +83,6 @@ fn command_args() -> Config {
                 .help("Where to send data"),
         )
         .arg(
-            Arg::new("to_tcp_buffer_size")
-                .long("to_tcp_buffer_size")
-                .value_name("nb_bytes")
-                .default_value("15000") // mtu * 10,
-                .value_parser(clap::value_parser!(usize))
-                .help("Size of TCP write buffer"),
-        )
-        .arg(
             Arg::new("abort_timeout")
                 .long("abort_timeout")
                 .value_name("nb_seconds")
@@ -114,9 +104,6 @@ fn command_args() -> Config {
         Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
     let to_tcp = SocketAddr::from_str(args.get_one::<String>("to_tcp").expect("default"))
         .expect("invalid to_tcp parameter");
-    let to_tcp_buffer_size = *args
-        .get_one::<usize>("to_tcp_buffer_size")
-        .expect("default");
     let abort_timeout =
         Duration::from_secs(*args.get_one::<u64>("abort_timeout").expect("default"));
 
@@ -128,7 +115,6 @@ fn command_args() -> Config {
         encoding_block_size,
         flush_timeout,
         to_tcp,
-        to_tcp_buffer_size,
         abort_timeout,
     }
 }
@@ -172,21 +158,22 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     let socket = UdpSocket::bind(config.from_udp)?;
 
-    let (decoding_sends, decoding_recvs) = UnixStream::pair()?;
+    let (decoding_sendq, decoding_recvq) = unbounded::<dispatch::Message>();
 
     let (udp_sendq, udp_recvq) = unbounded::<decoding::Message>();
 
-    let deserialize_config = deserialize::Config {
+    let dispatch_config = dispatch::Config {
         nb_multiplex: config.nb_multiplex,
         logical_block_size: config.encoding_block_size,
         to_tcp: config.to_tcp,
-        to_tcp_buffer_size: config.to_tcp_buffer_size,
+        to_tcp_buffer_size: config.encoding_block_size as usize
+            - protocol::ClientMessage::serialize_overhead(),
         abort_timeout: config.abort_timeout,
     };
 
     thread::Builder::new()
-        .name("deserialize".to_string())
-        .spawn(move || deserialize::new(deserialize_config, decoding_recvs))
+        .name("dispatch".to_string())
+        .spawn(move || dispatch::new(dispatch_config, decoding_recvq))
         .unwrap();
 
     let object_transmission_info =
@@ -199,7 +186,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     thread::Builder::new()
         .name("decoding".to_string())
-        .spawn(move || decoding::new(decoding_config, udp_recvq, decoding_sends))
+        .spawn(move || decoding::new(decoding_config, udp_recvq, decoding_sendq))
         .unwrap();
 
     info!(

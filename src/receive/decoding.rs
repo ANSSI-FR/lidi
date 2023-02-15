@@ -1,13 +1,8 @@
-use crate::protocol;
-use crossbeam_channel::{Receiver, RecvTimeoutError};
+use crate::{protocol, receive::dispatch};
+use crossbeam_channel::{Receiver, RecvTimeoutError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
 use raptorq::{self, EncodingPacket, ObjectTransmissionInformation, SourceBlockDecoder};
-use std::{
-    fmt,
-    io::{self, Write},
-    os::unix::net::UnixStream,
-    time::Duration,
-};
+use std::{fmt, time::Duration};
 
 pub struct Config {
     pub object_transmission_info: ObjectTransmissionInformation,
@@ -16,14 +11,14 @@ pub struct Config {
 
 enum Error {
     Receive(RecvTimeoutError),
-    Io(io::Error),
+    Crossbeam(SendError<dispatch::Message>),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::Receive(e) => write!(fmt, "crossbeam receive error: {e}"),
-            Self::Io(e) => write!(fmt, "I/O send error: {e}"),
+            Self::Crossbeam(e) => write!(fmt, "crossbeam error: {e}"),
         }
     }
 }
@@ -34,16 +29,20 @@ impl From<RecvTimeoutError> for Error {
     }
 }
 
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
+impl From<SendError<dispatch::Message>> for Error {
+    fn from(e: SendError<dispatch::Message>) -> Self {
+        Self::Crossbeam(e)
     }
 }
 
 pub type Message = EncodingPacket;
 
-pub fn new(config: Config, udp_recvq: Receiver<Message>, deserialize_socket: UnixStream) {
-    if let Err(e) = main_loop(config, udp_recvq, deserialize_socket) {
+pub fn new(
+    config: Config,
+    udp_recvq: Receiver<Message>,
+    dispatch_sendq: Sender<dispatch::Message>,
+) {
+    if let Err(e) = main_loop(config, udp_recvq, dispatch_sendq) {
         error!("decoding loop error: {e}");
     }
 }
@@ -51,12 +50,9 @@ pub fn new(config: Config, udp_recvq: Receiver<Message>, deserialize_socket: Uni
 fn main_loop(
     config: Config,
     udp_recvq: Receiver<Message>,
-    deserialize_socket: UnixStream,
+    dispatch_sendq: Sender<dispatch::Message>,
 ) -> Result<(), Error> {
     let encoding_block_size = config.object_transmission_info.transfer_length();
-
-    let mut deserialize_socket =
-        io::BufWriter::with_capacity(encoding_block_size as usize, deserialize_socket);
 
     let nb_normal_packets = config.object_transmission_info.transfer_length()
         / config.object_transmission_info.symbol_size() as u64;
@@ -95,7 +91,7 @@ fn main_loop(
                             }
                             Some(block) => {
                                 trace!("block {} received with {} bytes!", block_id, block.len());
-                                deserialize_socket.write_all(&block)?;
+                                dispatch_sendq.send(protocol::ClientMessage::deserialize(block))?;
                                 block_id = block_id.wrapping_add(1);
                             }
                         };
@@ -150,7 +146,7 @@ fn main_loop(
             None => warn!("lost block {block_id}"),
             Some(block) => {
                 trace!("block {} received with {} bytes!", block_id, block.len());
-                deserialize_socket.write_all(&block)?;
+                dispatch_sendq.send(protocol::ClientMessage::deserialize(block))?;
             }
         }
 

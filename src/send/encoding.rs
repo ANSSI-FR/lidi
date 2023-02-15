@@ -1,18 +1,17 @@
 use crate::protocol;
 use crate::send::udp_send;
-use crossbeam_channel::{self, Receiver, RecvTimeoutError, SendError, Sender};
+use crossbeam_channel::{self, Receiver, RecvError, SendError, Sender};
 use log::{debug, error, info, trace, warn};
 use raptorq::{ObjectTransmissionInformation, SourceBlockEncoder, SourceBlockEncodingPlan};
-use std::{collections::VecDeque, fmt, time::Duration};
+use std::fmt;
 
 pub struct Config {
     pub object_transmission_info: ObjectTransmissionInformation,
     pub repair_block_size: u32,
-    pub flush_timeout: Duration,
 }
 
 enum Error {
-    Receive(RecvTimeoutError),
+    Receive(RecvError),
     Send(SendError<Vec<udp_send::Message>>),
     Diode(protocol::Error),
 }
@@ -27,8 +26,8 @@ impl fmt::Display for Error {
     }
 }
 
-impl From<RecvTimeoutError> for Error {
-    fn from(e: RecvTimeoutError) -> Self {
+impl From<RecvError> for Error {
+    fn from(e: RecvError) -> Self {
         Self::Receive(e)
     }
 }
@@ -45,19 +44,17 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub fn new(
-    config: Config,
-    recvq: Receiver<protocol::ClientMessage>,
-    sendq: Sender<Vec<udp_send::Message>>,
-) {
+pub fn new(config: Config, recvq: Receiver<Message>, sendq: Sender<Vec<udp_send::Message>>) {
     if let Err(e) = main_loop(config, recvq, sendq) {
         error!("encoding loop error: {e}");
     }
 }
 
+pub type Message = protocol::ClientMessage;
+
 fn main_loop(
     config: Config,
-    recvq: Receiver<protocol::ClientMessage>,
+    recvq: Receiver<Message>,
     sendq: Sender<Vec<udp_send::Message>>,
 ) -> Result<(), Error> {
     let nb_repair_packets =
@@ -66,8 +63,10 @@ fn main_loop(
     let encoding_block_size = config.object_transmission_info.transfer_length() as usize;
 
     info!(
-        "encoding will produce {} packets ({} bytes per block) + {} repair packets + flush timeout of {} ms",
-        protocol::nb_encoding_packets(&config.object_transmission_info), encoding_block_size, nb_repair_packets, config.flush_timeout.as_millis()
+        "encoding will produce {} packets ({} bytes per block) + {} repair packets",
+        protocol::nb_encoding_packets(&config.object_transmission_info),
+        encoding_block_size,
+        nb_repair_packets
     );
 
     if nb_repair_packets == 0 {
@@ -79,70 +78,37 @@ fn main_loop(
             / config.object_transmission_info.symbol_size() as u64) as u16,
     );
 
-    let overhead = protocol::ClientMessage::serialize_padding_overhead();
-
-    debug!("padding encoding overhead is {} bytes", overhead);
-
-    let mut queue = VecDeque::with_capacity(encoding_block_size);
-
     let mut block_id = 0;
 
     loop {
-        let message = match recvq.recv_timeout(config.flush_timeout) {
-            Err(RecvTimeoutError::Timeout) => {
-                trace!("flush timeout");
-                if queue.is_empty() {
-                    continue;
-                }
-                let padding_needed = encoding_block_size - queue.len();
-                let padding_len = if padding_needed < overhead {
-                    debug!("top much padding overhead !");
-                    0
-                } else {
-                    padding_needed - overhead
-                };
-                debug!("flushing with {padding_len} padding bytes");
-                protocol::ClientMessage {
-                    client_id: 0,
-                    payload: protocol::Message::Padding(padding_len as u32),
-                }
-            }
-            Err(e) => return Err(Error::from(e)),
-            Ok(message) => message,
-        };
+        let message = recvq.recv()?;
 
-        message.serialize_to(&mut queue)?;
+        let message_type = message.message_type()?;
+        let client_id = message.client_id();
 
-        match message.payload {
-            protocol::Message::Start => {
-                debug!("start of encoding of client {:x}", message.client_id)
-            }
-            protocol::Message::End => debug!("end of encoding of client {:x}", message.client_id),
+        match message_type {
+            protocol::MessageType::Start => debug!("start of encoding of client {:x}", client_id),
+            protocol::MessageType::End => debug!("end of encoding of client {:x}", client_id),
             _ => (),
         }
 
-        while encoding_block_size <= queue.len() {
-            // full block, we can flush
-            trace!("flushing queue len = {}", queue.len());
-            let data = &queue.make_contiguous()[..encoding_block_size];
+        let data = message.serialized();
 
-            let encoder = SourceBlockEncoder::with_encoding_plan2(
-                block_id,
-                &config.object_transmission_info,
-                data,
-                &sbep,
-            );
+        trace!("encoding a serialized block of {} bytes", data.len());
 
-            let _ = queue.drain(0..encoding_block_size);
-            trace!("after flushing queue len = {}", queue.len());
+        let encoder = SourceBlockEncoder::with_encoding_plan2(
+            block_id,
+            &config.object_transmission_info,
+            data,
+            &sbep,
+        );
 
-            sendq.send(encoder.source_packets())?;
+        sendq.send(encoder.source_packets())?;
 
-            if 0 < nb_repair_packets {
-                sendq.send(encoder.repair_packets(0, nb_repair_packets))?;
-            }
-
-            block_id = block_id.wrapping_add(1);
+        if 0 < nb_repair_packets {
+            sendq.send(encoder.repair_packets(0, nb_repair_packets))?;
         }
+
+        block_id = block_id.wrapping_add(1);
     }
 }
