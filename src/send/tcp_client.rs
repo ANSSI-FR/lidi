@@ -1,4 +1,4 @@
-use crate::{protocol, semaphore};
+use crate::{protocol, semaphore, sock_utils};
 use crossbeam_channel::{SendError, Sender};
 use log::{debug, error, info, trace};
 use std::{
@@ -80,8 +80,8 @@ fn main_loop(
     let mut cursor = 0;
     let mut transmitted = 0;
 
-    // close useless upstream
     client.shutdown(std::net::Shutdown::Write)?;
+    sock_utils::set_socket_recv_buffer_size(&client, config.buffer_size as usize);
 
     let mut is_first = true;
 

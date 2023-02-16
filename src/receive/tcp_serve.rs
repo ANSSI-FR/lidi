@@ -1,4 +1,4 @@
-use crate::{protocol, semaphore};
+use crate::{protocol, semaphore, sock_utils};
 use crossbeam_channel::{self, Receiver, RecvTimeoutError};
 use log::{debug, error, info, trace, warn};
 use std::{
@@ -76,8 +76,8 @@ fn main_loop(
     info!("client {client_id:x}: starting transfer");
 
     let socket = TcpStream::connect(config.to_tcp)?;
-
     socket.shutdown(net::Shutdown::Read)?;
+    sock_utils::set_socket_send_buffer_size(&socket, config.to_tcp_buffer_size);
 
     let mut client = io::BufWriter::with_capacity(config.to_tcp_buffer_size, socket);
 
