@@ -106,14 +106,6 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
                         tcp_serve::new(tcp_serve_config, multiplex_control, client_id, client_recvq)
                     })
                     .unwrap();
-
-                ended_transfers.retain(|client_id, client_sendq| {
-                    let retain = !client_sendq.is_empty();
-                    if !retain {
-                        debug!("purging ended transfer of client {client_id:x}");
-                    }
-                    retain
-                });
             }
 
             protocol::MessageType::Abort | protocol::MessageType::End => will_end = true,
@@ -132,6 +124,15 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
 
         if will_end {
             let client_sendq = active_transfers.remove(&client_id).unwrap();
+
+            ended_transfers.retain(|client_id, client_sendq| {
+                let retain = !client_sendq.is_empty();
+                if !retain {
+                    debug!("purging ended transfer of client {client_id:x}");
+                }
+                retain
+            });
+
             ended_transfers.insert(client_id, client_sendq);
         }
     }
