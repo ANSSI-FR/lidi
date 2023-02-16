@@ -1,13 +1,13 @@
 use std::mem;
 use std::os::fd::AsRawFd;
 
-pub(crate) fn set_socket_send_buffer_size<S: AsRawFd>(socket: &S, size: usize) {
+pub fn set_socket_send_buffer_size<S: AsRawFd>(socket: &S, size: usize) {
     unsafe {
         setsockopt_buffer_size(socket.as_raw_fd(), size as i32, libc::SO_SNDBUF);
     }
 }
 
-pub(crate) fn set_socket_recv_buffer_size<S: AsRawFd>(socket: &S, size: usize) {
+pub fn set_socket_recv_buffer_size<S: AsRawFd>(socket: &S, size: usize) {
     unsafe {
         setsockopt_buffer_size(socket.as_raw_fd(), size as i32, libc::SO_RCVBUF);
     }

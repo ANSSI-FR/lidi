@@ -1,4 +1,4 @@
-use crate::udp;
+use crate::{sock_utils, udp};
 use crossbeam_channel::{Receiver, RecvError};
 use log::error;
 use raptorq::EncodingPacket;
@@ -12,6 +12,8 @@ pub struct Config {
     pub to_udp: SocketAddr,
     pub mtu: u16,
     pub max_messages: u16,
+    pub encoding_block_size: u64,
+    pub repair_block_size: u32,
 }
 
 enum Error {
@@ -48,6 +50,10 @@ pub fn new(config: Config, recvq: Receiver<Vec<EncodingPacket>>) {
 
 fn main_loop(config: Config, recvq: Receiver<Vec<EncodingPacket>>) -> Result<(), Error> {
     let socket = UdpSocket::bind(config.to_bind)?;
+    sock_utils::set_socket_send_buffer_size(
+        &socket,
+        (config.encoding_block_size + config.repair_block_size as u64) as usize,
+    );
     socket.connect(config.to_udp).unwrap();
 
     let mut udp_messages = udp::UdpMessages::new_sender(socket, usize::from(config.max_messages));

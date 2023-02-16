@@ -1,7 +1,7 @@
 use clap::{Arg, Command};
 use crossbeam_channel::{unbounded, SendError};
 use diode::receive::{decoding, dispatch};
-use diode::{protocol, udp};
+use diode::{protocol, sock_utils, udp};
 use log::{error, info};
 use raptorq::EncodingPacket;
 use std::{
@@ -153,10 +153,6 @@ impl From<SendError<EncodingPacket>> for Error {
 }
 
 fn main_loop(config: Config) -> Result<(), Error> {
-    info!("listening for UDP packets at {}", config.from_udp);
-
-    let socket = UdpSocket::bind(config.from_udp)?;
-
     let (decoding_sendq, decoding_recvq) = unbounded::<protocol::Message>();
 
     let (udp_sendq, udp_recvq) = unbounded::<EncodingPacket>();
@@ -197,6 +193,13 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
         + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
+
+    info!("listening for UDP packets at {}", config.from_udp);
+    let socket = UdpSocket::bind(config.from_udp)?;
+    sock_utils::set_socket_recv_buffer_size(
+        &socket,
+        (config.encoding_block_size + config.repair_block_size as u64) as usize,
+    );
 
     let mut udp_messages = udp::UdpMessages::new_receiver(
         socket,

@@ -207,6 +207,8 @@ fn main() {
             to_udp: config.to_udp,
             mtu: config.to_udp_mtu,
             max_messages,
+            encoding_block_size: config.encoding_block_size,
+            repair_block_size: config.repair_block_size,
         };
 
         info!(
