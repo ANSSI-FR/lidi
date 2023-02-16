@@ -57,7 +57,7 @@ fn main_loop(
     sendq: Sender<Vec<EncodingPacket>>,
 ) -> Result<(), Error> {
     let nb_repair_packets =
-        config.repair_block_size / protocol::data_mtu(&config.object_transmission_info) as u32;
+        protocol::nb_repair_packets(&config.object_transmission_info, config.repair_block_size);
 
     let encoding_block_size = config.object_transmission_info.transfer_length() as usize;
 

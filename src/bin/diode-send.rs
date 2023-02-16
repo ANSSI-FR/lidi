@@ -25,7 +25,6 @@ struct Config {
     to_bind: Vec<SocketAddr>,
     to_udp: SocketAddr,
     to_udp_mtu: u16,
-    to_udp_max_messages: u16,
 }
 
 fn command_args() -> Config {
@@ -93,14 +92,6 @@ fn command_args() -> Config {
                 .value_parser(clap::value_parser!(u16))
                 .help("MTU in bytes of output UDP link"),
         )
-        .arg(
-            Arg::new("to_udp_max_messages")
-                .long("to_udp_max_messages")
-                .value_name("nb_messages")
-                .default_value("44")
-                .value_parser(clap::value_parser!(u16))
-                .help("Number of UDP messages/datagram to write at once"),
-        )
         .get_matches();
 
     let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
@@ -117,7 +108,6 @@ fn command_args() -> Config {
     let to_udp = SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
-    let to_udp_max_messages = *args.get_one::<u16>("to_udp_max_messages").expect("default");
 
     Config {
         from_tcp,
@@ -128,7 +118,6 @@ fn command_args() -> Config {
         to_bind,
         to_udp,
         to_udp_mtu,
-        to_udp_max_messages,
     }
 }
 
@@ -209,12 +198,15 @@ fn main() {
     let (tcp_sendq, tcp_recvq) = bounded::<protocol::Message>(config.nb_clients as usize);
     let (udp_sendq, udp_recvq) = unbounded::<Vec<EncodingPacket>>();
 
+    let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
+        + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
+
     for to_bind in config.to_bind {
         let udp_send_config = udp_send::Config {
             to_bind,
             to_udp: config.to_udp,
             mtu: config.to_udp_mtu,
-            max_messages: config.to_udp_max_messages,
+            max_messages,
         };
 
         info!(

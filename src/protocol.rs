@@ -170,6 +170,13 @@ pub(crate) fn data_mtu(oti: &raptorq::ObjectTransmissionInformation) -> u16 {
     oti.symbol_size()
 }
 
-pub(crate) fn nb_encoding_packets(oti: &raptorq::ObjectTransmissionInformation) -> u64 {
+pub fn nb_encoding_packets(oti: &raptorq::ObjectTransmissionInformation) -> u64 {
     oti.transfer_length() / data_mtu(oti) as u64
+}
+
+pub fn nb_repair_packets(
+    oti: &raptorq::ObjectTransmissionInformation,
+    repair_block_size: u32,
+) -> u32 {
+    repair_block_size / data_mtu(oti) as u32
 }

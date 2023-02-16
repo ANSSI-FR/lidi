@@ -15,11 +15,11 @@ use std::{
 struct Config {
     from_udp: SocketAddr,
     from_udp_mtu: u16,
-    from_udp_max_messages: u16,
 
     nb_multiplex: u16,
 
     encoding_block_size: u64,
+    repair_block_size: u32,
     flush_timeout: Duration,
 
     to_tcp: SocketAddr,
@@ -45,14 +45,6 @@ fn command_args() -> Config {
                 .help("MTU of the incoming UDP link"),
         )
         .arg(
-            Arg::new("from_udp_max_messages")
-                .long("from_udp_max_messages")
-                .value_name("nb_messages")
-                .default_value("44")
-                .value_parser(clap::value_parser!(u16))
-                .help("Number of UDP messages/datagram to read at once"),
-        )
-        .arg(
             Arg::new("nb_multiplex")
                 .long("nb_multiplex")
                 .value_name("nb")
@@ -67,6 +59,14 @@ fn command_args() -> Config {
                 .default_value("60000") // (mtu * 40), optimal parameter -- to align with other size !
                 .value_parser(clap::value_parser!(u64))
                 .help("Size of RaptorQ block"),
+        )
+        .arg(
+            Arg::new("repair_block_size")
+                .long("repair_block_size")
+                .value_name("ratior")
+                .default_value("6000") // mtu * 4
+                .value_parser(clap::value_parser!(u32))
+                .help("Size of repair data in bytes"),
         )
         .arg(
             Arg::new("flush_timeout")
@@ -96,11 +96,9 @@ fn command_args() -> Config {
     let from_udp = SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
         .expect("invalid from_udp_parameter");
     let from_udp_mtu = *args.get_one::<u16>("from_udp_mtu").expect("default");
-    let from_udp_max_messages = *args
-        .get_one::<u16>("from_udp_max_messages")
-        .expect("default");
     let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
+    let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
     let flush_timeout =
         Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
     let to_tcp = SocketAddr::from_str(args.get_one::<String>("to_tcp").expect("default"))
@@ -111,9 +109,9 @@ fn command_args() -> Config {
     Config {
         from_udp,
         from_udp_mtu,
-        from_udp_max_messages,
         nb_multiplex,
         encoding_block_size,
+        repair_block_size,
         flush_timeout,
         to_tcp,
         abort_timeout,
@@ -197,9 +195,12 @@ fn main_loop(config: Config) -> Result<(), Error> {
         config.nb_multiplex,
     );
 
+    let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
+        + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
+
     let mut udp_messages = udp::UdpMessages::new_receiver(
         socket,
-        usize::from(config.from_udp_max_messages),
+        usize::from(max_messages),
         usize::from(config.from_udp_mtu),
     );
 

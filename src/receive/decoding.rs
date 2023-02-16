@@ -52,12 +52,11 @@ fn main_loop(
 ) -> Result<(), Error> {
     let encoding_block_size = config.object_transmission_info.transfer_length();
 
-    let nb_normal_packets = config.object_transmission_info.transfer_length()
-        / config.object_transmission_info.symbol_size() as u64;
+    let nb_normal_packets = protocol::nb_encoding_packets(&config.object_transmission_info);
 
     info!(
-        "decoding will expect {} packets ({} bytes per block) + flush timeout of {} ms",
-        protocol::nb_encoding_packets(&config.object_transmission_info),
+        "decoding will expect at least {} packets ({} bytes per block) + flush timeout of {} ms",
+        nb_normal_packets,
         encoding_block_size,
         config.flush_timeout.as_millis()
     );
