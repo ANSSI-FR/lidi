@@ -6,6 +6,7 @@ use std::{fmt, time::Duration};
 
 pub struct Config {
     pub object_transmission_info: ObjectTransmissionInformation,
+    pub repair_block_size: u32,
     pub flush_timeout: Duration,
 }
 
@@ -37,7 +38,7 @@ impl From<SendError<protocol::Message>> for Error {
 
 pub fn new(
     config: Config,
-    udp_recvq: Receiver<EncodingPacket>,
+    udp_recvq: Receiver<Vec<EncodingPacket>>,
     dispatch_sendq: Sender<protocol::Message>,
 ) {
     if let Err(e) = main_loop(config, udp_recvq, dispatch_sendq) {
@@ -47,12 +48,14 @@ pub fn new(
 
 fn main_loop(
     config: Config,
-    udp_recvq: Receiver<EncodingPacket>,
+    udp_recvq: Receiver<Vec<EncodingPacket>>,
     dispatch_sendq: Sender<protocol::Message>,
 ) -> Result<(), Error> {
     let encoding_block_size = config.object_transmission_info.transfer_length();
 
     let nb_normal_packets = protocol::nb_encoding_packets(&config.object_transmission_info);
+    let nb_repair_packets =
+        protocol::nb_repair_packets(&config.object_transmission_info, config.repair_block_size);
 
     info!(
         "decoding will expect at least {} packets ({} bytes per block) + flush timeout of {} ms",
@@ -62,11 +65,12 @@ fn main_loop(
     );
 
     let mut desynchro = true;
-    let mut queue = Vec::with_capacity(nb_normal_packets as usize);
+    let capacity = nb_normal_packets as usize + nb_repair_packets as usize;
+    let mut queue = Vec::with_capacity(capacity);
     let mut block_id = 0;
 
     loop {
-        let packet = match udp_recvq.recv_timeout(config.flush_timeout) {
+        let packets = match udp_recvq.recv_timeout(config.flush_timeout) {
             Err(RecvTimeoutError::Timeout) => {
                 let qlen = queue.len();
                 if 0 < qlen {
@@ -97,7 +101,7 @@ fn main_loop(
                         warn!("lost block {block_id}");
                         desynchro = true;
                     }
-                    queue = Vec::with_capacity(nb_normal_packets as usize);
+                    queue = Vec::with_capacity(capacity);
                 } else {
                     // without data for some time we reset the current block_id
                     desynchro = true;
@@ -108,48 +112,50 @@ fn main_loop(
             Ok(packet) => packet,
         };
 
-        let payload_id = packet.payload_id();
-        let message_block_id = payload_id.source_block_number();
+        for packet in packets.into_iter() {
+            let payload_id = packet.payload_id();
+            let message_block_id = payload_id.source_block_number();
 
-        if desynchro {
-            block_id = message_block_id;
-            desynchro = false;
-        }
-
-        if message_block_id == block_id {
-            trace!("queueing in block {block_id}");
-            queue.push(packet);
-            continue;
-        }
-
-        if message_block_id.wrapping_add(1) == block_id {
-            trace!("discarding packet from previous block_id {message_block_id}");
-            continue;
-        }
-
-        if message_block_id != block_id.wrapping_add(1) {
-            warn!("discarding packet with block_id {message_block_id} (current block_id is {block_id})");
-            continue;
-        }
-
-        // message block_id is from next block, flushing current block
-        let mut decoder = SourceBlockDecoder::new2(
-            block_id,
-            &config.object_transmission_info,
-            encoding_block_size,
-        );
-
-        match decoder.decode(queue) {
-            None => warn!("lost block {block_id}"),
-            Some(block) => {
-                trace!("block {} received with {} bytes!", block_id, block.len());
-                dispatch_sendq.send(protocol::Message::deserialize(block))?;
+            if desynchro {
+                block_id = message_block_id;
+                desynchro = false;
             }
-        }
 
-        block_id = message_block_id;
-        trace!("queueing in block {block_id}");
-        queue = Vec::with_capacity(nb_normal_packets as usize);
-        queue.push(packet);
+            if message_block_id == block_id {
+                trace!("queueing in block {block_id}");
+                queue.push(packet);
+                continue;
+            }
+
+            if message_block_id.wrapping_add(1) == block_id {
+                trace!("discarding packet from previous block_id {message_block_id}");
+                continue;
+            }
+
+            if message_block_id != block_id.wrapping_add(1) {
+                warn!("discarding packet with block_id {message_block_id} (current block_id is {block_id})");
+                continue;
+            }
+
+            // message block_id is from next block, flushing current block
+            let mut decoder = SourceBlockDecoder::new2(
+                block_id,
+                &config.object_transmission_info,
+                encoding_block_size,
+            );
+
+            match decoder.decode(queue) {
+                None => warn!("lost block {block_id}"),
+                Some(block) => {
+                    trace!("block {} received with {} bytes!", block_id, block.len());
+                    dispatch_sendq.send(protocol::Message::deserialize(block))?;
+                }
+            }
+
+            block_id = message_block_id;
+            trace!("queueing in block {block_id}");
+            queue = Vec::with_capacity(capacity);
+            queue.push(packet);
+        }
     }
 }

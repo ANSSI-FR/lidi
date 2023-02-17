@@ -121,7 +121,7 @@ fn command_args() -> Config {
 enum Error {
     Io(io::Error),
     AddrParseError(net::AddrParseError),
-    Crossbeam(SendError<EncodingPacket>),
+    Crossbeam(SendError<Vec<EncodingPacket>>),
 }
 
 impl fmt::Display for Error {
@@ -146,8 +146,8 @@ impl From<net::AddrParseError> for Error {
     }
 }
 
-impl From<SendError<EncodingPacket>> for Error {
-    fn from(e: SendError<EncodingPacket>) -> Self {
+impl From<SendError<Vec<EncodingPacket>>> for Error {
+    fn from(e: SendError<Vec<EncodingPacket>>) -> Self {
         Self::Crossbeam(e)
     }
 }
@@ -155,7 +155,7 @@ impl From<SendError<EncodingPacket>> for Error {
 fn main_loop(config: Config) -> Result<(), Error> {
     let (decoding_sendq, decoding_recvq) = unbounded::<protocol::Message>();
 
-    let (udp_sendq, udp_recvq) = unbounded::<EncodingPacket>();
+    let (udp_sendq, udp_recvq) = unbounded::<Vec<EncodingPacket>>();
 
     let dispatch_config = dispatch::Config {
         nb_multiplex: config.nb_multiplex,
@@ -176,6 +176,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     let decoding_config = decoding::Config {
         object_transmission_info,
+        repair_block_size: config.repair_block_size,
         flush_timeout: config.flush_timeout,
     };
 
@@ -208,10 +209,8 @@ fn main_loop(config: Config) -> Result<(), Error> {
     );
 
     loop {
-        udp_messages.recv_mmsg().try_for_each(|msg| {
-            let packet = EncodingPacket::deserialize(msg);
-            udp_sendq.send(packet)
-        })?;
+        let packets = udp_messages.recv_mmsg().map(EncodingPacket::deserialize);
+        udp_sendq.send(packets.collect())?;
     }
 }
 
