@@ -7,7 +7,6 @@ use std::{fmt, io, net, thread};
 
 pub struct Config {
     pub nb_multiplex: u16,
-    pub logical_block_size: u64,
     pub to_tcp: net::SocketAddr,
     pub to_tcp_buffer_size: usize,
     pub abort_timeout: Duration,

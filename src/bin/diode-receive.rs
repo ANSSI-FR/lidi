@@ -159,7 +159,6 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     let dispatch_config = dispatch::Config {
         nb_multiplex: config.nb_multiplex,
-        logical_block_size: config.encoding_block_size,
         to_tcp: config.to_tcp,
         to_tcp_buffer_size: config.encoding_block_size as usize
             - protocol::Message::serialize_overhead(),
