@@ -8,6 +8,7 @@ pub struct UdpSend;
 pub struct UdpMessages<D> {
     socket: net::UdpSocket,
     vlen: usize,
+    _sockaddr: Option<Box<libc::sockaddr>>,
     msgvec: Vec<libc::mmsghdr>,
     iovecs: Vec<libc::iovec>,
     buffers: Vec<Vec<u8>>,
@@ -15,7 +16,12 @@ pub struct UdpMessages<D> {
 }
 
 impl<D> UdpMessages<D> {
-    fn new(socket: net::UdpSocket, vlen: usize, msglen: Option<usize>) -> Self {
+    fn new(
+        socket: net::UdpSocket,
+        vlen: usize,
+        msglen: Option<usize>,
+        addr: Option<net::SocketAddr>,
+    ) -> Self {
         let (mut msgvec, mut iovecs, mut buffers);
 
         unsafe {
@@ -28,10 +34,41 @@ impl<D> UdpMessages<D> {
             }
         }
 
+        let mut sockaddr: Option<Box<libc::sockaddr>> = addr.map(|addr| match addr {
+            net::SocketAddr::V4(addr4) => {
+                let sockaddr_in = Box::new(libc::sockaddr_in {
+                    sin_family: libc::AF_INET as libc::sa_family_t,
+                    sin_addr: libc::in_addr {
+                        s_addr: u32::from_le_bytes(addr4.ip().octets()),
+                    },
+                    sin_port: addr4.port().to_be(),
+                    ..unsafe { mem::zeroed() }
+                });
+                unsafe { mem::transmute(sockaddr_in) }
+            }
+            net::SocketAddr::V6(addr6) => {
+                let sockaddr_in6 = Box::new(libc::sockaddr_in6 {
+                    sin6_family: libc::AF_INET6 as libc::sa_family_t,
+                    sin6_port: addr6.port().to_be(),
+                    sin6_flowinfo: addr6.flowinfo(),
+                    sin6_addr: libc::in6_addr {
+                        s6_addr: addr6.ip().octets(),
+                    },
+                    sin6_scope_id: addr6.scope_id(),
+                });
+                unsafe { mem::transmute(sockaddr_in6) }
+            }
+        });
+
         for i in 0..vlen {
             if let Some(msglen) = msglen {
                 iovecs[i].iov_base = buffers[i].as_mut_ptr() as *mut libc::c_void;
                 iovecs[i].iov_len = msglen;
+            }
+            if let Some(sockaddr) = &mut sockaddr {
+                msgvec[i].msg_hdr.msg_name =
+                    sockaddr.as_mut() as *mut libc::sockaddr as *mut libc::c_void;
+                msgvec[i].msg_hdr.msg_namelen = mem::size_of::<libc::sockaddr_in>() as u32;
             }
             msgvec[i].msg_hdr.msg_iov = &mut iovecs[i];
             msgvec[i].msg_hdr.msg_iovlen = 1;
@@ -40,6 +77,7 @@ impl<D> UdpMessages<D> {
         Self {
             socket,
             vlen,
+            _sockaddr: sockaddr,
             msgvec,
             iovecs,
             buffers,
@@ -51,7 +89,7 @@ impl<D> UdpMessages<D> {
 impl UdpMessages<UdpRecv> {
     pub fn new_receiver(socket: net::UdpSocket, vlen: usize, msglen: usize) -> Self {
         log::info!("UDP configured to receive {vlen} messages (datagrams), of {msglen} bytes each, at a time");
-        Self::new(socket, vlen, Some(msglen))
+        Self::new(socket, vlen, Some(msglen), None)
     }
 
     pub fn recv_mmsg(&mut self) -> impl Iterator<Item = &[u8]> {
@@ -79,9 +117,13 @@ impl UdpMessages<UdpRecv> {
 }
 
 impl UdpMessages<UdpSend> {
-    pub fn new_sender(socket: net::UdpSocket, vlen: usize) -> UdpMessages<UdpSend> {
+    pub fn new_sender(
+        socket: net::UdpSocket,
+        vlen: usize,
+        dest: net::SocketAddr,
+    ) -> UdpMessages<UdpSend> {
         log::info!("UDP configured to send {vlen} messages (datagrams) at a time");
-        Self::new(socket, vlen, None)
+        Self::new(socket, vlen, None, Some(dest))
     }
 
     pub fn send_mmsg(&mut self, mut buffers: Vec<Vec<u8>>) {
