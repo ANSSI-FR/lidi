@@ -1,9 +1,10 @@
 use clap::{Arg, Command};
 use crossbeam_channel::{unbounded, SendError};
-use diode::receive::{decoding, dispatch};
+use diode::receive::{decoding, dispatch, reblock};
 use diode::{protocol, sock_utils, udp};
 use log::{error, info};
 use raptorq::EncodingPacket;
+use std::sync::Mutex;
 use std::{
     env, fmt, io,
     net::{self, SocketAddr, UdpSocket},
@@ -17,6 +18,8 @@ struct Config {
     from_udp_mtu: u16,
 
     nb_multiplex: u16,
+
+    nb_decoding_threads: u8,
 
     encoding_block_size: u64,
     repair_block_size: u32,
@@ -51,6 +54,14 @@ fn command_args() -> Config {
                 .default_value("2")
                 .value_parser(clap::value_parser!(u16))
                 .help("Number of multiplexed transfers"),
+        )
+        .arg(
+            Arg::new("nb_decoding_threads")
+                .long("nb_decoding_threads")
+                .value_name("nb")
+                .default_value("1")
+                .value_parser(clap::value_parser!(u8))
+                .help("Number of parallel RaptorQ decoding threads"),
         )
         .arg(
             Arg::new("encoding_block_size")
@@ -97,6 +108,7 @@ fn command_args() -> Config {
         .expect("invalid from_udp_parameter");
     let from_udp_mtu = *args.get_one::<u16>("from_udp_mtu").expect("default");
     let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
+    let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
     let flush_timeout =
@@ -110,6 +122,7 @@ fn command_args() -> Config {
         from_udp,
         from_udp_mtu,
         nb_multiplex,
+        nb_decoding_threads,
         encoding_block_size,
         repair_block_size,
         flush_timeout,
@@ -154,7 +167,7 @@ impl From<SendError<Vec<EncodingPacket>>> for Error {
 
 fn main_loop(config: Config) -> Result<(), Error> {
     let (decoding_sendq, decoding_recvq) = unbounded::<protocol::Message>();
-
+    let (reblock_sendq, reblock_recvq) = unbounded::<(u8, Vec<EncodingPacket>)>();
     let (udp_sendq, udp_recvq) = unbounded::<Vec<EncodingPacket>>();
 
     let dispatch_config = dispatch::Config {
@@ -175,14 +188,13 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     let decoding_config = decoding::Config {
         object_transmission_info,
+    };
+
+    let reblock_config = reblock::Config {
+        object_transmission_info,
         repair_block_size: config.repair_block_size,
         flush_timeout: config.flush_timeout,
     };
-
-    thread::Builder::new()
-        .name("decoding".to_string())
-        .spawn(move || decoding::new(decoding_config, udp_recvq, decoding_sendq))
-        .unwrap();
 
     info!(
         "sending TCP traffic to {} with abort timeout of {} second(s) an {} multiplexed transfers",
@@ -207,10 +219,45 @@ fn main_loop(config: Config) -> Result<(), Error> {
         usize::from(config.from_udp_mtu),
     );
 
-    loop {
-        let packets = udp_messages.recv_mmsg().map(EncodingPacket::deserialize);
-        udp_sendq.send(packets.collect())?;
-    }
+    let block_to_receive = Mutex::new(0);
+
+    thread::scope(|scope| {
+        thread::Builder::new()
+            .name("reblock".to_string())
+            .spawn_scoped(scope, || {
+                reblock::new(
+                    &reblock_config,
+                    &block_to_receive,
+                    &udp_recvq,
+                    &reblock_sendq,
+                )
+            })
+            .unwrap();
+
+        for i in 0..config.nb_decoding_threads {
+            thread::Builder::new()
+                .name(format!("decoding_{i}"))
+                .spawn_scoped(scope, || {
+                    decoding::new(
+                        &decoding_config,
+                        &block_to_receive,
+                        &reblock_recvq,
+                        &decoding_sendq,
+                    )
+                })
+                .unwrap();
+        }
+
+        loop {
+            let packets = udp_messages.recv_mmsg().map(EncodingPacket::deserialize);
+            if let Err(e) = udp_sendq.send(packets.collect()) {
+                error!("failed to receive UDP datagrams: {e}");
+                break;
+            }
+        }
+    });
+
+    Ok(())
 }
 
 fn main() {

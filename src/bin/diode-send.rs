@@ -1,5 +1,6 @@
 use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
+use crossbeam_utils::atomic::AtomicCell;
 use diode::{
     protocol, semaphore,
     send::{encoding, tcp_client, udp_send},
@@ -10,6 +11,7 @@ use std::{
     env, fmt,
     net::{SocketAddr, TcpListener, TcpStream},
     str::FromStr,
+    sync::Mutex,
     thread,
 };
 
@@ -18,6 +20,8 @@ struct Config {
 
     nb_clients: u16,
     nb_multiplex: u16,
+
+    nb_encoding_threads: u8,
 
     encoding_block_size: u64,
     repair_block_size: u32,
@@ -52,6 +56,14 @@ fn command_args() -> Config {
                 .default_value("2")
                 .value_parser(clap::value_parser!(u16))
                 .help("Number of multiplexed transfers"),
+        )
+        .arg(
+            Arg::new("nb_encoding_threads")
+                .long("nb_encoding_threads")
+                .value_name("nb")
+                .default_value("2")
+                .value_parser(clap::value_parser!(u8))
+                .help("Number of parallel RaptorQ encoding threads"),
         )
         .arg(
             Arg::new("encoding_block_size")
@@ -98,6 +110,7 @@ fn command_args() -> Config {
         .expect("invalid from_tcp parameter");
     let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
     let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
+    let nb_encoding_threads = *args.get_one::<u8>("nb_encoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
     let to_bind: Vec<SocketAddr> = args
@@ -113,6 +126,7 @@ fn command_args() -> Config {
         from_tcp,
         nb_clients,
         nb_multiplex,
+        nb_encoding_threads,
         encoding_block_size,
         repair_block_size,
         to_bind,
@@ -140,15 +154,15 @@ impl From<RecvError> for Error {
 }
 
 fn connect_loop_aux(
-    connect_recvq: Receiver<TcpStream>,
-    tcp_client_config: tcp_client::Config,
+    connect_recvq: &Receiver<TcpStream>,
+    tcp_client_config: &tcp_client::Config,
     multiplex_control: semaphore::Semaphore,
-    tcp_sendq: Sender<protocol::Message>,
+    tcp_sendq: &Sender<protocol::Message>,
 ) -> Result<(), Error> {
     loop {
         let client = connect_recvq.recv()?;
         tcp_client::new(
-            &tcp_client_config,
+            tcp_client_config,
             &multiplex_control,
             tcp_sendq.clone(),
             client,
@@ -157,10 +171,10 @@ fn connect_loop_aux(
 }
 
 fn connect_loop(
-    connect_recvq: Receiver<TcpStream>,
-    tcp_client_config: tcp_client::Config,
+    connect_recvq: &Receiver<TcpStream>,
+    tcp_client_config: &tcp_client::Config,
     multiplex_control: semaphore::Semaphore,
-    tcp_senq: Sender<protocol::Message>,
+    tcp_senq: &Sender<protocol::Message>,
 ) {
     if let Err(e) = connect_loop_aux(
         connect_recvq,
@@ -201,32 +215,12 @@ fn main() {
     let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
         + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
 
-    for to_bind in config.to_bind {
-        let udp_send_config = udp_send::Config {
-            to_bind,
-            to_udp: config.to_udp,
-            mtu: config.to_udp_mtu,
-            max_messages,
-            encoding_block_size: config.encoding_block_size,
-            repair_block_size: config.repair_block_size,
-        };
-
-        info!(
-            "sending UDP traffic to {} with MTU {} binding to {}",
-            udp_send_config.to_udp, udp_send_config.mtu, to_bind
-        );
-
-        let udp_recvq = udp_recvq.clone();
-        thread::Builder::new()
-            .name(format!("udp-send {to_bind}"))
-            .spawn(move || udp_send::new(udp_send_config, udp_recvq))
-            .unwrap();
-    }
-
-    thread::Builder::new()
-        .name("encoding".to_string())
-        .spawn(move || encoding::new(encoding_config, tcp_recvq, udp_sendq))
-        .unwrap();
+    info!(
+        "encoding will produce {} packets ({} bytes per block) + {} repair packets",
+        protocol::nb_encoding_packets(&object_transmission_info),
+        config.encoding_block_size,
+        protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size),
+    );
 
     let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);
 
@@ -234,24 +228,6 @@ fn main() {
         "accepting {} simultaneous transfers with {} multiplexed transfers",
         config.nb_clients, config.nb_multiplex
     );
-
-    for _ in 0..config.nb_clients {
-        let connect_recvq = connect_recvq.clone();
-        let tcp_client_config = tcp_client_config.clone();
-        let multiplex_control = multiplex_control.clone();
-        let tcp_sendq = tcp_sendq.clone();
-        thread::Builder::new()
-            .name("tcp-client".to_string())
-            .spawn(move || {
-                connect_loop(
-                    connect_recvq,
-                    tcp_client_config,
-                    multiplex_control,
-                    tcp_sendq,
-                )
-            })
-            .unwrap();
-    }
 
     let tcp_listener = match TcpListener::bind(config.from_tcp) {
         Err(e) => {
@@ -261,16 +237,71 @@ fn main() {
         Ok(listener) => listener,
     };
 
-    for client in tcp_listener.incoming() {
-        match client {
-            Err(e) => error!("failed to accept client: {e}"),
-            Ok(client) => {
-                if let Err(e) = connect_sendq.send(client) {
-                    error!("failed to send client to connect queue: {e}");
+    let block_to_encode = AtomicCell::new(0);
+    let block_to_send = Mutex::new(0);
+
+    thread::scope(|scope| {
+        for to_bind in config.to_bind {
+            let udp_send_config = udp_send::Config {
+                to_bind,
+                to_udp: config.to_udp,
+                mtu: config.to_udp_mtu,
+                max_messages,
+                encoding_block_size: config.encoding_block_size,
+                repair_block_size: config.repair_block_size,
+            };
+
+            info!(
+                "sending UDP traffic to {} with MTU {} binding to {}",
+                udp_send_config.to_udp, udp_send_config.mtu, to_bind
+            );
+
+            thread::Builder::new()
+                .name(format!("udp-send_{to_bind}"))
+                .spawn_scoped(scope, || udp_send::new(udp_send_config, &udp_recvq))
+                .unwrap();
+        }
+
+        for _ in 0..config.nb_clients {
+            thread::Builder::new()
+                .name("tcp-client".to_string())
+                .spawn_scoped(scope, || {
+                    connect_loop(
+                        &connect_recvq,
+                        &tcp_client_config,
+                        multiplex_control.clone(),
+                        &tcp_sendq,
+                    )
+                })
+                .unwrap();
+        }
+
+        for i in 0..config.nb_encoding_threads {
+            thread::Builder::new()
+                .name(format!("encoding_{i}"))
+                .spawn_scoped(scope, || {
+                    encoding::new(
+                        &encoding_config,
+                        &block_to_encode,
+                        &block_to_send,
+                        &tcp_recvq,
+                        &udp_sendq,
+                    )
+                })
+                .unwrap();
+        }
+
+        for client in tcp_listener.incoming() {
+            match client {
+                Err(e) => error!("failed to accept client: {e}"),
+                Ok(client) => {
+                    if let Err(e) = connect_sendq.send(client) {
+                        error!("failed to send client to connect queue: {e}");
+                    }
                 }
             }
         }
-    }
+    });
 }
 
 fn init_logger() {

@@ -1,11 +1,13 @@
 use crate::protocol;
 use crossbeam_channel::{self, Receiver, RecvError, SendError, Sender};
-use log::{debug, error, info, trace, warn};
+use crossbeam_utils::atomic::AtomicCell;
+use log::{debug, error, trace, warn};
 use raptorq::{
     EncodingPacket, ObjectTransmissionInformation, SourceBlockEncoder, SourceBlockEncodingPlan,
 };
-use std::fmt;
+use std::{fmt, sync::Mutex};
 
+#[derive(Clone)]
 pub struct Config {
     pub object_transmission_info: ObjectTransmissionInformation,
     pub repair_block_size: u32,
@@ -45,28 +47,27 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub fn new(config: Config, recvq: Receiver<protocol::Message>, sendq: Sender<Vec<EncodingPacket>>) {
-    if let Err(e) = main_loop(config, recvq, sendq) {
+pub fn new(
+    config: &Config,
+    block_to_encode: &AtomicCell<u8>,
+    block_to_send: &Mutex<u8>,
+    recvq: &Receiver<protocol::Message>,
+    sendq: &Sender<Vec<EncodingPacket>>,
+) {
+    if let Err(e) = main_loop(config, block_to_encode, block_to_send, recvq, sendq) {
         error!("encoding loop error: {e}");
     }
 }
 
 fn main_loop(
-    config: Config,
-    recvq: Receiver<protocol::Message>,
-    sendq: Sender<Vec<EncodingPacket>>,
+    config: &Config,
+    block_to_encode: &AtomicCell<u8>,
+    block_to_send: &Mutex<u8>,
+    recvq: &Receiver<protocol::Message>,
+    sendq: &Sender<Vec<EncodingPacket>>,
 ) -> Result<(), Error> {
     let nb_repair_packets =
         protocol::nb_repair_packets(&config.object_transmission_info, config.repair_block_size);
-
-    let encoding_block_size = config.object_transmission_info.transfer_length() as usize;
-
-    info!(
-        "encoding will produce {} packets ({} bytes per block) + {} repair packets",
-        protocol::nb_encoding_packets(&config.object_transmission_info),
-        encoding_block_size,
-        nb_repair_packets
-    );
 
     if nb_repair_packets == 0 {
         warn!("configuration produces 0 repair packet");
@@ -77,10 +78,9 @@ fn main_loop(
             / config.object_transmission_info.symbol_size() as u64) as u16,
     );
 
-    let mut block_id = 0;
-
     loop {
         let message = recvq.recv()?;
+        let block_id = block_to_encode.fetch_add(1);
 
         let message_type = message.message_type()?;
         let client_id = message.client_id();
@@ -108,8 +108,13 @@ fn main_loop(
             packets.extend(encoder.repair_packets(0, nb_repair_packets));
         }
 
-        sendq.send(packets)?;
-
-        block_id = block_id.wrapping_add(1);
+        loop {
+            let mut to_send = block_to_send.lock().unwrap();
+            if *to_send == block_id {
+                sendq.send(packets)?;
+                *to_send = to_send.wrapping_add(1);
+                break;
+            }
+        }
     }
 }

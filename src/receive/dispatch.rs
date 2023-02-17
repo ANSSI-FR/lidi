@@ -109,8 +109,10 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
 
             protocol::MessageType::Abort | protocol::MessageType::End => will_end = true,
 
-            _ => (),
+            protocol::MessageType::Data => (),
         }
+
+        debug!("message = {message}");
 
         let client_sendq = active_transfers.get(&client_id).unwrap();
 

@@ -42,13 +42,13 @@ impl From<RecvError> for Error {
     }
 }
 
-pub fn new(config: Config, recvq: Receiver<Vec<EncodingPacket>>) {
+pub fn new(config: Config, recvq: &Receiver<Vec<EncodingPacket>>) {
     if let Err(e) = main_loop(config, recvq) {
         error!("UDP send loop error: {e}");
     }
 }
 
-fn main_loop(config: Config, recvq: Receiver<Vec<EncodingPacket>>) -> Result<(), Error> {
+fn main_loop(config: Config, recvq: &Receiver<Vec<EncodingPacket>>) -> Result<(), Error> {
     let socket = UdpSocket::bind(config.to_bind)?;
     sock_utils::set_socket_send_buffer_size(
         &socket,
