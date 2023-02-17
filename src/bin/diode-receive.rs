@@ -208,10 +208,15 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     info!("listening for UDP packets at {}", config.from_udp);
     let socket = UdpSocket::bind(config.from_udp)?;
-    sock_utils::set_socket_recv_buffer_size(
-        &socket,
-        (config.encoding_block_size + config.repair_block_size as u64) as usize,
-    );
+    sock_utils::set_socket_recv_buffer_size(&socket, i32::MAX);
+    let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&socket);
+    log::info!("UDP socket receive buffer size set to {sock_buffer_size}");
+    if (sock_buffer_size as u64)
+        < 2 * (config.encoding_block_size + config.repair_block_size as u64)
+    {
+        log::warn!("UDP socket recv buffer may be too small to achieve optimal performances");
+        log::warn!("Please review the kernel parameters using sysctl");
+    }
 
     let mut udp_messages = udp::UdpMessages::new_receiver(
         socket,

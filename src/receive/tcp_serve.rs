@@ -77,7 +77,19 @@ fn main_loop(
 
     let socket = TcpStream::connect(config.to_tcp)?;
     socket.shutdown(net::Shutdown::Read)?;
-    sock_utils::set_socket_send_buffer_size(&socket, config.to_tcp_buffer_size);
+    let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket);
+    if (sock_buffer_size as usize) < 2 * config.to_tcp_buffer_size {
+        sock_utils::set_socket_send_buffer_size(&socket, config.to_tcp_buffer_size as i32);
+        let new_sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket);
+        log::info!(
+            "TCP socket send buffer size set to {}",
+            new_sock_buffer_size
+        );
+        if (new_sock_buffer_size as usize) < 2 * config.to_tcp_buffer_size {
+            log::warn!("TCP socket send buffer may be too small to achieve optimal performances");
+            log::warn!("Please review the kernel parameters using sysctl");
+        }
+    }
 
     let mut client = io::BufWriter::with_capacity(config.to_tcp_buffer_size, socket);
 
