@@ -23,7 +23,7 @@ unsafe fn setsockopt_buffer_size(fd: i32, size: i32, option_name: i32) {
         "default socket buffer size may be too small ({current_size} < {}), adjusting it",
         size
     );
-    let size = size / 2;
+    let size = (size / 2) + (size & 0x1);
 
     let res = libc::setsockopt(
         fd,
