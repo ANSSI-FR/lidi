@@ -86,8 +86,14 @@ fn main_loop(
         let client_id = message.client_id();
 
         match message_type {
-            protocol::MessageType::Start => debug!("start of encoding of client {:x}", client_id),
-            protocol::MessageType::End => debug!("end of encoding of client {:x}", client_id),
+            protocol::MessageType::Start => debug!(
+                "start of encoding block {block_id} for client {:x}",
+                client_id
+            ),
+            protocol::MessageType::End => debug!(
+                "end of encoding block {block_id} for client {:x}",
+                client_id
+            ),
             _ => (),
         }
 

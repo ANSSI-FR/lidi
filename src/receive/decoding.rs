@@ -1,6 +1,6 @@
 use crate::protocol;
 use crossbeam_channel::{Receiver, RecvError, SendError, Sender};
-use log::{debug, error, trace, warn};
+use log::{error, trace, warn};
 use raptorq::{self, EncodingPacket, ObjectTransmissionInformation, SourceBlockDecoder};
 use std::{fmt, sync::Mutex, thread};
 
@@ -56,7 +56,10 @@ fn main_loop(
     loop {
         let (block_id, packets) = reblock_recvq.recv()?;
 
-        debug!("trying to decode");
+        trace!(
+            "trying to decode block {block_id} with {} packets",
+            packets.len()
+        );
 
         let mut decoder = SourceBlockDecoder::new2(
             block_id,

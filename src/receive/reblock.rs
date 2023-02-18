@@ -77,13 +77,12 @@ fn main_loop(
                 let qlen = queue.len();
                 if 0 < qlen {
                     // no more traffic but ongoing block, trying to decode
-                    debug!("flush timeout with {qlen} packets");
                     if nb_normal_packets as usize <= qlen {
-                        debug!("trying to decode");
+                        debug!("flushing block {block_id} with {qlen} packets");
                         decoding_sendq.send((block_id, queue))?;
                         block_id = block_id.wrapping_add(1);
                     } else {
-                        debug!("no enough packets to decode, discarding");
+                        debug!("no enough packets ({qlen} packates) to decode block {block_id}");
                         warn!("lost block {block_id}");
                         desynchro = true;
                     }

@@ -1,6 +1,6 @@
 use crate::{sock_utils, udp};
 use crossbeam_channel::{Receiver, RecvError};
-use log::error;
+use log::{error, info};
 use raptorq::EncodingPacket;
 use std::{
     fmt, io,
@@ -8,7 +8,7 @@ use std::{
 };
 
 pub struct Config {
-    pub to_bind: SocketAddr,
+    pub to_bind: Vec<SocketAddr>,
     pub to_udp: SocketAddr,
     pub mtu: u16,
     pub max_messages: u16,
@@ -49,22 +49,39 @@ pub fn new(config: Config, recvq: &Receiver<Vec<EncodingPacket>>) {
 }
 
 fn main_loop(config: Config, recvq: &Receiver<Vec<EncodingPacket>>) -> Result<(), Error> {
-    let socket = UdpSocket::bind(config.to_bind)?;
-    sock_utils::set_socket_send_buffer_size(&socket, i32::MAX);
-    let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket);
-    log::info!("UDP socket send buffer size set to {sock_buffer_size}");
-    if (sock_buffer_size as u64)
-        < 2 * (config.encoding_block_size + config.repair_block_size as u64)
-    {
-        log::warn!("UDP socket send buffer may be too small to achieve optimal performances");
-        log::warn!("Please review the kernel parameters using sysctl");
-    }
+    let mut messages = Vec::with_capacity(config.to_bind.len());
 
-    let mut udp_messages =
-        udp::UdpMessages::new_sender(socket, usize::from(config.max_messages), config.to_udp);
+    for to_bind in &config.to_bind {
+        info!(
+            "sending UDP traffic to {} with MTU {} binding to {}",
+            config.to_udp, config.mtu, to_bind
+        );
+        let socket = UdpSocket::bind(to_bind)?;
+        sock_utils::set_socket_send_buffer_size(&socket, i32::MAX);
+        let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket);
+        log::info!("UDP socket send buffer size set to {sock_buffer_size}");
+        if (sock_buffer_size as u64)
+            < 2 * (config.encoding_block_size + config.repair_block_size as u64)
+        {
+            log::warn!("UDP socket send buffer may be too small to achieve optimal performances");
+            log::warn!("Please review the kernel parameters using sysctl");
+        }
+
+        let udp_messages =
+            udp::UdpMessages::new_sender(socket, usize::from(config.max_messages), config.to_udp);
+
+        messages.push(udp_messages);
+    }
 
     loop {
         let packets = recvq.recv()?;
-        udp_messages.send_mmsg(packets.iter().map(EncodingPacket::serialize).collect());
+
+        let chunks = packets.chunks(config.max_messages as usize);
+
+        let mut i = 0;
+        for chunk in chunks {
+            messages[i].send_mmsg(chunk.iter().map(EncodingPacket::serialize).collect());
+            i = i.wrapping_add(1);
+        }
     }
 }

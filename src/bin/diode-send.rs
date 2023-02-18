@@ -31,6 +31,21 @@ struct Config {
     to_udp_mtu: u16,
 }
 
+impl Config {
+    fn adjust(&mut self) {
+        let oti =
+            protocol::object_transmission_information(self.to_udp_mtu, self.encoding_block_size);
+
+        let packet_size = protocol::packet_size(&oti);
+        let nb_encoding_packets = protocol::nb_encoding_packets(&oti) * self.to_bind.len() as u64;
+        let nb_repair_packets =
+            protocol::nb_repair_packets(&oti, self.repair_block_size) * self.to_bind.len() as u32;
+
+        self.encoding_block_size = nb_encoding_packets * packet_size as u64;
+        self.repair_block_size = nb_repair_packets * packet_size as u32;
+    }
+}
+
 fn command_args() -> Config {
     let args = Command::new(env!("CARGO_BIN_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
@@ -187,11 +202,11 @@ fn connect_loop(
 }
 
 fn main() {
-    let config = command_args();
+    let mut config = command_args();
 
     init_logger();
 
-    info!("accepting TCP clients at {}", config.from_tcp);
+    config.adjust();
 
     let object_transmission_info =
         protocol::object_transmission_information(config.to_udp_mtu, config.encoding_block_size);
@@ -200,8 +215,6 @@ fn main() {
         buffer_size: (object_transmission_info.transfer_length()
             - protocol::Message::serialize_overhead() as u64) as u32,
     };
-
-    info!("TCP buffer size is {} bytes", tcp_client_config.buffer_size);
 
     let encoding_config = encoding::Config {
         object_transmission_info,
@@ -212,55 +225,36 @@ fn main() {
     let (tcp_sendq, tcp_recvq) = bounded::<protocol::Message>(config.nb_clients as usize);
     let (udp_sendq, udp_recvq) = unbounded::<Vec<EncodingPacket>>();
 
-    let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
-        + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
-
-    info!(
-        "encoding will produce {} packets ({} bytes per block) + {} repair packets",
-        protocol::nb_encoding_packets(&object_transmission_info),
-        config.encoding_block_size,
-        protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size),
-    );
+    let max_messages = (protocol::nb_encoding_packets(&object_transmission_info) as u16
+        + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16)
+        / config.to_bind.len() as u16;
 
     let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);
-
-    info!(
-        "accepting {} simultaneous transfers with {} multiplexed transfers",
-        config.nb_clients, config.nb_multiplex
-    );
-
-    let tcp_listener = match TcpListener::bind(config.from_tcp) {
-        Err(e) => {
-            error!("failed to bind TCP {}: {}", config.from_tcp, e);
-            return;
-        }
-        Ok(listener) => listener,
-    };
 
     let block_to_encode = AtomicCell::new(0);
     let block_to_send = Mutex::new(0);
 
+    let udp_send_config = udp_send::Config {
+        to_bind: config.to_bind,
+        to_udp: config.to_udp,
+        mtu: config.to_udp_mtu,
+        max_messages,
+        encoding_block_size: config.encoding_block_size,
+        repair_block_size: config.repair_block_size,
+    };
+
     thread::scope(|scope| {
-        for to_bind in config.to_bind {
-            let udp_send_config = udp_send::Config {
-                to_bind,
-                to_udp: config.to_udp,
-                mtu: config.to_udp_mtu,
-                max_messages,
-                encoding_block_size: config.encoding_block_size,
-                repair_block_size: config.repair_block_size,
-            };
+        thread::Builder::new()
+            .name("udp-send".into())
+            .spawn_scoped(scope, || udp_send::new(udp_send_config, &udp_recvq))
+            .unwrap();
 
-            info!(
-                "sending UDP traffic to {} with MTU {} binding to {}",
-                udp_send_config.to_udp, udp_send_config.mtu, to_bind
-            );
+        info!("TCP buffer size is {} bytes", tcp_client_config.buffer_size);
 
-            thread::Builder::new()
-                .name(format!("udp-send_{to_bind}"))
-                .spawn_scoped(scope, || udp_send::new(udp_send_config, &udp_recvq))
-                .unwrap();
-        }
+        info!(
+            "accepting {} simultaneous transfers with {} multiplexed transfers",
+            config.nb_clients, config.nb_multiplex
+        );
 
         for _ in 0..config.nb_clients {
             thread::Builder::new()
@@ -276,6 +270,13 @@ fn main() {
                 .unwrap();
         }
 
+        info!(
+            "encoding will produce {} packets ({} bytes per block) + {} repair packets",
+            protocol::nb_encoding_packets(&object_transmission_info),
+            config.encoding_block_size,
+            protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size),
+        );
+
         for i in 0..config.nb_encoding_threads {
             thread::Builder::new()
                 .name(format!("encoding_{i}"))
@@ -290,6 +291,16 @@ fn main() {
                 })
                 .unwrap();
         }
+
+        info!("accepting TCP clients at {}", config.from_tcp);
+
+        let tcp_listener = match TcpListener::bind(config.from_tcp) {
+            Err(e) => {
+                error!("failed to bind TCP {}: {}", config.from_tcp, e);
+                return;
+            }
+            Ok(listener) => listener,
+        };
 
         for client in tcp_listener.incoming() {
             match client {

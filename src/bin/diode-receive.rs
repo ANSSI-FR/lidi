@@ -17,6 +17,8 @@ struct Config {
     from_udp: SocketAddr,
     from_udp_mtu: u16,
 
+    nb_diodes: u8,
+
     nb_multiplex: u16,
 
     nb_decoding_threads: u8,
@@ -27,6 +29,21 @@ struct Config {
 
     to_tcp: SocketAddr,
     abort_timeout: Duration,
+}
+
+impl Config {
+    fn adjust(&mut self) {
+        let oti =
+            protocol::object_transmission_information(self.from_udp_mtu, self.encoding_block_size);
+
+        let packet_size = protocol::packet_size(&oti);
+        let nb_encoding_packets = protocol::nb_encoding_packets(&oti) * self.nb_diodes as u64;
+        let nb_repair_packets =
+            protocol::nb_repair_packets(&oti, self.repair_block_size) * self.nb_diodes as u32;
+
+        self.encoding_block_size = nb_encoding_packets * packet_size as u64;
+        self.repair_block_size = nb_repair_packets * packet_size as u32;
+    }
 }
 
 fn command_args() -> Config {
@@ -46,6 +63,14 @@ fn command_args() -> Config {
                 .default_value("1500") // mtu
                 .value_parser(clap::value_parser!(u16))
                 .help("MTU of the incoming UDP link"),
+        )
+        .arg(
+            Arg::new("nb_diodes")
+                .long("nb_diodes")
+                .value_name("nb")
+                .default_value("1")
+                .value_parser(clap::value_parser!(u8))
+                .help("Number of diodes"),
         )
         .arg(
             Arg::new("nb_multiplex")
@@ -107,6 +132,7 @@ fn command_args() -> Config {
     let from_udp = SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
         .expect("invalid from_udp_parameter");
     let from_udp_mtu = *args.get_one::<u16>("from_udp_mtu").expect("default");
+    let nb_diodes = *args.get_one::<u8>("nb_diodes").expect("default");
     let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
     let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
@@ -121,6 +147,7 @@ fn command_args() -> Config {
     Config {
         from_udp,
         from_udp_mtu,
+        nb_diodes,
         nb_multiplex,
         nb_decoding_threads,
         encoding_block_size,
@@ -266,9 +293,11 @@ fn main_loop(config: Config) -> Result<(), Error> {
 }
 
 fn main() {
-    let config = command_args();
+    let mut config = command_args();
 
     init_logger();
+
+    config.adjust();
 
     if let Err(e) = main_loop(config) {
         error!("failed to launch main_loop: {e}");

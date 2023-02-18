@@ -112,7 +112,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
             protocol::MessageType::Data => (),
         }
 
-        debug!("message = {message}");
+        trace!("message = {message}");
 
         let client_sendq = active_transfers.get(&client_id).unwrap();
 
