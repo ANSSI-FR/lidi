@@ -21,6 +21,7 @@ impl From<io::Error> for Error {
 }
 
 pub(crate) enum MessageType {
+    Heartbeat,
     Start,
     Data,
     Abort,
@@ -30,6 +31,7 @@ pub(crate) enum MessageType {
 impl MessageType {
     fn serialized(self) -> u8 {
         match self {
+            Self::Heartbeat => ID_HEARTBEAT,
             Self::Start => ID_START,
             Self::Data => ID_DATA,
             Self::Abort => ID_ABORT,
@@ -41,6 +43,7 @@ impl MessageType {
 impl fmt::Display for MessageType {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
+            Self::Heartbeat => write!(fmt, "Heartbeat"),
             Self::Start => write!(fmt, "Start"),
             Self::Data => write!(fmt, "Data"),
             Self::Abort => write!(fmt, "Abort"),
@@ -49,6 +52,7 @@ impl fmt::Display for MessageType {
     }
 }
 
+const ID_HEARTBEAT: u8 = 0x00;
 const ID_START: u8 = 0x01;
 const ID_DATA: u8 = 0x02;
 const ID_ABORT: u8 = 0x03;
@@ -103,6 +107,7 @@ impl Message {
 
     pub(crate) fn message_type(&self) -> Result<MessageType, Error> {
         match self.0[4] {
+            ID_HEARTBEAT => Ok(MessageType::Heartbeat),
             ID_START => Ok(MessageType::Start),
             ID_DATA => Ok(MessageType::Data),
             ID_ABORT => Ok(MessageType::Abort),

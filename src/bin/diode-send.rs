@@ -3,7 +3,7 @@ use crossbeam_channel::{bounded, unbounded, Receiver, RecvError, Sender};
 use crossbeam_utils::atomic::AtomicCell;
 use diode::{
     protocol, semaphore,
-    send::{encoding, tcp_client, udp_send},
+    send::{encoding, heartbeat, tcp_client, udp_send},
 };
 use log::{error, info};
 use raptorq::EncodingPacket;
@@ -13,6 +13,7 @@ use std::{
     str::FromStr,
     sync::Mutex,
     thread,
+    time::Duration,
 };
 
 struct Config {
@@ -29,6 +30,8 @@ struct Config {
     to_bind: Vec<SocketAddr>,
     to_udp: SocketAddr,
     to_udp_mtu: u16,
+
+    heartbeat: Duration,
 }
 
 impl Config {
@@ -119,6 +122,14 @@ fn command_args() -> Config {
                 .value_parser(clap::value_parser!(u16))
                 .help("MTU in bytes of output UDP link"),
         )
+        .arg(
+            Arg::new("heartbeat")
+                .long("heartbeat")
+                .value_name("nb_secq")
+                .default_value("5")
+                .value_parser(clap::value_parser!(u16))
+                .help("Duration in seconds between heartbeat messages"),
+        )
         .get_matches();
 
     let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
@@ -136,6 +147,7 @@ fn command_args() -> Config {
     let to_udp = SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
+    let heartbeat = *args.get_one::<u16>("heartbeat").expect("default");
 
     Config {
         from_tcp,
@@ -147,6 +159,7 @@ fn command_args() -> Config {
         to_bind,
         to_udp,
         to_udp_mtu,
+        heartbeat: Duration::from_secs(heartbeat as u64),
     }
 }
 
@@ -234,6 +247,11 @@ fn main() {
     let block_to_encode = AtomicCell::new(0);
     let block_to_send = Mutex::new(0);
 
+    let heartbeat_config = heartbeat::Config {
+        buffer_size: tcp_client_config.buffer_size,
+        duration: config.heartbeat,
+    };
+
     let udp_send_config = udp_send::Config {
         to_bind: config.to_bind,
         to_udp: config.to_udp,
@@ -301,6 +319,11 @@ fn main() {
             }
             Ok(listener) => listener,
         };
+
+        thread::Builder::new()
+            .name("heartbeat".into())
+            .spawn_scoped(scope, || heartbeat::new(&heartbeat_config, &tcp_sendq))
+            .unwrap();
 
         for client in tcp_listener.incoming() {
             match client {

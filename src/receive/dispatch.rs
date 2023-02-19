@@ -1,8 +1,8 @@
 use crate::{protocol, receive::tcp_serve, semaphore};
-use crossbeam_channel::{unbounded, Receiver, RecvError, SendError, Sender};
-use log::{debug, error, trace};
+use crossbeam_channel::{unbounded, Receiver, RecvTimeoutError, SendError, Sender};
+use log::{debug, error, trace, warn};
 use std::collections::{BTreeMap, BTreeSet};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{fmt, io, net, thread};
 
 pub struct Config {
@@ -10,12 +10,13 @@ pub struct Config {
     pub to_tcp: net::SocketAddr,
     pub to_tcp_buffer_size: usize,
     pub abort_timeout: Duration,
+    pub heartbeat: Duration,
 }
 
 enum Error {
     Io(io::Error),
     CrossbeamSend(SendError<protocol::Message>),
-    CrossbeamRecv(RecvError),
+    CrossbeamRecv(RecvTimeoutError),
     Diode(protocol::Error),
 }
 
@@ -42,8 +43,8 @@ impl From<SendError<protocol::Message>> for Error {
     }
 }
 
-impl From<RecvError> for Error {
-    fn from(e: RecvError) -> Self {
+impl From<RecvTimeoutError> for Error {
+    fn from(e: RecvTimeoutError) -> Self {
         Self::CrossbeamRecv(e)
     }
 }
@@ -75,8 +76,21 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
 
     let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);
 
+    let mut last_heartbeat = Instant::now();
+
     loop {
-        let message = decoding_recvq.recv()?;
+        let message = match decoding_recvq.recv_timeout(config.heartbeat) {
+            Err(RecvTimeoutError::Timeout) => {
+                if last_heartbeat.elapsed() > config.heartbeat {
+                    warn!(
+                        "no heartbeat message received during the last {} second(s)",
+                        config.heartbeat.as_secs()
+                    );
+                }
+                continue;
+            }
+            other => other?,
+        };
 
         trace!("received {message}");
 
@@ -91,6 +105,11 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
         let mut will_end = false;
 
         match message_type {
+            protocol::MessageType::Heartbeat => {
+                last_heartbeat = Instant::now();
+                continue;
+            }
+
             protocol::MessageType::Start => {
                 let (client_sendq, client_recvq) = unbounded::<protocol::Message>();
 

@@ -29,6 +29,7 @@ struct Config {
 
     to_tcp: SocketAddr,
     abort_timeout: Duration,
+    heartbeat: Duration,
 }
 
 impl Config {
@@ -127,6 +128,14 @@ fn command_args() -> Config {
                 .value_parser(clap::value_parser!(u64))
                 .help("Duration in seconds after a transfer without incoming data is aborted"),
         )
+        .arg(
+            Arg::new("heartbeat")
+                .long("heartbeat")
+                .value_name("nb_secq")
+                .default_value("10")
+                .value_parser(clap::value_parser!(u16))
+                .help("Duration in seconds between heartbeat messages"),
+        )
         .get_matches();
 
     let from_udp = SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
@@ -143,6 +152,7 @@ fn command_args() -> Config {
         .expect("invalid to_tcp parameter");
     let abort_timeout =
         Duration::from_secs(*args.get_one::<u64>("abort_timeout").expect("default"));
+    let heartbeat = *args.get_one::<u16>("heartbeat").expect("default");
 
     Config {
         from_udp,
@@ -155,6 +165,7 @@ fn command_args() -> Config {
         flush_timeout,
         to_tcp,
         abort_timeout,
+        heartbeat: Duration::from_secs(heartbeat as u64),
     }
 }
 
@@ -203,6 +214,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
         to_tcp_buffer_size: config.encoding_block_size as usize
             - protocol::Message::serialize_overhead(),
         abort_timeout: config.abort_timeout,
+        heartbeat: config.heartbeat,
     };
 
     thread::Builder::new()
