@@ -131,7 +131,7 @@ fn command_args() -> Config {
         .arg(
             Arg::new("heartbeat")
                 .long("heartbeat")
-                .value_name("nb_secq")
+                .value_name("nb_secs")
                 .default_value("10")
                 .value_parser(clap::value_parser!(u16))
                 .help("Duration in seconds between heartbeat messages"),
