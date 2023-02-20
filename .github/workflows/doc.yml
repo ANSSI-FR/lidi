@@ -1,0 +1,24 @@
+name: Doc
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  doc-build-and-deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+    - name: Prepare
+      run: pip install sphinx sphinx_rtd_theme
+    - name: Build
+      run: sphinx-build doc doc/_build
+    - name: Deploy
+      uses: JamesIves/github-pages-deploy-action@v4
+      with:
+        branch: gh-pages
+        folder: doc/_build
+        clean: true
+        token: ${{ secrets.GITHUB_TOKEN }}
