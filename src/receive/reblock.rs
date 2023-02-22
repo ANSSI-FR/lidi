@@ -68,6 +68,7 @@ fn main_loop(
 
     let mut desynchro = true;
     let capacity = nb_normal_packets as usize + nb_repair_packets as usize;
+    let mut prev_queue: Option<Vec<EncodingPacket>> = None;
     let mut queue = Vec::with_capacity(capacity);
     let mut block_id = 0;
 
@@ -87,6 +88,7 @@ fn main_loop(
                         desynchro = true;
                     }
                     queue = Vec::with_capacity(capacity);
+                    prev_queue = None;
                 } else {
                     // without data for some time we reset the current block_id
                     desynchro = true;
@@ -114,7 +116,17 @@ fn main_loop(
             }
 
             if message_block_id.wrapping_add(1) == block_id {
-                trace!("discarding packet from previous block_id {message_block_id}");
+                //packet is from previous block; is this block parked ?
+                if let Some(mut pqueue) = prev_queue {
+                    pqueue.push(packet);
+                    if nb_normal_packets as usize <= pqueue.len() {
+                        //now there is enough packet to decode it
+                        decoding_sendq.send((message_block_id, pqueue))?;
+                        prev_queue = None;
+                    } else {
+                        prev_queue = Some(pqueue);
+                    }
+                }
                 continue;
             }
 
@@ -123,7 +135,19 @@ fn main_loop(
                 continue;
             }
 
-            decoding_sendq.send((block_id, queue))?;
+            //this is the first packet of the next block
+
+            if nb_normal_packets as usize <= queue.len() {
+                //enough packets in the current block to decode it
+                decoding_sendq.send((block_id, queue))?;
+                prev_queue = None;
+            } else {
+                //not enough packet, parking the current block
+                prev_queue = Some(queue);
+            }
+
+            //starting the next block
+
             block_id = message_block_id;
 
             trace!("queueing in block {block_id}");

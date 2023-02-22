@@ -236,7 +236,8 @@ fn main() {
 
     let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
     let (tcp_sendq, tcp_recvq) = bounded::<protocol::Message>(config.nb_clients as usize);
-    let (udp_sendq, udp_recvq) = bounded::<Vec<EncodingPacket>>(2 * config.nb_encoding_threads as usize);
+    let (udp_sendq, udp_recvq) =
+        bounded::<Vec<EncodingPacket>>(2 * config.nb_encoding_threads as usize);
 
     let max_messages = (protocol::nb_encoding_packets(&object_transmission_info) as u16
         + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16)
