@@ -120,7 +120,7 @@ fn main_loop(
                 if let Some(mut pqueue) = prev_queue {
                     pqueue.push(packet);
                     if nb_normal_packets as usize <= pqueue.len() {
-                        //now there is enough packet to decode it
+                        //now there is enough packets to decode it
                         decoding_sendq.send((message_block_id, pqueue))?;
                         prev_queue = None;
                     } else {
@@ -140,6 +140,9 @@ fn main_loop(
             if nb_normal_packets as usize <= queue.len() {
                 //enough packets in the current block to decode it
                 decoding_sendq.send((block_id, queue))?;
+                if prev_queue.is_some() {
+                    warn!("lost block {}", block_id.wrapping_sub(1));
+                }
                 prev_queue = None;
             } else {
                 //not enough packet, parking the current block
