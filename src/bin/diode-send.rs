@@ -27,7 +27,7 @@ struct Config {
     encoding_block_size: u64,
     repair_block_size: u32,
 
-    to_bind: Vec<SocketAddr>,
+    to_bind: SocketAddr,
     to_udp: SocketAddr,
     to_udp_mtu: u16,
 
@@ -40,9 +40,8 @@ impl Config {
             protocol::object_transmission_information(self.to_udp_mtu, self.encoding_block_size);
 
         let packet_size = protocol::packet_size(&oti);
-        let nb_encoding_packets = protocol::nb_encoding_packets(&oti) * self.to_bind.len() as u64;
-        let nb_repair_packets =
-            protocol::nb_repair_packets(&oti, self.repair_block_size) * self.to_bind.len() as u32;
+        let nb_encoding_packets = protocol::nb_encoding_packets(&oti);
+        let nb_repair_packets = protocol::nb_repair_packets(&oti, self.repair_block_size);
 
         self.encoding_block_size = nb_encoding_packets * packet_size as u64;
         self.repair_block_size = nb_repair_packets * packet_size as u32;
@@ -103,16 +102,16 @@ fn command_args() -> Config {
             Arg::new("to_bind")
                 .long("to_bind")
                 .value_name("ip:port")
-                .action(ArgAction::Append)
-                .default_values(vec!["0.0.0.0:0"])
-                .help("Binding IP; multiple values accepted"),
+                .action(ArgAction::Set)
+                .default_value("0.0.0.0:0")
+                .help("Binding IP for UDP traffic"),
         )
         .arg(
             Arg::new("to_udp")
                 .long("to_udp")
                 .value_name("ip:port")
                 .default_value("127.0.0.1:6000")
-                .help("Where to send data"),
+                .help("Where to send UDP traffic"),
         )
         .arg(
             Arg::new("to_udp_mtu")
@@ -139,11 +138,9 @@ fn command_args() -> Config {
     let nb_encoding_threads = *args.get_one::<u8>("nb_encoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
-    let to_bind: Vec<SocketAddr> = args
-        .get_many::<String>("to_bind")
-        .expect("default")
-        .map(|addr| SocketAddr::from_str(addr).expect("invalid to_bind address"))
-        .collect();
+    let to_bind: SocketAddr =
+        SocketAddr::from_str(args.get_one::<String>("to_bind").expect("default"))
+            .expect("invalid to_bind parameter");
     let to_udp = SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
@@ -239,9 +236,8 @@ fn main() {
     let (udp_sendq, udp_recvq) =
         bounded::<Vec<EncodingPacket>>(2 * config.nb_encoding_threads as usize);
 
-    let max_messages = (protocol::nb_encoding_packets(&object_transmission_info) as u16
-        + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16)
-        / config.to_bind.len() as u16;
+    let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
+        + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
 
     let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);
 
