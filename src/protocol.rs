@@ -2,14 +2,14 @@ use std::{fmt, io};
 
 pub(crate) enum Error {
     Io(io::Error),
-    InvalidMessageType(u8),
+    InvalidMessageType(Option<u8>),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::InvalidMessageType(b) => write!(fmt, "invalid message type: 0x{b:x}"),
+            Self::InvalidMessageType(b) => write!(fmt, "invalid message type: {b:?}"),
         }
     }
 }
@@ -106,13 +106,13 @@ impl Message {
     }
 
     pub(crate) fn message_type(&self) -> Result<MessageType, Error> {
-        match self.0[4] {
-            ID_HEARTBEAT => Ok(MessageType::Heartbeat),
-            ID_START => Ok(MessageType::Start),
-            ID_DATA => Ok(MessageType::Data),
-            ID_ABORT => Ok(MessageType::Abort),
-            ID_END => Ok(MessageType::End),
-            b => Err(Error::InvalidMessageType(b)),
+        match self.0.get(4) {
+            Some(&ID_HEARTBEAT) => Ok(MessageType::Heartbeat),
+            Some(&ID_START) => Ok(MessageType::Start),
+            Some(&ID_DATA) => Ok(MessageType::Data),
+            Some(&ID_ABORT) => Ok(MessageType::Abort),
+            Some(&ID_END) => Ok(MessageType::End),
+            b => Err(Error::InvalidMessageType(b.copied())),
         }
     }
 
