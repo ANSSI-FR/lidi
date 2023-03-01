@@ -262,7 +262,7 @@ fn main() {
         thread::Builder::new()
             .name("udp-send".into())
             .spawn_scoped(scope, || udp_send::new(udp_send_config, &udp_recvq))
-            .unwrap();
+            .expect("thread spawn");
 
         info!("TCP buffer size is {} bytes", tcp_client_config.buffer_size);
 
@@ -282,7 +282,7 @@ fn main() {
                         &tcp_sendq,
                     )
                 })
-                .unwrap();
+                .expect("thread spawn");
         }
 
         info!(
@@ -304,7 +304,7 @@ fn main() {
                         &udp_sendq,
                     )
                 })
-                .unwrap();
+                .expect("thread spawn");
         }
 
         info!("accepting TCP clients at {}", config.from_tcp);
@@ -320,7 +320,7 @@ fn main() {
         thread::Builder::new()
             .name("heartbeat".into())
             .spawn_scoped(scope, || heartbeat::new(&heartbeat_config, &tcp_sendq))
-            .unwrap();
+            .expect("thread spawn");
 
         for client in tcp_listener.incoming() {
             match client {
@@ -337,8 +337,9 @@ fn main() {
 
 fn init_logger() {
     if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env().unwrap();
+        simple_logger::init_with_env()
     } else {
-        simple_logger::init_with_level(log::Level::Info).unwrap();
+        simple_logger::init_with_level(log::Level::Info)
     }
+    .expect("logger initialization")
 }

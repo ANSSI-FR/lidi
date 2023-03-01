@@ -123,7 +123,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
                     .spawn(move || {
                         tcp_serve::new(tcp_serve_config, multiplex_control, client_id, client_recvq)
                     })
-                    .unwrap();
+                    .expect("thread spawn");
             }
 
             protocol::MessageType::Abort | protocol::MessageType::End => will_end = true,
@@ -133,7 +133,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
 
         trace!("message = {message}");
 
-        let client_sendq = active_transfers.get(&client_id).unwrap();
+        let client_sendq = active_transfers.get(&client_id).expect("active transfer");
 
         if let Err(e) = client_sendq.send(message) {
             error!("failed to send payload to client {client_id:x}: {e}");
@@ -143,7 +143,9 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
         }
 
         if will_end {
-            let client_sendq = active_transfers.remove(&client_id).unwrap();
+            let client_sendq = active_transfers
+                .remove(&client_id)
+                .expect("active transfer");
 
             ended_transfers.retain(|client_id, client_sendq| {
                 let retain = !client_sendq.is_empty();

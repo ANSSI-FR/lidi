@@ -105,7 +105,7 @@ fn main_loop(
 
             if desynchro {
                 block_id = message_block_id;
-                *block_to_receive.lock().unwrap() = block_id;
+                *block_to_receive.lock().expect("acquire lock") = block_id;
                 desynchro = false;
             }
 

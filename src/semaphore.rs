@@ -10,21 +10,19 @@ impl Semaphore {
 
     pub(crate) fn acquire(&self) {
         let (lock, cv) = &*self.0;
-        let mut counter = lock.lock().unwrap();
+        let mut counter = lock.lock().expect("acquire lock");
         while *counter == 0 {
-            counter = cv.wait_while(counter, |counter| *counter == 0).unwrap();
+            counter = cv
+                .wait_while(counter, |counter| *counter == 0)
+                .expect("condvar wait");
         }
-        *counter = counter
-            .checked_sub(1)
-            .unwrap_or_else(|| panic!("semaphore counter decrement failed: {counter}"));
+        *counter = counter.checked_sub(1).expect("semaphore counter decrement");
     }
 
     pub(crate) fn release(&self) {
         let (lock, cv) = &*self.0;
-        let mut counter = lock.lock().unwrap();
-        *counter = counter
-            .checked_add(1)
-            .unwrap_or_else(|| panic!("semaphore counter increment failed: {counter}"));
+        let mut counter = lock.lock().expect("acquire lock");
+        *counter = counter.checked_add(1).expect("semaphore counter increment");
         cv.notify_one();
     }
 }

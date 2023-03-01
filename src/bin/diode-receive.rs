@@ -207,7 +207,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
     thread::Builder::new()
         .name("dispatch".to_string())
         .spawn(move || dispatch::new(dispatch_config, decoding_recvq))
-        .unwrap();
+        .expect("thread spawn");
 
     let object_transmission_info =
         protocol::object_transmission_information(config.from_udp_mtu, config.encoding_block_size);
@@ -263,7 +263,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
                     &reblock_sendq,
                 )
             })
-            .unwrap();
+            .expect("thread spawn");
 
         for i in 0..config.nb_decoding_threads {
             thread::Builder::new()
@@ -276,7 +276,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
                         &decoding_sendq,
                     )
                 })
-                .unwrap();
+                .expect("thread spawn");
         }
 
         loop {
@@ -305,8 +305,9 @@ fn main() {
 
 fn init_logger() {
     if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env().unwrap();
+        simple_logger::init_with_env()
     } else {
-        simple_logger::init_with_level(log::Level::Info).unwrap();
+        simple_logger::init_with_level(log::Level::Info)
     }
+    .expect("logger initialization")
 }

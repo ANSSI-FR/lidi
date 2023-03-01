@@ -76,7 +76,7 @@ fn main_loop(
                 trace!("block {} decoded with {} bytes!", block_id, block.len());
 
                 loop {
-                    let mut to_receive = block_to_receive.lock().unwrap();
+                    let mut to_receive = block_to_receive.lock().expect("acquire lock");
                     if *to_receive == block_id {
                         dispatch_sendq.send(protocol::Message::deserialize(block))?;
                         *to_receive = to_receive.wrapping_add(1);

@@ -115,7 +115,7 @@ fn main_loop(
         }
 
         loop {
-            let mut to_send = block_to_send.lock().unwrap();
+            let mut to_send = block_to_send.lock().expect("acquire lock");
             if *to_send == block_id {
                 sendq.send(packets)?;
                 *to_send = to_send.wrapping_add(1);
