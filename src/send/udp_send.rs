@@ -54,8 +54,8 @@ fn main_loop(config: Config, recvq: &Receiver<Vec<EncodingPacket>>) -> Result<()
         config.to_udp, config.mtu, config.to_bind
     );
     let socket = UdpSocket::bind(config.to_bind)?;
-    sock_utils::set_socket_send_buffer_size(&socket, i32::MAX);
-    let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket);
+    sock_utils::set_socket_send_buffer_size(&socket, i32::MAX)?;
+    let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket)?;
     log::info!("UDP socket send buffer size set to {sock_buffer_size}");
     if (sock_buffer_size as u64)
         < 2 * (config.encoding_block_size + config.repair_block_size as u64)
@@ -69,7 +69,6 @@ fn main_loop(config: Config, recvq: &Receiver<Vec<EncodingPacket>>) -> Result<()
 
     loop {
         let packets = recvq.recv()?;
-
-        udp_messages.send_mmsg(packets.iter().map(EncodingPacket::serialize).collect());
+        udp_messages.send_mmsg(packets.iter().map(EncodingPacket::serialize).collect())?;
     }
 }

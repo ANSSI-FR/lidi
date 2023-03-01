@@ -234,8 +234,8 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     info!("listening for UDP packets at {}", config.from_udp);
     let socket = UdpSocket::bind(config.from_udp)?;
-    sock_utils::set_socket_recv_buffer_size(&socket, i32::MAX);
-    let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&socket);
+    sock_utils::set_socket_recv_buffer_size(&socket, i32::MAX)?;
+    let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&socket)?;
     log::info!("UDP socket receive buffer size set to {sock_buffer_size}");
     if (sock_buffer_size as u64)
         < 2 * (config.encoding_block_size + config.repair_block_size as u64)
@@ -280,15 +280,10 @@ fn main_loop(config: Config) -> Result<(), Error> {
         }
 
         loop {
-            let packets = udp_messages.recv_mmsg().map(EncodingPacket::deserialize);
-            if let Err(e) = udp_sendq.send(packets.collect()) {
-                error!("failed to receive UDP datagrams: {e}");
-                break;
-            }
+            let packets = udp_messages.recv_mmsg()?.map(EncodingPacket::deserialize);
+            udp_sendq.send(packets.collect())?;
         }
-    });
-
-    Ok(())
+    })
 }
 
 fn main() {

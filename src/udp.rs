@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::os::fd::AsRawFd;
-use std::{mem, net};
+use std::{io, mem, net};
 
 pub struct UdpRecv;
 pub struct UdpSend;
@@ -92,7 +92,7 @@ impl UdpMessages<UdpRecv> {
         Self::new(socket, vlen, Some(msglen), None)
     }
 
-    pub fn recv_mmsg(&mut self) -> impl Iterator<Item = &[u8]> {
+    pub fn recv_mmsg(&mut self) -> Result<impl Iterator<Item = &[u8]>, io::Error> {
         let nb_msg = unsafe {
             libc::recvmmsg(
                 self.socket.as_raw_fd(),
@@ -104,15 +104,15 @@ impl UdpMessages<UdpRecv> {
         };
 
         if nb_msg == -1 {
-            log::error!("libc::recvmmsg failed");
-            panic!();
+            Err(io::Error::new(io::ErrorKind::Other, "libc::recvmmsg"))
+        } else {
+            Ok(self
+                .buffers
+                .iter()
+                .take(nb_msg as usize)
+                .zip(self.msgvec.iter())
+                .map(|(buffer, msghdr)| &buffer[..msghdr.msg_len as usize]))
         }
-
-        self.buffers
-            .iter()
-            .take(nb_msg as usize)
-            .zip(self.msgvec.iter())
-            .map(|(buffer, msghdr)| &buffer[..msghdr.msg_len as usize])
     }
 }
 
@@ -126,7 +126,7 @@ impl UdpMessages<UdpSend> {
         Self::new(socket, vlen, None, Some(dest))
     }
 
-    pub fn send_mmsg(&mut self, mut buffers: Vec<Vec<u8>>) {
+    pub fn send_mmsg(&mut self, mut buffers: Vec<Vec<u8>>) -> Result<(), io::Error> {
         for bufchunk in buffers.chunks_mut(self.vlen) {
             let to_send = bufchunk.len();
 
@@ -146,12 +146,12 @@ impl UdpMessages<UdpSend> {
                 );
             }
             if nb_msg == -1 {
-                log::error!("libc::sendmmsg failed");
-                panic!();
+                return Err(io::Error::new(io::ErrorKind::Other, "libc::sendmmsg"));
             }
             if nb_msg as usize != to_send {
                 log::warn!("nb prepared messages doesn't match with nb sent messages");
             }
         }
+        Ok(())
     }
 }

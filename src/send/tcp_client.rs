@@ -81,10 +81,10 @@ fn main_loop(
     let mut transmitted = 0;
 
     client.shutdown(std::net::Shutdown::Write)?;
-    let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&client);
+    let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&client)?;
     if (sock_buffer_size as u32) < 2 * config.buffer_size {
-        sock_utils::set_socket_recv_buffer_size(&client, config.buffer_size as i32);
-        let new_sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&client);
+        sock_utils::set_socket_recv_buffer_size(&client, config.buffer_size as i32)?;
+        let new_sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&client)?;
         log::info!(
             "TCP socket recv buffer size set to {}",
             new_sock_buffer_size
