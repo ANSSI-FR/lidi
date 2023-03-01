@@ -1,3 +1,5 @@
+#![allow(unsafe_code)]
+
 use diode::file;
 use std::{
     ffi::{c_char, CStr},
@@ -47,7 +49,7 @@ pub unsafe extern "C" fn diode_send_file(
     if ptr.is_null() {
         return 0;
     }
-    let config = unsafe { ptr.as_ref() }.unwrap();
+    let config = unsafe { ptr.as_ref() }.expect("config");
 
     if ptr_filepath.is_null() {
         return 0;
@@ -64,7 +66,7 @@ pub unsafe extern "C" fn diode_receive_files(ptr: *mut file::Config, ptr_odir: *
     if ptr.is_null() {
         return;
     }
-    let config = unsafe { ptr.as_ref() }.unwrap();
+    let config = unsafe { ptr.as_ref() }.expect("config");
 
     if ptr_odir.is_null() {
         return;
