@@ -1,0 +1,21 @@
+[target.'cfg(feature = "cargo-clippy")']
+rustflags = [
+  "-Dunsafe_code",
+  "-Wclippy::all",
+  "-Wclippy::exit",
+  "-Wclippy::fallible_impl_from",
+  "-Wclippy::get_unwrap",
+  "-Wclippy::index_refutable_slice",
+  "-Wclippy::inline_always",
+  "-Wclippy::manual_assert",
+  "-Wclippy::manual_clamp",
+  "-Wclippy::match_on_vec_items",
+  "-Wclippy::match_wild_err_arm",
+  "-Wclippy::panic",
+  "-Wclippy::panic_in_result_fn",
+  "-Wclippy::string_slice",
+  "-Wclippy::unchecked_duration_subtraction",
+  "-Wclippy::unreachable",
+  "-Wclippy::unwrap_in_result",
+  "-Wclippy::unwrap_used",
+]
