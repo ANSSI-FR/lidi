@@ -37,10 +37,14 @@ fn main() {
         .expect("tcp read shutdown");
 
     let mut thread_rng = rand::thread_rng();
-    let mut buffer = vec![0; buffer_size];
+    let mut buffer = vec![0u8; buffer_size];
     thread_rng.fill_bytes(&mut buffer);
 
     loop {
+        let rnd = (thread_rng.next_u32() & 0xff) as u8;
+        for i in 0..buffer_size {
+            buffer[i] ^= rnd;
+        }
         log::debug!("sending buffer of {buffer_size} bytes");
         diode.write_all(&buffer).expect("tcp write");
     }
