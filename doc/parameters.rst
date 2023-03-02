@@ -9,6 +9,18 @@ When running `diode-send` and `diode-receive` with cargo, command line parameter
 
    $ cargo run --release --bin diode-send -- --help
 
+Overview
+--------
+
+Here is a diagram of the components involved in an example usage of lidi, annotated with command line parameters:
+
+.. image:: schema.svg
+
+.. note::
+   Parameters that are displayed in the gray box must be the same of both sides (sender and receiver) of lidi.
+
+Following, we provide some details about each command line options.
+
 Adresses and ports
 ------------------
 
@@ -43,13 +55,13 @@ UDP transfer is the core of the diode. Settings ip addresses and port is necessa
 
 .. code-block::
 
-  --to_udp <ip:port>
+   --to_udp <ip:port>
 
 describe where to send data and is defaulted to 127.0.0.1:6000, and socket is bound to address and port according to:
   
 .. code-block::
 
-  --to_bind <ip:port>
+   --to_bind <ip:port>
 
 which is defaulted to 0.0.0.0:0. This default value should work in many cases.
 
@@ -57,7 +69,7 @@ On the receiver side, the option:
 
 .. code-block::
 
-  --from_udp <ip:port>
+   --from_udp <ip:port>
 
 defines ip and port to listen for incoming UDP packets, and should be set to the same value as `--to-udp`.
 
@@ -68,27 +80,27 @@ Receiver:
 
 .. code-block::
 
-  --encoding_block_size <nb_bytes>
-    Size of RaptorQ block [default: 60000]
+   --encoding_block_size <nb_bytes>
+     Size of RaptorQ block [default: 60000]
   
-  --repair_block_size <ratior>
-    Size of repair data in bytes [default: 6000]
+   --repair_block_size <ratior>
+     Size of repair data in bytes [default: 6000]
 
-  --from_udp_mtu <nb_bytes>
-    MTU of the incoming UDP link [default: 1500]
+   --from_udp_mtu <nb_bytes>
+     MTU of the incoming UDP link [default: 1500]
   
 Sender:
 
 .. code-block::
 
-  --encoding_block_size <nb_bytes>
-    Size of RaptorQ block in bytes [default: 60000]
+   --encoding_block_size <nb_bytes>
+     Size of RaptorQ block in bytes [default: 60000]
   
-  --repair_block_size <ratior>
-    Size of repair data in bytes [default: 6000]
+   --repair_block_size <ratior>
+     Size of repair data in bytes [default: 6000]
 
-  --to_udp_mtu <nb_bytes>
-    MTU in bytes of output UDP link [default: 1500]
+   --to_udp_mtu <nb_bytes>
+     MTU in bytes of output UDP link [default: 1500]
 
 Multiplexing
 ------------
@@ -97,18 +109,18 @@ Receiver:
 
 .. code-block::
 
-  --nb_multiplex <nb>
-    Number of multiplexed transfers [default: 2]
+   --nb_multiplex <nb>
+     Number of multiplexed transfers [default: 2]
   
 Sender:
 
 .. code-block::
 
-  --nb_multiplex <nb>
-    Number of multiplexed transfers [default: 2]
+   --nb_multiplex <nb>
+     Number of multiplexed transfers [default: 2]
 
-  --nb_clients <nb>
-    Number of simultaneous transfers [default: 2]
+   --nb_clients <nb>
+     Number of simultaneous transfers [default: 2]
   
 
 Multithreading
@@ -118,24 +130,30 @@ To ensure data integrity through the UDP link, Lidi uses RaptorQ fountain codes.
 
 .. code-block::
 
-  --nb_encoding_threads <nb>
-    (sender side, default: 2)
+   --nb_encoding_threads <nb>
+     (sender side, default: 2)
 
-  --nb_decoding_threads <nb>
-    (receiver side, default: 1).
+   --nb_decoding_threads <nb>
+     (receiver side, default: 1).
 
 Timeouts
 --------
 
-Receiver:
+Since lidi uses UDP protocol to transfer data, blocks and datagrams can be reordered.
+Fountain codes are used to ensure data integrity despite possible transfer reordering and losses. Also, it can be harder for the receiving part to know that a particular transfer is done, since an EOF-like marker can be received before the end of the data, or simply lost.
+Thus, configurable timeouts are used in lidi to decide when to reset fountain code status:
 
 .. code-block::
 
-  --flush_timeout <nb_milliseconds>
-    Duration in milliseconds after resetting RaptorQ status [default: 500]
+   --flush_timeout <nb_milliseconds>
+     (receiver side, default: 500)
+
+and when to abort an incomplete incoming transfer:
   
-  --abort_timeout <nb_seconds>
-    Duration in seconds after a transfer without incoming data is aborted [default: 10]
+.. code-block::
+
+   --abort_timeout <nb_seconds>
+     (receiver side, default: 10)
 
 Heartbeat
 ---------
