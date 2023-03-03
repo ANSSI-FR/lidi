@@ -82,7 +82,6 @@ fn main_loop(
                         *to_receive = to_receive.wrapping_add(1);
                         break;
                     }
-                    thread::yield_now();
                 }
             }
         }
