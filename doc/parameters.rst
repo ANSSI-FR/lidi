@@ -105,23 +105,22 @@ Sender:
 Multiplexing
 ------------
 
-Receiver:
+Lidi can handle several transfers in parallel, so that big data transfer doesn't prevent other data chunk to be transfered.
+The following command line option can be used to act on multiplexing:
 
 .. code-block::
 
    --nb_multiplex <nb>
-     Number of multiplexed transfers [default: 2]
-  
-Sender:
+
+It repesents the number of multiplexed transfers, is defaulted to 2, and can be set on both sender and receiver sides.
+
+Moreover, it is possible to set the number of simultaneous TCP client connections on the sender side, with the option:
 
 .. code-block::
-
-   --nb_multiplex <nb>
-     Number of multiplexed transfers [default: 2]
 
    --nb_clients <nb>
-     Number of simultaneous transfers [default: 2]
-  
+
+which has the default value set to 2.
 
 Multithreading
 --------------
