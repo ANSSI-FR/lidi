@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Getting started &mdash; Lidi 0.7.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Command line parameters" href="parameters.html" />
+    <link rel="prev" title="Welcome to Lidi’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lidi
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Getting started</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#building-from-scratch">Building from scratch</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#building">Building</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#setting-up-a-simple-case">Setting up a simple case</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tweaking.html">Tweaking parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sending files with Lidi</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Lidi</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Getting started</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/gstarted.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="getting-started">
+<span id="id1"></span><h1>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this heading"></a></h1>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h2>
+<section id="building-from-scratch">
+<h3>Building from scratch<a class="headerlink" href="#building-from-scratch" title="Permalink to this heading"></a></h3>
+<section id="prerequisites">
+<h4>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this heading"></a></h4>
+<p>The following dependencies are needed in order to build lidi from scratch.</p>
+<ul class="simple">
+<li><p><cite>rust</cite> and <cite>cargo</cite></p></li>
+</ul>
+<p>The usual way to install the rust toolchain is to firstly install the tool <cite>rustup</cite>.
+Once <cite>rustup</cite> is available, you can simply run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ rustup install stable
+</pre></div>
+</div>
+</section>
+<section id="building">
+<h4>Building<a class="headerlink" href="#building" title="Permalink to this heading"></a></h4>
+<p>Building lidi is fairly easy once you have all the dependencies set-up:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo build --release
+</pre></div>
+</div>
+<p>This step provides you with the two main binaries for lidi: the sender and the receiver part, in addition to other utilitary binaries, such as file sending/receiving ones.</p>
+</section>
+</section>
+</section>
+<section id="setting-up-a-simple-case">
+<h2>Setting up a simple case<a class="headerlink" href="#setting-up-a-simple-case" title="Permalink to this heading"></a></h2>
+<p>The simplest case we can set up is to have lidi sender and receiver part running on the same machine. Next, we will use <cite>netcat</cite> tool to actually send and receive data over the (software) diode link.</p>
+<p>In a first terminal, we start by running the sender part of lidi with default parameters:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send
+</pre></div>
+</div>
+<p>Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5000 and that the traffic will go through the diode on UDP port 6000.</p>
+<p>Next, we run the receiving part of lidi, with default parameters too:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-receive
+</pre></div>
+</div>
+<p>This time, logging will indicate that traffic will come up on UDP port 6000 and that transferred content will be served on TCP port 7000.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Warning messages about the receiver not receiving the heartbeat message may appear on the receiving part terminal. For example, this is the case if the receiver part is launched several seconds before the sender part is run.
+If it is the case, double check that the sender part is still running and that ip addresses and ports for the UDP traffic are the same on the two parts.</p>
+</div>
+<p>The diode is now waiting for TCP connections to send and receive data.
+We run a first netcat instance waiting for connection on port 7000 with the following command:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc -lvp 7000
+</pre></div>
+</div>
+<p>Finally, we should be able to connect and send raw data through the diode in a fourth terminal:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc 127.0.0.1 5000
+Hello Lidi!
+&lt;Ctrl-D&gt;
+</pre></div>
+</div>
+<p>The message should have been transfered with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!</p>
+<p>Next steps is to review <a class="reference internal" href="parameters.html#command-line-parameters"><span class="std std-ref">Command line parameters</span></a> to adapt them to your use case, and eventually <a class="reference internal" href="tweaking.html#tweaking-parameters"><span class="std std-ref">Tweaking parameters</span></a> to achieve optimal transfer performances.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to Lidi’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="parameters.html" class="btn btn-neutral float-right" title="Command line parameters" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, ANSSI-FR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Creator: fig2dev Version 3.2.8b -->
+<!-- CreationDate: 2023-03-03 14:27:58 -->
+<!-- Magnification: 1 -->
+<svg	xmlns="http://www.w3.org/2000/svg"
+	xmlns:xlink="http://www.w3.org/1999/xlink"
+	width="794pt" height="290pt"
+	viewBox="6588 1638 13224 4824">
+<g fill="none">
+<!-- Line -->
+<defs>
+<clipPath id="cp0">
+	<path clip-rule="evenodd" d="M 6588,1638 H 19812 V 6462 H 6588 z
+		M 14425,3413 14448,3450 14425,3488 14561,3461 14561,3440z"/>
+</clipPath>
+</defs>
+<polyline points=" 14550,3450 10650,3450" clip-path="url(#cp0)"
+	stroke="#000000" stroke-width="15px"/>
+<!-- Backward arrow to point 14550,3450 -->
+<polygon points=" 14425,3488 14538,3450 14425,3413 14448,3450 14425,3488"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<rect x="8550" y="4650" width="9225" height="1575" rx="105" fill="#e5e5e5"/>
+<!-- Circle -->
+<circle cx="12599" cy="3450" r="451" fill="#ffffff"
+	stroke="#000000" stroke-width="15px"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp1">
+	<path clip-rule="evenodd" d="M 6588,1638 H 19812 V 6462 H 6588 z
+		M 8575,3413 8598,3450 8575,3488 8711,3461 8711,3440z"/>
+</clipPath>
+</defs>
+<polyline points=" 8700,3450 7650,3450" clip-path="url(#cp1)"
+	stroke="#000000" stroke-width="15px"/>
+<!-- Backward arrow to point 8700,3450 -->
+<polygon points=" 8575,3488 8688,3450 8575,3413 8598,3450 8575,3488"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp2">
+	<path clip-rule="evenodd" d="M 6588,1638 H 19812 V 6462 H 6588 z
+		M 8586,3312 8600,3354 8570,3386 8708,3387 8712,3367z"/>
+</clipPath>
+</defs>
+<polyline points=" 8700,3375 7650,3150" clip-path="url(#cp2)"
+	stroke="#000000" stroke-width="15px"/>
+<!-- Backward arrow to point 8700,3375 -->
+<polygon points=" 8570,3386 8688,3372 8586,3312 8600,3354 8570,3386"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp3">
+	<path clip-rule="evenodd" d="M 6588,1638 H 19812 V 6462 H 6588 z
+		M 8570,3514 8600,3546 8586,3588 8712,3533 8708,3513z"/>
+</clipPath>
+</defs>
+<polyline points=" 8700,3525 7650,3750" clip-path="url(#cp3)"
+	stroke="#000000" stroke-width="15px"/>
+<!-- Backward arrow to point 8700,3525 -->
+<polygon points=" 8586,3588 8688,3528 8570,3514 8600,3546 8586,3588"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp4">
+	<path clip-rule="evenodd" d="M 6588,1638 H 19812 V 6462 H 6588 z
+		M 18631,3322 18649,3362 18622,3397 18759,3387 18762,3366z"/>
+</clipPath>
+</defs>
+<polyline points=" 18750,3375 16950,3150" clip-path="url(#cp4)"
+	stroke="#000000" stroke-width="15px"/>
+<!-- Backward arrow to point 18750,3375 -->
+<polygon points=" 18622,3397 18738,3373 18631,3322 18649,3362 18622,3397"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp5">
+	<path clip-rule="evenodd" d="M 6588,1638 H 19812 V 6462 H 6588 z
+		M 18625,3413 18648,3450 18625,3488 18761,3461 18761,3440z"/>
+</clipPath>
+</defs>
+<polyline points=" 18750,3450 16950,3450" clip-path="url(#cp5)"
+	stroke="#000000" stroke-width="15px"/>
+<!-- Backward arrow to point 18750,3450 -->
+<polygon points=" 18625,3488 18738,3450 18625,3413 18648,3450 18625,3488"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<rect x="14550" y="3000" width="2400" height="900" rx="105"
+	stroke="#000000" stroke-width="8px"/>
+<!-- Line -->
+<rect x="8700" y="3000" width="1950" height="900" rx="105"
+	stroke="#000000" stroke-width="8px"/>
+<!-- Line -->
+<defs>
+<clipPath id="cp6">
+	<path clip-rule="evenodd" d="M 6588,1638 H 19812 V 6462 H 6588 z
+		M 18622,3503 18649,3538 18631,3578 18762,3534 18759,3513z"/>
+</clipPath>
+</defs>
+<polyline points=" 18750,3525 16950,3750" clip-path="url(#cp6)"
+	stroke="#000000" stroke-width="15px"/>
+<!-- Backward arrow to point 18750,3525 -->
+<polygon points=" 18631,3578 18738,3527 18622,3503 18649,3538 18631,3578"
+	stroke="#000000" stroke-width="8px" stroke-miterlimit="8" fill="#000000"/>
+<!-- Line -->
+<rect x="6600" y="1650" width="13200" height="4800"
+	stroke="#ffffff" stroke-width="8px"/>
+<!-- Line -->
+<polyline points=" 16950,2475 16950,2473 16952,2469 16954,2462 16957,2452 16962,2441 16968,2428
+ 16976,2416 16985,2405 16995,2395 17007,2386 17021,2379 17037,2373 17055,2369
+ 17076,2365 17100,2363 17118,2361 17137,2360 17158,2360 17180,2359 17204,2359
+ 17229,2359 17255,2359 17283,2360 17311,2360 17340,2361 17370,2362 17400,2363
+ 17430,2363 17460,2364 17489,2365 17517,2365 17545,2366 17571,2366 17596,2366
+ 17620,2366 17642,2365 17663,2365 17682,2364 17700,2363 17728,2360 17752,2356
+ 17773,2351 17791,2345 17806,2339 17819,2333 17829,2327 17837,2321 17843,2315
+ 17846,2310 17848,2306 17850,2303 17850,2301 17850,2300 17850,2301 17850,2303
+ 17852,2306 17854,2310 17857,2315 17863,2321 17871,2327 17881,2333 17894,2339
+ 17909,2345 17927,2351 17948,2356 17972,2360 18000,2363 18018,2364 18037,2365
+ 18058,2365 18080,2366 18104,2366 18129,2366 18155,2366 18183,2365 18211,2365
+ 18240,2364 18270,2363 18300,2362 18330,2362 18360,2361 18389,2360 18417,2360
+ 18445,2359 18471,2359 18496,2359 18520,2359 18542,2360 18563,2360 18582,2361
+ 18600,2363 18624,2365 18645,2369 18663,2373 18679,2379 18693,2386 18705,2395
+ 18715,2405 18724,2416 18732,2428 18738,2441 18743,2452 18746,2462 18748,2469
+ 18750,2473 18750,2475"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="bevel"/>
+<!-- Line -->
+<polyline points=" 6900,2475 6900,2473 6902,2469 6904,2462 6907,2452 6912,2441 6918,2428 6926,2416
+ 6935,2405 6945,2395 6957,2386 6971,2379 6987,2373 7005,2369 7026,2365 7050,2363
+ 7068,2361 7087,2360 7108,2360 7130,2359 7154,2359 7179,2359 7205,2359 7233,2360
+ 7261,2360 7290,2361 7320,2362 7350,2363 7380,2363 7410,2364 7439,2365 7467,2365
+ 7495,2366 7521,2366 7546,2366 7570,2366 7592,2365 7613,2365 7632,2364 7650,2363
+ 7678,2360 7702,2356 7723,2351 7741,2345 7756,2339 7769,2333 7779,2327 7787,2321
+ 7793,2315 7796,2310 7798,2306 7800,2303 7800,2301 7800,2300 7800,2301 7800,2303
+ 7802,2306 7804,2310 7807,2315 7813,2321 7821,2327 7831,2333 7844,2339 7859,2345
+ 7877,2351 7898,2356 7922,2360 7950,2363 7968,2364 7987,2365 8008,2365 8030,2366
+ 8054,2366 8079,2366 8105,2366 8133,2365 8161,2365 8190,2364 8220,2363 8250,2362
+ 8280,2362 8310,2361 8339,2360 8367,2360 8395,2359 8421,2359 8446,2359 8470,2359
+ 8492,2360 8513,2360 8532,2361 8550,2363 8574,2365 8595,2369 8613,2373 8629,2379
+ 8643,2386 8655,2395 8665,2405 8674,2416 8682,2428 8688,2441 8693,2452 8696,2462
+ 8698,2469 8700,2473 8700,2475"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="bevel"/>
+<!-- Line -->
+<polyline points=" 10650,2475 10651,2474 10652,2472 10654,2468 10658,2462 10664,2454 10671,2445
+ 10681,2436 10693,2426 10706,2416 10721,2407 10739,2399 10758,2391 10779,2385
+ 10803,2379 10830,2374 10860,2370 10894,2367 10933,2364 10975,2363 11001,2362
+ 11027,2361 11056,2360 11085,2360 11116,2359 11149,2359 11183,2359 11218,2359
+ 11255,2359 11292,2359 11331,2360 11371,2360 11412,2360 11454,2361 11496,2361
+ 11539,2361 11582,2362 11625,2363 11668,2363 11711,2364 11754,2364 11796,2364
+ 11838,2365 11879,2365 11919,2365 11958,2366 11995,2366 12032,2366 12067,2366
+ 12101,2366 12134,2366 12165,2365 12194,2365 12223,2364 12249,2363 12275,2363
+ 12322,2360 12365,2357 12403,2354 12437,2350 12468,2346 12495,2341 12518,2337
+ 12538,2332 12555,2327 12568,2322 12579,2317 12587,2313 12592,2309 12596,2306
+ 12598,2303 12600,2302 12600,2300 12600,2302 12602,2303 12604,2306 12608,2309
+ 12613,2313 12621,2317 12632,2322 12645,2327 12662,2332 12682,2337 12705,2341
+ 12732,2346 12763,2350 12797,2354 12835,2357 12878,2360 12925,2363 12951,2363
+ 12977,2364 13006,2365 13035,2365 13066,2366 13099,2366 13133,2366 13168,2366
+ 13205,2366 13242,2366 13281,2365 13321,2365 13362,2365 13404,2364 13446,2364
+ 13489,2364 13532,2363 13575,2362 13618,2362 13661,2361 13704,2361 13746,2361
+ 13788,2360 13829,2360 13869,2360 13908,2359 13945,2359 13982,2359 14017,2359
+ 14051,2359 14084,2359 14115,2360 14144,2360 14173,2361 14199,2362 14225,2363
+ 14267,2364 14306,2367 14340,2370 14370,2374 14397,2379 14421,2385 14442,2391
+ 14461,2399 14479,2407 14494,2416 14507,2426 14519,2436 14529,2445 14536,2454
+ 14542,2462 14546,2468 14548,2472 14549,2474 14550,2475"
+	stroke="#000000" stroke-width="8px" stroke-linejoin="bevel"/>
+<!-- Text -->
+<text xml:space="preserve" x="9675" y="3525" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="192" text-anchor="middle">diode-send</text>
+<!-- Text -->
+<text xml:space="preserve" x="7500" y="3225" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="132" text-anchor="end">client 1</text>
+<!-- Text -->
+<text xml:space="preserve" x="7800" y="2100" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">TCP connections</text>
+<!-- Text -->
+<text xml:space="preserve" x="7500" y="3450" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="132" text-anchor="end">...</text>
+<!-- Text -->
+<text xml:space="preserve" x="12600" y="2100" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">UDP datagrams</text>
+<!-- Text -->
+<!-- 8 -->
+<text xml:space="preserve" x="15750" y="3525" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="192" text-anchor="middle">diode-receive</text>
+<!-- Text -->
+<text xml:space="preserve" x="16950" y="2850" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="120" text-anchor="middle">192.168.3.1</text>
+<!-- Text -->
+<text xml:space="preserve" x="18900" y="2850" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="120" text-anchor="middle">192.168.3.2:7000</text>
+<!-- Text -->
+<text xml:space="preserve" x="14550" y="2850" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="120" text-anchor="middle">192.168.2.2:6000</text>
+<!-- Text -->
+<text xml:space="preserve" x="8700" y="4275" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--from_tcp 192.168.1.1:5000</text>
+<!-- Text -->
+<text xml:space="preserve" x="7500" y="3750" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="132" text-anchor="end">client n</text>
+<!-- Text -->
+<text xml:space="preserve" x="10650" y="2850" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="120" text-anchor="middle">192.168.2.1</text>
+<!-- Text -->
+<text xml:space="preserve" x="8700" y="2850" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="120" text-anchor="middle">192.168.1.1:5000</text>
+<!-- Text -->
+<text xml:space="preserve" x="17850" y="2100" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="168" text-anchor="middle">TCP connections</text>
+<!-- Text -->
+<text xml:space="preserve" x="14550" y="6075" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--repair_block_size 30000</text>
+<!-- Text -->
+<text xml:space="preserve" x="14550" y="5775" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--encoding_block_size 300000</text>
+<!-- Text -->
+<text xml:space="preserve" x="14550" y="5475" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--from_udp_mtu 9000</text>
+<!-- Text -->
+<text xml:space="preserve" x="14550" y="5175" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--from_udp 192.168.2.2:6000</text>
+<!-- Text -->
+<text xml:space="preserve" x="8700" y="5775" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--encoding_block_size 300000</text>
+<!-- Text -->
+<text xml:space="preserve" x="8700" y="6075" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--repair_block_size 30000</text>
+<!-- Text -->
+<text xml:space="preserve" x="8700" y="5475" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--to_udp_mtu 9000</text>
+<!-- Text -->
+<text xml:space="preserve" x="8700" y="5175" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--to_udp 192.168.2.2:6000</text>
+<!-- Text -->
+<text xml:space="preserve" x="8700" y="4575" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--to_bind 192.168.2.1:0</text>
+<!-- Text -->
+<text xml:space="preserve" x="14550" y="4575" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--to_tcp 192.168.3.2:7000</text>
+<!-- Text -->
+<text xml:space="preserve" x="14550" y="4875" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--nb_clients n</text>
+<!-- Text -->
+<text xml:space="preserve" x="8700" y="4875" fill="#000000" font-family="AvantGarde" font-style="italic" font-weight="normal" font-size="132" text-anchor="start">--nb_clients n</text>
+<!-- Line -->
+<rect x="17250" y="3075" width="750" height="750" fill="#ffffff"
+	stroke="#ffffff" stroke-width="8px"/>
+<!-- Line -->
+<polygon points=" 12375,3225 12750,3450 12375,3675" fill="#000000"
+	stroke="#000000" stroke-width="8px"/>
+<!-- Line -->
+<rect x="12750" y="3225" width="75" height="450" fill="#000000"
+	stroke="#000000" stroke-width="8px"/>
+<!-- Text -->
+<text xml:space="preserve" x="17625" y="3450" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="132" text-anchor="middle">...</text>
+<!-- Text -->
+<text xml:space="preserve" x="17625" y="3225" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="132" text-anchor="middle">client 1</text>
+<!-- Text -->
+<text xml:space="preserve" x="17625" y="3750" fill="#000000" font-family="AvantGarde" font-style="normal" font-weight="normal" font-size="132" text-anchor="middle">client n</text>
+</g>
+</svg>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Command line parameters &mdash; Lidi 0.7.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Tweaking parameters" href="tweaking.html" />
+    <link rel="prev" title="Getting started" href="gstarted.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Lidi
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Command line parameters</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#adresses-and-ports">Adresses and ports</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#tcp-data-source">TCP data source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tcp-data-destination">TCP data destination</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#udp-transfer">UDP transfer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#block-and-packet-sizes">Block and packet sizes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multiplexing">Multiplexing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multithreading">Multithreading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#timeouts">Timeouts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#heartbeat">Heartbeat</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="tweaking.html">Tweaking parameters</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sending files with Lidi</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Lidi</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Command line parameters</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/parameters.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="command-line-parameters">
+<span id="id1"></span><h1>Command line parameters<a class="headerlink" href="#command-line-parameters" title="Permalink to this heading"></a></h1>
+<p>When running <cite>diode-send</cite> and <cite>diode-receive</cite> with cargo, command line parameters must appear after after double-hyphen separator. For example, to display all available options for the sender part:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send -- --help
+</pre></div>
+</div>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading"></a></h2>
+<p>Here is a diagram of the components involved in an example usage of lidi, annotated with command line parameters:</p>
+<img alt="_images/schema.svg" src="_images/schema.svg" /><div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Parameters that are displayed in the gray box must be the same of both sides (sender and receiver) of lidi.</p>
+</div>
+<p>Following, we provide some details about each command line options.</p>
+</section>
+<section id="adresses-and-ports">
+<h2>Adresses and ports<a class="headerlink" href="#adresses-and-ports" title="Permalink to this heading"></a></h2>
+<p>As shown in the <a class="reference internal" href="gstarted.html#getting-started"><span class="std std-ref">Getting started</span></a> chapter, default values work well for testing the diode on a single machine. But for real application, ip addresses and ports must be configured properly. There are three points in the diode chain where those settings should be provided.</p>
+<section id="tcp-data-source">
+<h3>TCP data source<a class="headerlink" href="#tcp-data-source" title="Permalink to this heading"></a></h3>
+<p>The diode-send side gets data from TCP connections. It is necessary to specify ip address and port in which TCP connections will be accepted with the following parameter:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">from_tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Default value is 127.0.0.1:5000.</p>
+</section>
+<section id="tcp-data-destination">
+<h3>TCP data destination<a class="headerlink" href="#tcp-data-destination" title="Permalink to this heading"></a></h3>
+<p>On the diode-receive side, data will be sent to TCP connected clients. To specify listening ip and TCP port:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Default value is 127.0.0.1:7000.</p>
+</section>
+<section id="udp-transfer">
+<h3>UDP transfer<a class="headerlink" href="#udp-transfer" title="Permalink to this heading"></a></h3>
+<p>UDP transfer is the core of the diode. Settings ip addresses and port is necessary. On the sender side:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_udp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>describe where to send data and is defaulted to 127.0.0.1:6000, and socket is bound to address and port according to:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_bind</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>which is defaulted to 0.0.0.0:0. This default value should work in many cases.</p>
+<p>On the receiver side, the option:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">from_udp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>defines ip and port to listen for incoming UDP packets, and should be set to the same value as <cite>–to-udp</cite>.</p>
+</section>
+</section>
+<section id="block-and-packet-sizes">
+<h2>Block and packet sizes<a class="headerlink" href="#block-and-packet-sizes" title="Permalink to this heading"></a></h2>
+<p>To be transferred through the diode, data is sliced by lidi at different levels:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>into <cite>blocks</cite> at the logical fountain codes level,</p></li>
+<li><p>into <cite>packets</cite> at the UDP transfer level.</p></li>
+</ul>
+</div></blockquote>
+<p>One can have effect on the slicing sizes to achieve optimal performances by using several command line options.
+Firstly, MTU can be set on both diodes side, and should be set to the same values:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_udp_mtu</span> <span class="o">&lt;</span><span class="n">nb_bytes</span><span class="o">&gt;</span>
+  <span class="n">on</span> <span class="n">the</span> <span class="n">sender</span> <span class="n">side</span>
+</pre></div>
+</div>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">from_udp_mtu</span> <span class="o">&lt;</span><span class="n">nb_bytes</span><span class="o">&gt;</span>
+  <span class="n">on</span> <span class="n">the</span> <span class="n">receiver</span> <span class="n">side</span>
+</pre></div>
+</div>
+<p>Default MTU values are set to 1500 and can be increased when network devices allow for higher values.</p>
+<p>Then, on the logical level, fountain codes operates on blocks. If blocks reordering produces errors, they can be increased too. Repair blocks represent redundancy and are used by fountain codes to ensure data reconstruction. On both sides, parameters have the same name and must be set to the same values:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">encoding_block_size</span> <span class="o">&lt;</span><span class="n">nb_bytes</span><span class="o">&gt;</span>
+
+<span class="o">--</span><span class="n">repair_block_size</span> <span class="o">&lt;</span><span class="n">ratior</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>The default value for an encoding block is 60000, and repair block size is defaulted to 10% of this value (6000).
+See the <a class="reference internal" href="tweaking.html#tweaking-parameters"><span class="std std-ref">Tweaking parameters</span></a> chapter for more details on how to choose optimal values for your particular use case and devices.</p>
+</section>
+<section id="multiplexing">
+<h2>Multiplexing<a class="headerlink" href="#multiplexing" title="Permalink to this heading"></a></h2>
+<p>Lidi can handle several transfers in parallel, so that big data transfer doesn’t prevent other data chunks to be handled. The number of transfers in parallel is adapted by lidi according to the number of TCP clients that can be connected simultaneously.It can be configured on both sides with the option:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">nb_clients</span> <span class="o">&lt;</span><span class="n">nb</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>which has its default value set to 2.</p>
+<p>Although not strictly required nor enforced by lidi, the number of TCP clients on sender side and on receiver side will be equals in mosts use cases for better results.</p>
+</section>
+<section id="multithreading">
+<h2>Multithreading<a class="headerlink" href="#multithreading" title="Permalink to this heading"></a></h2>
+<p>To ensure data integrity through the UDP link, Lidi uses RaptorQ fountain codes. This means that logical block of data need to be encoded (sender side) and then decoded (receiver side). Several threads can be spawned to parallelized such computations, with the following options:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">nb_encoding_threads</span> <span class="o">&lt;</span><span class="n">nb</span><span class="o">&gt;</span>
+  <span class="p">(</span><span class="n">sender</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">2</span><span class="p">)</span>
+
+<span class="o">--</span><span class="n">nb_decoding_threads</span> <span class="o">&lt;</span><span class="n">nb</span><span class="o">&gt;</span>
+  <span class="p">(</span><span class="n">receiver</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span>
+</pre></div>
+</div>
+</section>
+<section id="timeouts">
+<h2>Timeouts<a class="headerlink" href="#timeouts" title="Permalink to this heading"></a></h2>
+<p>Since lidi uses UDP protocol to transfer data, blocks and datagrams can be reordered.
+Fountain codes are used to ensure data integrity despite possible transfer reordering and losses. Also, it can be harder for the receiving part to know that a particular transfer is done, since an EOF-like marker can be received before the end of the data, or simply lost.
+Thus, configurable timeouts are used in lidi to decide when to reset fountain code status:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">flush_timeout</span> <span class="o">&lt;</span><span class="n">nb_milliseconds</span><span class="o">&gt;</span>
+  <span class="p">(</span><span class="n">receiver</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">500</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>and when to abort an incomplete incoming transfer:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">abort_timeout</span> <span class="o">&lt;</span><span class="n">nb_seconds</span><span class="o">&gt;</span>
+  <span class="p">(</span><span class="n">receiver</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="heartbeat">
+<h2>Heartbeat<a class="headerlink" href="#heartbeat" title="Permalink to this heading"></a></h2>
+<p>Since the purpose of the diode is to only allow one-way data traffic, the sender cannot be aware if a receiver is set up or not. But heartbeat messages are regularly sent through the diode so that the receiver can be aware of a sender disconnection. Heartbeat times can be set with the following option on both sides:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">heartbeat</span> <span class="o">&lt;</span><span class="n">nb_secs</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>The default values are 5 seconds for the sender (i.e. a heartbeat message is sent every 5 seconds) and 10 seconds for the receiver (i.e. warnings are displayed whenever during 10 seconds no heartbeat message was received). Due to latency, timeouts and network load, the receiver value must always be greater than the sender value.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="gstarted.html" class="btn btn-neutral float-left" title="Getting started" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="tweaking.html" class="btn btn-neutral float-right" title="Tweaking parameters" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, ANSSI-FR.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
