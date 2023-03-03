@@ -5,7 +5,7 @@
 
 ## What is lidi?
 
-Lidi (leedee) allows you to copy a raw TCP stream or files over a unidirectional link.
+Lidi (leedee) allows you to copy TCP streams (or files) over a unidirectional link.
 
 It is usually used along with an actual network diode device but it can also be used over regular bidirectional links for testing purposes.
 
@@ -13,7 +13,7 @@ For more information about the general purpose and concept of unidirectional net
 
 ## Why lidi?
 
-Lidi has been developed to answer a specific need: copy a raw TCP stream or files across a unidirectional link fast and reliably.
+Lidi has been developed to answer a specific need: copy TCP streams (or files) across a unidirectional link fast and reliably.
 
 Lidi was designed from the ground up to achieve these goals, for example the Rust language has been chosen for its strong safety properties as well as its very good performance profile.
 
@@ -23,9 +23,9 @@ If you want to run lidi closer to its intended speed, please set the following s
 
 ```
 net.core.rmem_max=67108864
-net.core.rmem_default=67108864
-net.core.netdev_max_backlog=10000
-net.ipv4.udp_mem="12148128 16197504 24296256"
+net.core.wmem_max=67108864
+net.core.netdev_max_backlog=1000
+net.ipv4.udp_mem="12148128 16197504 67108864"
 ```
 
 ## Building from scratch
