@@ -42,8 +42,8 @@ fn main() {
 
     loop {
         let rnd = (thread_rng.next_u32() & 0xff) as u8;
-        for i in 0..buffer_size {
-            buffer[i] ^= rnd;
+        for n in buffer.iter_mut() {
+            *n ^= rnd;
         }
         log::debug!("sending buffer of {buffer_size} bytes");
         diode.write_all(&buffer).expect("tcp write");
