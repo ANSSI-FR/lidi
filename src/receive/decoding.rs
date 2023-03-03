@@ -2,7 +2,7 @@ use crate::protocol;
 use crossbeam_channel::{Receiver, RecvError, SendError, Sender};
 use log::{error, trace, warn};
 use raptorq::{self, EncodingPacket, ObjectTransmissionInformation, SourceBlockDecoder};
-use std::{fmt, sync::Mutex, thread};
+use std::{fmt, sync::Mutex};
 
 pub struct Config {
     pub object_transmission_info: ObjectTransmissionInformation,
