@@ -76,31 +76,33 @@ defines ip and port to listen for incoming UDP packets, and should be set to the
 Block and packet sizes
 ----------------------
 
-Receiver:
+To be transferred through the diode, data is sliced by lidi at different levels:
+ - into `blocks` at the logical fountain codes level,
+ - into `packets` at the UDP transfer level
+One can have effect on the slicing sizes to achieve optimal performances by using several command line options.
+Firstly, MTU can be set on both diodes side, and should be set to the same values:
 
 .. code-block::
+   --to_udp_mtu <nb_bytes>
+     on the sender side
 
-   --encoding_block_size <nb_bytes>
-     Size of RaptorQ block [default: 60000]
-  
-   --repair_block_size <ratior>
-     Size of repair data in bytes [default: 6000]
+.. code-block::
 
    --from_udp_mtu <nb_bytes>
-     MTU of the incoming UDP link [default: 1500]
-  
-Sender:
+     on the receiver side
+
+Default MTU values are set to 1500 and can be increase when network devices allow for higher values.
+
+Then, on the logical level, fountain codes operates on blocks. If blocks reordering produces errors, they can be increased too. Repair blocks represent redundancy and are used by fountain codes to ensure data reconstruction. On both sides, parameters have the same name and must be set to the same values:
 
 .. code-block::
 
    --encoding_block_size <nb_bytes>
-     Size of RaptorQ block in bytes [default: 60000]
   
    --repair_block_size <ratior>
-     Size of repair data in bytes [default: 6000]
 
-   --to_udp_mtu <nb_bytes>
-     MTU in bytes of output UDP link [default: 1500]
+The default value for an encoding block is 60000, and repair block size is defaulted to 10% of this value (6000).
+See the :ref:`Tweaking parameters` chapter for more details on how to choose optimal values for your particular use case and devices.
 
 Multiplexing
 ------------
@@ -121,6 +123,8 @@ Moreover, it is possible to set the number of simultaneous TCP client connection
    --nb_clients <nb>
 
 which has the default value set to 2.
+
+Although not strictly required nor enforced by lidi, the number of TCP clients and the number of multiplexed transfers will be equals in most of the use cases.
 
 Multithreading
 --------------
