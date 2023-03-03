@@ -78,11 +78,13 @@ Block and packet sizes
 
 To be transferred through the diode, data is sliced by lidi at different levels:
  - into `blocks` at the logical fountain codes level,
- - into `packets` at the UDP transfer level
+ - into `packets` at the UDP transfer level.
+
 One can have effect on the slicing sizes to achieve optimal performances by using several command line options.
 Firstly, MTU can be set on both diodes side, and should be set to the same values:
 
 .. code-block::
+
    --to_udp_mtu <nb_bytes>
      on the sender side
 
@@ -91,7 +93,7 @@ Firstly, MTU can be set on both diodes side, and should be set to the same value
    --from_udp_mtu <nb_bytes>
      on the receiver side
 
-Default MTU values are set to 1500 and can be increase when network devices allow for higher values.
+Default MTU values are set to 1500 and can be increased when network devices allow for higher values.
 
 Then, on the logical level, fountain codes operates on blocks. If blocks reordering produces errors, they can be increased too. Repair blocks represent redundancy and are used by fountain codes to ensure data reconstruction. On both sides, parameters have the same name and must be set to the same values:
 
@@ -107,24 +109,15 @@ See the :ref:`Tweaking parameters` chapter for more details on how to choose opt
 Multiplexing
 ------------
 
-Lidi can handle several transfers in parallel, so that big data transfer doesn't prevent other data chunk to be transfered.
-The following command line option can be used to act on multiplexing:
-
-.. code-block::
-
-   --nb_multiplex <nb>
-
-It repesents the number of multiplexed transfers, is defaulted to 2, and can be set on both sender and receiver sides.
-
-Moreover, it is possible to set the number of simultaneous TCP client connections on the sender side, with the option:
+Lidi can handle several transfers in parallel, so that big data transfer doesn't prevent other data chunks to be handled. The number of transfers in parallel is adapted by lidi according to the number of TCP clients that can be connected simultaneously.It can be configured on both sides with the option: 
 
 .. code-block::
 
    --nb_clients <nb>
 
-which has the default value set to 2.
+which has its default value set to 2.
 
-Although not strictly required nor enforced by lidi, the number of TCP clients and the number of multiplexed transfers will be equals in most of the use cases.
+Although not strictly required nor enforced by lidi, the number of TCP clients on sender side and on receiver side will be equals in mosts use cases for better results.
 
 Multithreading
 --------------
