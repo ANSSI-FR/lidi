@@ -77,6 +77,7 @@ Block and packet sizes
 ----------------------
 
 To be transferred through the diode, data is sliced by lidi at different levels:
+
  - into `blocks` at the logical fountain codes level,
  - into `packets` at the UDP transfer level.
 
