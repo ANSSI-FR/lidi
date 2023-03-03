@@ -17,7 +17,7 @@ struct Config {
     from_udp: SocketAddr,
     from_udp_mtu: u16,
 
-    nb_multiplex: u16,
+    nb_clients: u16,
 
     nb_decoding_threads: u8,
 
@@ -63,12 +63,12 @@ fn command_args() -> Config {
                 .help("MTU of the incoming UDP link"),
         )
         .arg(
-            Arg::new("nb_multiplex")
-                .long("nb_multiplex")
+            Arg::new("nb_clients")
+                .long("nb_clients")
                 .value_name("nb")
                 .default_value("2")
                 .value_parser(clap::value_parser!(u16))
-                .help("Number of multiplexed transfers"),
+                .help("Number of simultaneous transfers"),
         )
         .arg(
             Arg::new("nb_decoding_threads")
@@ -130,7 +130,7 @@ fn command_args() -> Config {
     let from_udp = SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
         .expect("invalid from_udp_parameter");
     let from_udp_mtu = *args.get_one::<u16>("from_udp_mtu").expect("default");
-    let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
+    let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
     let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
@@ -145,7 +145,7 @@ fn command_args() -> Config {
     Config {
         from_udp,
         from_udp_mtu,
-        nb_multiplex,
+        nb_clients,
         nb_decoding_threads,
         encoding_block_size,
         repair_block_size,
@@ -196,7 +196,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
     let (udp_sendq, udp_recvq) = unbounded::<Vec<EncodingPacket>>();
 
     let dispatch_config = dispatch::Config {
-        nb_multiplex: config.nb_multiplex,
+        nb_multiplex: config.nb_clients,
         to_tcp: config.to_tcp,
         to_tcp_buffer_size: config.encoding_block_size as usize
             - protocol::Message::serialize_overhead(),
@@ -223,10 +223,10 @@ fn main_loop(config: Config) -> Result<(), Error> {
     };
 
     info!(
-        "sending TCP traffic to {} with abort timeout of {} second(s) an {} multiplexed transfers",
+        "sending TCP traffic to {} with abort timeout of {} second(s) and {} simultaneous transfers",
         config.to_tcp,
         config.abort_timeout.as_secs(),
-        config.nb_multiplex,
+        config.nb_clients,
     );
 
     let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16

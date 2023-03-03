@@ -20,7 +20,6 @@ struct Config {
     from_tcp: SocketAddr,
 
     nb_clients: u16,
-    nb_multiplex: u16,
 
     nb_encoding_threads: u8,
 
@@ -65,14 +64,6 @@ fn command_args() -> Config {
                 .default_value("2")
                 .value_parser(clap::value_parser!(u16))
                 .help("Number of simultaneous transfers"),
-        )
-        .arg(
-            Arg::new("nb_multiplex")
-                .long("nb_multiplex")
-                .value_name("nb")
-                .default_value("2")
-                .value_parser(clap::value_parser!(u16))
-                .help("Number of multiplexed transfers"),
         )
         .arg(
             Arg::new("nb_encoding_threads")
@@ -134,7 +125,6 @@ fn command_args() -> Config {
     let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
         .expect("invalid from_tcp parameter");
     let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
-    let nb_multiplex = *args.get_one::<u16>("nb_multiplex").expect("default");
     let nb_encoding_threads = *args.get_one::<u8>("nb_encoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
@@ -149,7 +139,6 @@ fn command_args() -> Config {
     Config {
         from_tcp,
         nb_clients,
-        nb_multiplex,
         nb_encoding_threads,
         encoding_block_size,
         repair_block_size,
@@ -239,7 +228,7 @@ fn main() {
     let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
         + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
 
-    let multiplex_control = semaphore::Semaphore::new(config.nb_multiplex as usize);
+    let multiplex_control = semaphore::Semaphore::new(config.nb_clients as usize);
 
     let block_to_encode = AtomicCell::new(0);
     let block_to_send = Mutex::new(0);
@@ -266,10 +255,7 @@ fn main() {
 
         info!("TCP buffer size is {} bytes", tcp_client_config.buffer_size);
 
-        info!(
-            "accepting {} simultaneous transfers with {} multiplexed transfers",
-            config.nb_clients, config.nb_multiplex
-        );
+        info!("accepting {} simultaneous transfers", config.nb_clients);
 
         for _ in 0..config.nb_clients {
             thread::Builder::new()
