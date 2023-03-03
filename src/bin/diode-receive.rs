@@ -205,7 +205,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
     };
 
     thread::Builder::new()
-        .name("dispatch".to_string())
+        .name("diode-dispatch".to_string())
         .spawn(move || dispatch::new(dispatch_config, decoding_recvq))
         .expect("thread spawn");
 
@@ -254,7 +254,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
     thread::scope(|scope| {
         thread::Builder::new()
-            .name("reblock".to_string())
+            .name("diode-reblock".to_string())
             .spawn_scoped(scope, || {
                 reblock::new(
                     &reblock_config,
@@ -267,7 +267,7 @@ fn main_loop(config: Config) -> Result<(), Error> {
 
         for i in 0..config.nb_decoding_threads {
             thread::Builder::new()
-                .name(format!("decoding_{i}"))
+                .name(format!("diode-decoding_{i}"))
                 .spawn_scoped(scope, || {
                     decoding::new(
                         &decoding_config,

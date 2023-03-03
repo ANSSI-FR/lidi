@@ -260,7 +260,7 @@ fn main() {
 
     thread::scope(|scope| {
         thread::Builder::new()
-            .name("udp-send".into())
+            .name("diode-udp-send".into())
             .spawn_scoped(scope, || udp_send::new(udp_send_config, &udp_recvq))
             .expect("thread spawn");
 
@@ -273,7 +273,7 @@ fn main() {
 
         for _ in 0..config.nb_clients {
             thread::Builder::new()
-                .name("tcp-client".to_string())
+                .name("diode-tcp-client-recv".into())
                 .spawn_scoped(scope, || {
                     connect_loop(
                         &connect_recvq,
@@ -294,7 +294,7 @@ fn main() {
 
         for i in 0..config.nb_encoding_threads {
             thread::Builder::new()
-                .name(format!("encoding_{i}"))
+                .name(format!("diode-encoding_{i}"))
                 .spawn_scoped(scope, || {
                     encoding::new(
                         &encoding_config,
@@ -318,7 +318,7 @@ fn main() {
         };
 
         thread::Builder::new()
-            .name("heartbeat".into())
+            .name("diode-heartbeat".into())
             .spawn_scoped(scope, || heartbeat::new(&heartbeat_config, &tcp_sendq))
             .expect("thread spawn");
 

@@ -119,7 +119,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
                 let multiplex_control = multiplex_control.clone();
 
                 thread::Builder::new()
-                    .name(format!("client {client_id:x}"))
+                    .name(format!("diode-tcp-client-send_{client_id:x}"))
                     .spawn(move || {
                         tcp_serve::new(tcp_serve_config, multiplex_control, client_id, client_recvq)
                     })
