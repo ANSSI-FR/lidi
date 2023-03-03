@@ -5,7 +5,7 @@ use log::{debug, error, trace, warn};
 use raptorq::{
     EncodingPacket, ObjectTransmissionInformation, SourceBlockEncoder, SourceBlockEncodingPlan,
 };
-use std::{fmt, sync::Mutex, thread};
+use std::{fmt, sync::Mutex};
 
 #[derive(Clone)]
 pub struct Config {
@@ -121,7 +121,6 @@ fn main_loop(
                 *to_send = to_send.wrapping_add(1);
                 break;
             }
-            thread::yield_now();
         }
     }
 }
