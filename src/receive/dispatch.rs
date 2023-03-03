@@ -1,4 +1,4 @@
-use crate::{protocol, receive::tcp_serve, semaphore};
+use crate::{protocol, receive::tcp_client, semaphore};
 use crossbeam_channel::{unbounded, Receiver, RecvTimeoutError, SendError, Sender};
 use log::{debug, error, trace, warn};
 use std::collections::{BTreeMap, BTreeSet};
@@ -68,7 +68,7 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
         BTreeMap::new();
     let mut failed_transfers: BTreeSet<protocol::ClientId> = BTreeSet::new();
 
-    let tcp_serve_config = tcp_serve::Config {
+    let tcp_client_config = tcp_client::Config {
         to_tcp: config.to_tcp,
         to_tcp_buffer_size: config.to_tcp_buffer_size,
         abort_timeout: config.abort_timeout,
@@ -115,13 +115,18 @@ fn main_loop(config: Config, decoding_recvq: Receiver<protocol::Message>) -> Res
 
                 active_transfers.insert(client_id, client_sendq);
 
-                let tcp_serve_config = tcp_serve_config.clone();
+                let tcp_client_config = tcp_client_config.clone();
                 let multiplex_control = multiplex_control.clone();
 
                 thread::Builder::new()
                     .name(format!("diode-tcp-client-send_{client_id:x}"))
                     .spawn(move || {
-                        tcp_serve::new(tcp_serve_config, multiplex_control, client_id, client_recvq)
+                        tcp_client::new(
+                            tcp_client_config,
+                            multiplex_control,
+                            client_id,
+                            client_recvq,
+                        )
                     })
                     .expect("thread spawn");
             }
