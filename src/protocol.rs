@@ -1,17 +1,9 @@
 use std::{fmt, io};
 
+#[derive(Error)]
 pub(crate) enum Error {
     Io(io::Error),
     InvalidMessageType(Option<u8>),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        match self {
-            Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::InvalidMessageType(b) => write!(fmt, "invalid message type: {b:?}"),
-        }
-    }
 }
 
 impl From<io::Error> for Error {
@@ -20,6 +12,7 @@ impl From<io::Error> for Error {
     }
 }
 
+#[derive(Display)]
 pub(crate) enum MessageType {
     Heartbeat,
     Start,
@@ -36,18 +29,6 @@ impl MessageType {
             Self::Data => ID_DATA,
             Self::Abort => ID_ABORT,
             Self::End => ID_END,
-        }
-    }
-}
-
-impl fmt::Display for MessageType {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            Self::Heartbeat => write!(fmt, "Heartbeat"),
-            Self::Start => write!(fmt, "Start"),
-            Self::Data => write!(fmt, "Data"),
-            Self::Abort => write!(fmt, "Abort"),
-            Self::End => write!(fmt, "End"),
         }
     }
 }
