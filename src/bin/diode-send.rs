@@ -1,6 +1,5 @@
 use clap::{Arg, ArgAction, Command};
 use crossbeam_channel::{bounded, Receiver, RecvError, Sender};
-use crossbeam_utils::atomic::AtomicCell;
 use diode::{
     protocol, semaphore,
     send::{encoding, heartbeat, tcp_client, udp_send},
@@ -230,7 +229,7 @@ fn main() {
 
     let multiplex_control = semaphore::Semaphore::new(config.nb_clients as usize);
 
-    let block_to_encode = AtomicCell::new(0);
+    let block_to_encode = Mutex::new(0);
     let block_to_send = Mutex::new(0);
 
     let heartbeat_config = heartbeat::Config {

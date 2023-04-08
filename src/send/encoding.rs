@@ -1,6 +1,5 @@
 use crate::protocol;
 use crossbeam_channel::{self, Receiver, RecvError, SendError, Sender};
-use crossbeam_utils::atomic::AtomicCell;
 use log::{debug, error, trace, warn};
 use raptorq::{
     EncodingPacket, ObjectTransmissionInformation, SourceBlockEncoder, SourceBlockEncodingPlan,
@@ -49,7 +48,7 @@ impl From<protocol::Error> for Error {
 
 pub fn new(
     config: &Config,
-    block_to_encode: &AtomicCell<u8>,
+    block_to_encode: &Mutex<u8>,
     block_to_send: &Mutex<u8>,
     recvq: &Receiver<protocol::Message>,
     sendq: &Sender<Vec<EncodingPacket>>,
@@ -61,7 +60,7 @@ pub fn new(
 
 fn main_loop(
     config: &Config,
-    block_to_encode: &AtomicCell<u8>,
+    block_to_encode: &Mutex<u8>,
     block_to_send: &Mutex<u8>,
     recvq: &Receiver<protocol::Message>,
     sendq: &Sender<Vec<EncodingPacket>>,
@@ -79,8 +78,11 @@ fn main_loop(
     );
 
     loop {
+        let mut block_id_to_encode = block_to_encode.lock().expect("acquire lock");
         let message = recvq.recv()?;
-        let block_id = block_to_encode.fetch_add(1);
+        let block_id = *block_id_to_encode;
+        *block_id_to_encode = block_id_to_encode.wrapping_add(1);
+        drop(block_id_to_encode);
 
         let message_type = message.message_type()?;
         let client_id = message.client_id();
