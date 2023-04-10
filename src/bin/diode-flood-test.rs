@@ -1,8 +1,6 @@
-use clap::{Arg, Command};
+use clap::{Arg, ArgGroup, Command};
 use rand::RngCore;
-use std::io::Write;
-use std::net::TcpStream;
-use std::{env, net::SocketAddr, str::FromStr};
+use std::{env, io::Write, net, os::unix, path, str::FromStr};
 
 fn main() {
     let args = Command::new(env!("CARGO_BIN_NAME"))
@@ -11,8 +9,18 @@ fn main() {
             Arg::new("to_tcp")
                 .long("to_tcp")
                 .value_name("ip:port")
-                .default_value("127.0.0.1:5000")
-                .help("Address and port to connect to diode-send"),
+                .help("TCP address and port to connect to diode-send"),
+        )
+        .arg(
+            Arg::new("to_unix")
+                .long("to_unix")
+                .value_name("path")
+                .help("Path to Unix socket to connect to diode-send"),
+        )
+        .group(
+            ArgGroup::new("to")
+                .required(true)
+                .args(["to_tcp", "to_unix"]),
         )
         .arg(
             Arg::new("buffer_size")
@@ -24,18 +32,38 @@ fn main() {
         )
         .get_matches();
 
-    let to_tcp = SocketAddr::from_str(args.get_one::<String>("to_tcp").expect("default"))
-        .expect("invalid to_tcp parameter");
+    let to_tcp = args
+        .get_one::<String>("to_tcp")
+        .map(|s| net::SocketAddr::from_str(s).expect("to_tcp must be of the form ip:port"));
+    let to_unix = args
+        .get_one::<String>("to_unix")
+        .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
     let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
 
     init_logger();
 
-    log::debug!("connecting to {}", to_tcp);
-    let mut diode = TcpStream::connect(to_tcp).expect("tcp connect");
-    diode
-        .shutdown(std::net::Shutdown::Read)
-        .expect("tcp read shutdown");
+    if let Some(to_tcp) = to_tcp {
+        log::debug!("TCP connect to {}", to_tcp);
+        let diode = net::TcpStream::connect(to_tcp).expect("TCP connect");
+        diode
+            .shutdown(net::Shutdown::Read)
+            .expect("TCP read shutdown");
+        start(diode, buffer_size)
+    } else {
+        let to_unix = to_unix.expect("to_tcp and to_unix are mutually exclusive");
+        log::debug!("Unix connect to {}", to_unix.display());
+        let diode = unix::net::UnixStream::connect(to_unix).expect("Unix connect");
+        diode
+            .shutdown(net::Shutdown::Read)
+            .expect("Unix read shutdown");
+        start(diode, buffer_size)
+    }
+}
 
+fn start<D>(mut diode: D, buffer_size: usize)
+where
+    D: Write,
+{
     let mut thread_rng = rand::thread_rng();
     let mut buffer = vec![0u8; buffer_size];
     thread_rng.fill_bytes(&mut buffer);
@@ -46,7 +74,7 @@ fn main() {
             *n ^= rnd;
         }
         log::debug!("sending buffer of {buffer_size} bytes");
-        diode.write_all(&buffer).expect("tcp write");
+        diode.write_all(&buffer).expect("write");
     }
 }
 

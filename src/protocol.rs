@@ -1,6 +1,6 @@
 use std::{fmt, io};
 
-pub(crate) enum Error {
+pub enum Error {
     Io(io::Error),
     InvalidMessageType(Option<u8>),
 }

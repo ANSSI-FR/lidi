@@ -1,31 +1,60 @@
-use crate::file::{protocol, Config, Error};
-use log::{debug, info};
+use crate::file;
 use std::{
-    fs::OpenOptions,
+    fs,
     io::{Read, Write},
-    net::TcpStream,
-    os::unix::prelude::PermissionsExt,
-    path::PathBuf,
+    net,
+    os::unix::{self, fs::PermissionsExt},
+    path,
 };
 
-pub fn send_files(config: Config, files: Vec<String>) -> Result<(), Error> {
+pub fn send_files(
+    config: file::Config<file::DiodeSend>,
+    files: Vec<String>,
+) -> Result<(), file::Error> {
     for file in &files {
         let total = send_file(&config, file)?;
-        info!("file send, {total} bytes sent");
+        log::info!("file send, {total} bytes sent");
     }
     Ok(())
 }
 
-pub fn send_file(config: &Config, file_path: &String) -> Result<usize, Error> {
-    debug!("opening file \"{}\"", file_path);
+pub fn send_file(
+    config: &file::Config<file::DiodeSend>,
+    file_path: &String,
+) -> Result<usize, file::Error> {
+    log::debug!("connecting to {}", config.diode);
 
-    let file_path = PathBuf::from(file_path);
+    match &config.diode {
+        file::DiodeSend::Tcp(socket_addr) => {
+            let diode = net::TcpStream::connect(socket_addr)?;
+            diode.shutdown(std::net::Shutdown::Read)?;
+            send_file_aux(config, diode, file_path)
+        }
+        file::DiodeSend::Unix(path) => {
+            let diode = unix::net::UnixStream::connect(path)?;
+            diode.shutdown(std::net::Shutdown::Read)?;
+            send_file_aux(config, diode, file_path)
+        }
+    }
+}
+
+fn send_file_aux<D>(
+    config: &file::Config<file::DiodeSend>,
+    mut diode: D,
+    file_path: &String,
+) -> Result<usize, file::Error>
+where
+    D: Read + Write,
+{
+    log::debug!("opening file \"{}\"", file_path);
+
+    let file_path = path::PathBuf::from(file_path);
 
     if !file_path.is_file() {
-        return Err(Error::Other("not a file".to_string()));
+        return Err(file::Error::Other("not a file".to_string()));
     }
 
-    let mut file = OpenOptions::new()
+    let mut file = fs::OpenOptions::new()
         .read(true)
         .write(false)
         .create(false)
@@ -33,23 +62,17 @@ pub fn send_file(config: &Config, file_path: &String) -> Result<usize, Error> {
 
     let file_name = file_path
         .file_name()
-        .ok_or(Error::Other("unwrap of file_name failed".to_string()))?
+        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?
         .to_os_string()
         .into_string()
-        .map_err(|_| Error::Other("conversion from OsString to String failed".to_string()))?;
+        .map_err(|_| file::Error::Other("conversion from OsString to String failed".to_string()))?;
 
-    debug!("file name is \"{file_name}\"");
-
-    debug!("connecting to {}", config.socket_addr);
-
-    let mut diode = TcpStream::connect(config.socket_addr)?;
-
-    diode.shutdown(std::net::Shutdown::Read)?;
+    log::debug!("file name is \"{file_name}\"");
 
     let metadata = file.metadata()?;
     let permissions = metadata.permissions();
 
-    let header = protocol::Header {
+    let header = file::protocol::Header {
         file_name,
         mode: permissions.mode(),
         file_length: metadata.len(),

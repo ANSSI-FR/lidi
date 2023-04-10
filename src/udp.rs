@@ -88,7 +88,7 @@ impl<D> UdpMessages<D> {
 
 impl UdpMessages<UdpRecv> {
     pub fn new_receiver(socket: net::UdpSocket, vlen: usize, msglen: usize) -> Self {
-        log::info!("UDP configured to receive {vlen} messages (datagrams), of {msglen} bytes each, at a time");
+        log::info!("UDP configured to receive {vlen} messages (datagrams)");
         Self::new(socket, vlen, Some(msglen), None)
     }
 

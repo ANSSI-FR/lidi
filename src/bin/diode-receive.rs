@@ -1,46 +1,39 @@
-use clap::{Arg, Command};
-use crossbeam_channel::{unbounded, SendError};
-use diode::receive::{decoding, dispatch, reblock};
-use diode::{protocol, sock_utils, udp};
-use log::{error, info};
-use raptorq::EncodingPacket;
-use std::sync::Mutex;
+use clap::{Arg, ArgGroup, Command};
+use diode::receive;
 use std::{
-    env, fmt, io,
-    net::{self, SocketAddr, UdpSocket},
+    env, fmt,
+    io::{self, Write},
+    net,
+    os::{fd::AsRawFd, unix},
+    path,
     str::FromStr,
-    thread,
-    time::Duration,
+    thread, time,
 };
 
 struct Config {
-    from_udp: SocketAddr,
+    from_udp: net::SocketAddr,
     from_udp_mtu: u16,
-
     nb_clients: u16,
-
-    nb_decoding_threads: u8,
-
     encoding_block_size: u64,
     repair_block_size: u32,
-    flush_timeout: Duration,
-
-    to_tcp: SocketAddr,
-    abort_timeout: Duration,
-    heartbeat: Duration,
+    flush_timeout: time::Duration,
+    nb_decoding_threads: u8,
+    to: ClientConfig,
+    abort_timeout: time::Duration,
+    heartbeat: time::Duration,
 }
 
-impl Config {
-    fn adjust(&mut self) {
-        let oti =
-            protocol::object_transmission_information(self.from_udp_mtu, self.encoding_block_size);
+enum ClientConfig {
+    Tcp(net::SocketAddr),
+    Unix(path::PathBuf),
+}
 
-        let packet_size = protocol::packet_size(&oti);
-        let nb_encoding_packets = protocol::nb_encoding_packets(&oti);
-        let nb_repair_packets = protocol::nb_repair_packets(&oti, self.repair_block_size);
-
-        self.encoding_block_size = nb_encoding_packets * packet_size as u64;
-        self.repair_block_size = nb_repair_packets * packet_size as u32;
+impl fmt::Display for ClientConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            Self::Tcp(s) => write!(f, "TCP {s}"),
+            Self::Unix(p) => write!(f, "Unix {}", p.display()),
+        }
     }
 }
 
@@ -106,8 +99,18 @@ fn command_args() -> Config {
             Arg::new("to_tcp")
                 .long("to_tcp")
                 .value_name("ip:port")
-                .default_value("127.0.0.1:7000")
-                .help("Where to send data"),
+                .help("Where to connect to TCP server"),
+        )
+        .arg(
+            Arg::new("to_unix")
+                .long("to_unix")
+                .value_name("path")
+                .help("Where to connect to Unix socket"),
+        )
+        .group(
+            ArgGroup::new("to")
+                .required(true)
+                .args(["to_tcp", "to_unix"]),
         )
         .arg(
             Arg::new("abort_timeout")
@@ -127,20 +130,31 @@ fn command_args() -> Config {
         )
         .get_matches();
 
-    let from_udp = SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
-        .expect("invalid from_udp_parameter");
+    let from_udp = net::SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
+        .expect("invalid from_udp parameter");
     let from_udp_mtu = *args.get_one::<u16>("from_udp_mtu").expect("default");
     let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
     let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
     let flush_timeout =
-        Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
-    let to_tcp = SocketAddr::from_str(args.get_one::<String>("to_tcp").expect("default"))
-        .expect("invalid to_tcp parameter");
+        time::Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
+    let to_tcp = args
+        .get_one::<String>("to_tcp")
+        .map(|s| net::SocketAddr::from_str(s).expect("to_tcp must be of the form ip:port"));
+    let to_unix = args
+        .get_one::<String>("to_unix")
+        .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
+
     let abort_timeout =
-        Duration::from_secs(*args.get_one::<u64>("abort_timeout").expect("default"));
+        time::Duration::from_secs(*args.get_one::<u64>("abort_timeout").expect("default"));
     let heartbeat = *args.get_one::<u16>("heartbeat").expect("default");
+
+    let to = if let Some(to_tcp) = to_tcp {
+        ClientConfig::Tcp(to_tcp)
+    } else {
+        ClientConfig::Unix(to_unix.expect("to_tcp and to_unix are mutually exclusive"))
+    };
 
     Config {
         from_udp,
@@ -150,152 +164,92 @@ fn command_args() -> Config {
         encoding_block_size,
         repair_block_size,
         flush_timeout,
-        to_tcp,
+        to,
         abort_timeout,
-        heartbeat: Duration::from_secs(heartbeat as u64),
+        heartbeat: time::Duration::from_secs(heartbeat as u64),
     }
 }
 
-enum Error {
-    Io(io::Error),
-    AddrParseError(net::AddrParseError),
-    Crossbeam(SendError<Vec<EncodingPacket>>),
+enum Client {
+    Tcp(net::TcpStream),
+    Unix(unix::net::UnixStream),
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+impl Write for Client {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
         match self {
-            Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::AddrParseError(e) => write!(fmt, "address parse error: {e}"),
-            Self::Crossbeam(e) => write!(fmt, "crossbeam send error: {e}"),
+            Self::Tcp(socket) => socket.write(buf),
+            Self::Unix(socket) => socket.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> Result<(), std::io::Error> {
+        match self {
+            Self::Tcp(socket) => socket.flush(),
+            Self::Unix(socket) => socket.flush(),
         }
     }
 }
 
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<net::AddrParseError> for Error {
-    fn from(e: net::AddrParseError) -> Self {
-        Self::AddrParseError(e)
-    }
-}
-
-impl From<SendError<Vec<EncodingPacket>>> for Error {
-    fn from(e: SendError<Vec<EncodingPacket>>) -> Self {
-        Self::Crossbeam(e)
-    }
-}
-
-fn main_loop(config: Config) -> Result<(), Error> {
-    let (decoding_sendq, decoding_recvq) = unbounded::<protocol::Message>();
-    let (reblock_sendq, reblock_recvq) = unbounded::<(u8, Vec<EncodingPacket>)>();
-    let (udp_sendq, udp_recvq) = unbounded::<Vec<EncodingPacket>>();
-
-    let dispatch_config = dispatch::Config {
-        nb_multiplex: config.nb_clients,
-        to_tcp: config.to_tcp,
-        to_tcp_buffer_size: config.encoding_block_size as usize
-            - protocol::Message::serialize_overhead(),
-        abort_timeout: config.abort_timeout,
-        heartbeat: config.heartbeat,
-    };
-
-    thread::Builder::new()
-        .name("diode-dispatch".to_string())
-        .spawn(move || dispatch::new(dispatch_config, decoding_recvq))
-        .expect("thread spawn");
-
-    let object_transmission_info =
-        protocol::object_transmission_information(config.from_udp_mtu, config.encoding_block_size);
-
-    let decoding_config = decoding::Config {
-        object_transmission_info,
-    };
-
-    let reblock_config = reblock::Config {
-        object_transmission_info,
-        repair_block_size: config.repair_block_size,
-        flush_timeout: config.flush_timeout,
-    };
-
-    info!(
-        "sending TCP traffic to {} with abort timeout of {} second(s) and {} simultaneous transfers",
-        config.to_tcp,
-        config.abort_timeout.as_secs(),
-        config.nb_clients,
-    );
-
-    let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
-        + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
-
-    info!("listening for UDP packets at {}", config.from_udp);
-    let socket = UdpSocket::bind(config.from_udp)?;
-    sock_utils::set_socket_recv_buffer_size(&socket, i32::MAX)?;
-    let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&socket)?;
-    log::info!("UDP socket receive buffer size set to {sock_buffer_size}");
-    if (sock_buffer_size as u64)
-        < 2 * (config.encoding_block_size + config.repair_block_size as u64)
-    {
-        log::warn!("UDP socket recv buffer may be too small to achieve optimal performances");
-        log::warn!("Please review the kernel parameters using sysctl");
-    }
-
-    let mut udp_messages = udp::UdpMessages::new_receiver(
-        socket,
-        usize::from(max_messages),
-        usize::from(config.from_udp_mtu),
-    );
-
-    let block_to_receive = Mutex::new(0);
-
-    thread::scope(|scope| {
-        thread::Builder::new()
-            .name("diode-reblock".to_string())
-            .spawn_scoped(scope, || {
-                reblock::new(
-                    &reblock_config,
-                    &block_to_receive,
-                    &udp_recvq,
-                    &reblock_sendq,
-                )
-            })
-            .expect("thread spawn");
-
-        for i in 0..config.nb_decoding_threads {
-            thread::Builder::new()
-                .name(format!("diode-decoding_{i}"))
-                .spawn_scoped(scope, || {
-                    decoding::new(
-                        &decoding_config,
-                        &block_to_receive,
-                        &reblock_recvq,
-                        &decoding_sendq,
-                    )
-                })
-                .expect("thread spawn");
+impl AsRawFd for Client {
+    fn as_raw_fd(&self) -> i32 {
+        match self {
+            Self::Tcp(socket) => socket.as_raw_fd(),
+            Self::Unix(socket) => socket.as_raw_fd(),
         }
+    }
+}
 
-        loop {
-            let packets = udp_messages.recv_mmsg()?.map(EncodingPacket::deserialize);
-            udp_sendq.send(packets.collect())?;
+impl TryFrom<&ClientConfig> for Client {
+    type Error = io::Error;
+
+    fn try_from(config: &ClientConfig) -> Result<Self, Self::Error> {
+        match config {
+            ClientConfig::Tcp(s) => {
+                let client = net::TcpStream::connect(s)?;
+                if let Err(e) = client.shutdown(net::Shutdown::Read) {
+                    log::warn!("failed to shutdown TCP socket read: {e}");
+                }
+                Ok(Self::Tcp(client))
+            }
+            ClientConfig::Unix(p) => {
+                let client = unix::net::UnixStream::connect(p)?;
+                if let Err(e) = client.shutdown(net::Shutdown::Read) {
+                    log::warn!("failed to shutdown Unix socket read: {e}");
+                }
+                Ok(Self::Unix(client))
+            }
         }
-    })
+    }
 }
 
 fn main() {
-    let mut config = command_args();
+    let config = command_args();
 
     init_logger();
 
-    config.adjust();
+    log::info!("sending traffic to {}", config.to);
 
-    if let Err(e) = main_loop(config) {
-        error!("failed to launch main_loop: {e}");
-    }
+    let receiver = receive::Receiver::new(
+        receive::Config {
+            from_udp: config.from_udp,
+            from_udp_mtu: config.from_udp_mtu,
+            nb_clients: config.nb_clients,
+            encoding_block_size: config.encoding_block_size,
+            repair_block_size: config.repair_block_size,
+            flush_timeout: config.flush_timeout,
+            nb_decoding_threads: config.nb_decoding_threads,
+            abort_timeout: config.abort_timeout,
+            heartbeat_interval: config.heartbeat,
+        },
+        || Client::try_from(&config.to),
+    );
+
+    thread::scope(|scope| {
+        if let Err(e) = receiver.start(scope) {
+            log::error!("failed to start diode receiver: {e}");
+        }
+    });
 }
 
 fn init_logger() {

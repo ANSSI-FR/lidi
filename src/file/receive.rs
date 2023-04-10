@@ -1,73 +1,120 @@
-use crate::file::{protocol, Config, Error};
-use log::{debug, error, info};
+use crate::file;
 use std::{
-    fs::{OpenOptions, Permissions},
+    fs,
     io::{Read, Write},
-    net::{TcpListener, TcpStream},
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
-    thread,
+    net,
+    os::unix::{self, fs::PermissionsExt},
+    path, thread,
 };
 
-pub fn receive_files(config: Config, output_dir: PathBuf) -> Result<(), Error> {
+pub fn receive_files(
+    config: &file::Config<file::DiodeReceive>,
+    output_dir: &path::Path,
+) -> Result<(), file::Error> {
     if !output_dir.is_dir() {
-        return Err(Error::Other(
+        return Err(file::Error::Other(
             "output_directory is not a directory".to_string(),
         ));
     }
 
-    let server = TcpListener::bind(config.socket_addr)?;
-
-    thread::scope(|scope| -> Result<(), Error> {
-        for incoming in server.incoming() {
-            let client = incoming?;
-            scope.spawn(|| match receive_file(&config, client, &output_dir) {
-                Ok(total) => info!("file received, {total} bytes received"),
-                Err(e) => error!("failed to receive file: {e}"),
-            });
+    thread::scope(|scope| -> Result<(), file::Error> {
+        if let Some(from_tcp) = &config.diode.from_tcp {
+            let server = net::TcpListener::bind(from_tcp)?;
+            thread::Builder::new().spawn_scoped(scope, || {
+                receive_tcp_loop(config, output_dir, scope, server)
+            })?;
         }
-        Ok(())
-    })?;
 
-    Ok(())
+        if let Some(from_unix) = &config.diode.from_unix {
+            let server = unix::net::UnixListener::bind(from_unix)?;
+            thread::Builder::new().spawn_scoped(scope, || {
+                receive_unix_loop(config, output_dir, scope, server)
+            })?;
+        }
+
+        Ok(())
+    })
 }
 
-pub fn receive_file(
-    config: &Config,
-    mut diode: TcpStream,
-    output_dir: &Path,
-) -> Result<usize, Error> {
-    info!("new client connected");
+fn receive_tcp_loop<'a>(
+    config: &'a file::Config<file::DiodeReceive>,
+    output_dir: &'a path::Path,
+    scope: &'a thread::Scope<'a, '_>,
+    server: net::TcpListener,
+) -> Result<(), file::Error> {
+    loop {
+        let (client, client_addr) = server.accept()?;
+        log::info!("new Unix client ({client_addr}) connected");
+        if let Err(e) = client.shutdown(std::net::Shutdown::Write) {
+            log::warn!("failed to shutdown TCP client write: {e}");
+        }
+        scope.spawn(|| match receive_file(config, client, output_dir) {
+            Ok(total) => log::info!("file received, {total} bytes received"),
+            Err(e) => log::error!("failed to receive file: {e}"),
+        });
+    }
+}
 
-    diode.shutdown(std::net::Shutdown::Write)?;
+fn receive_unix_loop<'a>(
+    config: &'a file::Config<file::DiodeReceive>,
+    output_dir: &'a path::Path,
+    scope: &'a thread::Scope<'a, '_>,
+    server: unix::net::UnixListener,
+) -> Result<(), file::Error> {
+    loop {
+        let (client, client_addr) = server.accept()?;
+        log::info!(
+            "new Unix client ({}) connected",
+            client_addr
+                .as_pathname()
+                .map(|p| p.display().to_string())
+                .unwrap_or("unknown".to_string())
+        );
+        if let Err(e) = client.shutdown(std::net::Shutdown::Write) {
+            log::warn!("failed to shutdown Unix client write: {e}");
+        }
+        scope.spawn(|| match receive_file(config, client, output_dir) {
+            Ok(total) => log::info!("file received, {total} bytes received"),
+            Err(e) => log::error!("failed to receive file: {e}"),
+        });
+    }
+}
 
-    let header = protocol::Header::deserialize_from(&mut diode)?;
+fn receive_file<D>(
+    config: &file::Config<file::DiodeReceive>,
+    mut diode: D,
+    output_dir: &path::Path,
+) -> Result<usize, file::Error>
+where
+    D: Read + Write,
+{
+    let header = file::protocol::Header::deserialize_from(&mut diode)?;
 
-    debug!("receiving file \"{}\"", header.file_name);
+    log::debug!("receiving file \"{}\"", header.file_name);
 
-    let file_path = PathBuf::from(header.file_name);
+    let file_path = path::PathBuf::from(header.file_name);
     let file_name = file_path
         .file_name()
-        .ok_or(Error::Other("unwrap of file_name failed".to_string()))?;
-    let file_path = output_dir.join(PathBuf::from(file_name));
+        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?;
+    let file_path = output_dir.join(path::PathBuf::from(file_name));
 
-    debug!("storing at \"{}\"", file_path.display());
+    log::debug!("storing at \"{}\"", file_path.display());
 
     if file_path.exists() {
-        return Err(Error::Other(format!(
+        return Err(file::Error::Other(format!(
             "file \"{}\" already exists",
             file_path.display()
         )));
     }
 
-    let mut file = OpenOptions::new()
+    let mut file = fs::OpenOptions::new()
         .read(false)
         .write(true)
         .create(true)
         .open(&file_path)?;
 
-    debug!("setting mode to {}", header.mode);
-    file.set_permissions(Permissions::from_mode(header.mode))?;
+    log::debug!("setting mode to {}", header.mode);
+    file.set_permissions(fs::Permissions::from_mode(header.mode))?;
 
     let mut buffer = vec![0; config.buffer_size];
     let mut cursor = 0;

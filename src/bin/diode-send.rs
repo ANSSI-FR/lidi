@@ -1,49 +1,26 @@
 use clap::{Arg, ArgAction, Command};
-use crossbeam_channel::{bounded, Receiver, RecvError, Sender};
-use diode::{
-    protocol, semaphore,
-    send::{encoding, heartbeat, tcp_client, udp_send},
-};
-use log::{error, info};
-use raptorq::EncodingPacket;
+use diode::send;
 use std::{
-    env, fmt,
-    net::{SocketAddr, TcpListener, TcpStream},
+    env,
+    io::Read,
+    net,
+    os::{fd::AsRawFd, unix},
+    path,
     str::FromStr,
-    sync::Mutex,
-    thread,
-    time::Duration,
+    thread, time,
 };
 
 struct Config {
-    from_tcp: SocketAddr,
-
+    from_tcp: net::SocketAddr,
+    from_unix: Option<path::PathBuf>,
     nb_clients: u16,
-
-    nb_encoding_threads: u8,
-
     encoding_block_size: u64,
     repair_block_size: u32,
-
-    to_bind: SocketAddr,
-    to_udp: SocketAddr,
+    nb_encoding_threads: u8,
+    to_bind: net::SocketAddr,
+    to_udp: net::SocketAddr,
     to_udp_mtu: u16,
-
-    heartbeat: Duration,
-}
-
-impl Config {
-    fn adjust(&mut self) {
-        let oti =
-            protocol::object_transmission_information(self.to_udp_mtu, self.encoding_block_size);
-
-        let packet_size = protocol::packet_size(&oti);
-        let nb_encoding_packets = protocol::nb_encoding_packets(&oti);
-        let nb_repair_packets = protocol::nb_repair_packets(&oti, self.repair_block_size);
-
-        self.encoding_block_size = nb_encoding_packets * packet_size as u64;
-        self.repair_block_size = nb_repair_packets * packet_size as u32;
-    }
+    heartbeat: time::Duration,
 }
 
 fn command_args() -> Config {
@@ -54,7 +31,13 @@ fn command_args() -> Config {
                 .long("from_tcp")
                 .value_name("ip:port")
                 .default_value("127.0.0.1:5000")
-                .help("From where to read data"),
+                .help("From where to accept TCP clients"),
+        )
+        .arg(
+            Arg::new("from_unix")
+                .long("from_unix")
+                .value_name("path")
+                .help("From where to accept Unix clients"),
         )
         .arg(
             Arg::new("nb_clients")
@@ -121,22 +104,25 @@ fn command_args() -> Config {
         )
         .get_matches();
 
-    let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
+    let from_tcp = net::SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
         .expect("invalid from_tcp parameter");
+    let from_unix = args
+        .get_one::<String>("from_unix")
+        .map(|s| path::PathBuf::from_str(s).expect("invalid from_unix parameter"));
     let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
     let nb_encoding_threads = *args.get_one::<u8>("nb_encoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
-    let to_bind: SocketAddr =
-        SocketAddr::from_str(args.get_one::<String>("to_bind").expect("default"))
-            .expect("invalid to_bind parameter");
-    let to_udp = SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
+    let to_bind = net::SocketAddr::from_str(args.get_one::<String>("to_bind").expect("default"))
+        .expect("invalid to_bind parameter");
+    let to_udp = net::SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
     let heartbeat = *args.get_one::<u16>("heartbeat").expect("default");
 
     Config {
         from_tcp,
+        from_unix,
         nb_clients,
         nb_encoding_threads,
         encoding_block_size,
@@ -144,178 +130,130 @@ fn command_args() -> Config {
         to_bind,
         to_udp,
         to_udp_mtu,
-        heartbeat: Duration::from_secs(heartbeat as u64),
+        heartbeat: time::Duration::from_secs(heartbeat as u64),
     }
 }
 
-enum Error {
-    Crossbeam(RecvError),
+enum Client {
+    Tcp(net::TcpStream),
+    Unix(unix::net::UnixStream),
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+impl Read for Client {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {
         match self {
-            Self::Crossbeam(e) => write!(fmt, "crossbeam error: {e}"),
+            Self::Tcp(socket) => socket.read(buf),
+            Self::Unix(socket) => socket.read(buf),
         }
     }
 }
 
-impl From<RecvError> for Error {
-    fn from(e: RecvError) -> Self {
-        Self::Crossbeam(e)
+impl AsRawFd for Client {
+    fn as_raw_fd(&self) -> i32 {
+        match self {
+            Self::Tcp(socket) => socket.as_raw_fd(),
+            Self::Unix(socket) => socket.as_raw_fd(),
+        }
     }
 }
 
-fn connect_loop_aux(
-    connect_recvq: &Receiver<TcpStream>,
-    tcp_client_config: &tcp_client::Config,
-    multiplex_control: semaphore::Semaphore,
-    tcp_sendq: &Sender<protocol::Message>,
-) -> Result<(), Error> {
-    loop {
-        let client = connect_recvq.recv()?;
-        tcp_client::new(
-            tcp_client_config,
-            &multiplex_control,
-            tcp_sendq.clone(),
-            client,
-        );
+fn unix_listener_loop(listener: unix::net::UnixListener, sender: &send::Sender<Client>) {
+    for client in listener.incoming() {
+        match client {
+            Err(e) => {
+                log::error!("failed to accept client: {e}");
+                return;
+            }
+            Ok(client) => {
+                if let Err(e) = client.shutdown(net::Shutdown::Write) {
+                    log::warn!("failed to shutdown write on Unix client: {e}");
+                }
+
+                if let Err(e) = sender.new_client(Client::Unix(client)) {
+                    log::error!("failed to send Unix client to connect queue: {e}");
+                }
+            }
+        }
     }
 }
 
-fn connect_loop(
-    connect_recvq: &Receiver<TcpStream>,
-    tcp_client_config: &tcp_client::Config,
-    multiplex_control: semaphore::Semaphore,
-    tcp_senq: &Sender<protocol::Message>,
-) {
-    if let Err(e) = connect_loop_aux(
-        connect_recvq,
-        tcp_client_config,
-        multiplex_control,
-        tcp_senq,
-    ) {
-        error!("failed to connect client: {e}");
+fn tcp_listener_loop(listener: net::TcpListener, sender: &send::Sender<Client>) {
+    for client in listener.incoming() {
+        match client {
+            Err(e) => {
+                log::error!("failed to accept TCP client: {e}");
+                return;
+            }
+            Ok(client) => {
+                if let Err(e) = client.shutdown(net::Shutdown::Write) {
+                    log::warn!("failed to shutdown write on TCP client: {e}");
+                }
+
+                if let Err(e) = sender.new_client(Client::Tcp(client)) {
+                    log::error!("failed to send TCP client to connect queue: {e}");
+                }
+            }
+        }
     }
 }
 
 fn main() {
-    let mut config = command_args();
+    let config = command_args();
 
     init_logger();
 
-    config.adjust();
-
-    let object_transmission_info =
-        protocol::object_transmission_information(config.to_udp_mtu, config.encoding_block_size);
-
-    let tcp_client_config = tcp_client::Config {
-        buffer_size: (object_transmission_info.transfer_length()
-            - protocol::Message::serialize_overhead() as u64) as u32,
-    };
-
-    let encoding_config = encoding::Config {
-        object_transmission_info,
-        repair_block_size: config.repair_block_size,
-    };
-
-    let (connect_sendq, connect_recvq) = bounded::<TcpStream>(1);
-    let (tcp_sendq, tcp_recvq) = bounded::<protocol::Message>(config.nb_clients as usize);
-    let (udp_sendq, udp_recvq) =
-        bounded::<Vec<EncodingPacket>>(2 * config.nb_encoding_threads as usize);
-
-    let max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
-        + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size) as u16;
-
-    let multiplex_control = semaphore::Semaphore::new(config.nb_clients as usize);
-
-    let block_to_encode = Mutex::new(0);
-    let block_to_send = Mutex::new(0);
-
-    let heartbeat_config = heartbeat::Config {
-        buffer_size: tcp_client_config.buffer_size,
-        duration: config.heartbeat,
-    };
-
-    let udp_send_config = udp_send::Config {
-        to_bind: config.to_bind,
-        to_udp: config.to_udp,
-        mtu: config.to_udp_mtu,
-        max_messages,
+    let sender = send::Sender::new(send::Config {
+        nb_clients: config.nb_clients,
         encoding_block_size: config.encoding_block_size,
         repair_block_size: config.repair_block_size,
-    };
+        nb_encoding_threads: config.nb_encoding_threads,
+        hearbeat_interval: config.heartbeat,
+        to_bind: config.to_bind,
+        to_udp: config.to_udp,
+        to_mtu: config.to_udp_mtu,
+    });
 
     thread::scope(|scope| {
-        thread::Builder::new()
-            .name("diode-udp-send".into())
-            .spawn_scoped(scope, || udp_send::new(udp_send_config, &udp_recvq))
-            .expect("thread spawn");
-
-        info!("TCP buffer size is {} bytes", tcp_client_config.buffer_size);
-
-        info!("accepting {} simultaneous transfers", config.nb_clients);
-
-        for _ in 0..config.nb_clients {
-            thread::Builder::new()
-                .name("diode-tcp-client-recv".into())
-                .spawn_scoped(scope, || {
-                    connect_loop(
-                        &connect_recvq,
-                        &tcp_client_config,
-                        multiplex_control.clone(),
-                        &tcp_sendq,
-                    )
-                })
-                .expect("thread spawn");
+        if let Err(e) = sender.start(scope) {
+            log::error!("failed to start diode sender: {e}");
+            return;
         }
 
-        info!(
-            "encoding will produce {} packets ({} bytes per block) + {} repair packets",
-            protocol::nb_encoding_packets(&object_transmission_info),
-            config.encoding_block_size,
-            protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size),
-        );
+        log::info!("accepting TCP clients at {}", config.from_tcp);
 
-        for i in 0..config.nb_encoding_threads {
-            thread::Builder::new()
-                .name(format!("diode-encoding_{i}"))
-                .spawn_scoped(scope, || {
-                    encoding::new(
-                        &encoding_config,
-                        &block_to_encode,
-                        &block_to_send,
-                        &tcp_recvq,
-                        &udp_sendq,
-                    )
-                })
-                .expect("thread spawn");
-        }
-
-        info!("accepting TCP clients at {}", config.from_tcp);
-
-        let tcp_listener = match TcpListener::bind(config.from_tcp) {
+        let tcp_listener = match net::TcpListener::bind(config.from_tcp) {
             Err(e) => {
-                error!("failed to bind TCP {}: {}", config.from_tcp, e);
+                log::error!("failed to bind TCP {}: {}", config.from_tcp, e);
                 return;
             }
             Ok(listener) => listener,
         };
 
         thread::Builder::new()
-            .name("diode-heartbeat".into())
-            .spawn_scoped(scope, || heartbeat::new(&heartbeat_config, &tcp_sendq))
+            .name("diode-send-tcp-server".into())
+            .spawn_scoped(scope, || tcp_listener_loop(tcp_listener, &sender))
             .expect("thread spawn");
 
-        for client in tcp_listener.incoming() {
-            match client {
-                Err(e) => error!("failed to accept client: {e}"),
-                Ok(client) => {
-                    if let Err(e) = connect_sendq.send(client) {
-                        error!("failed to send client to connect queue: {e}");
-                    }
-                }
+        if let Some(from_unix) = config.from_unix {
+            if from_unix.exists() {
+                log::error!("Unix socket path '{}' already exists", from_unix.display());
+                return;
             }
+
+            log::info!("accepting Unix clients at {}", from_unix.display());
+
+            let unix_listener = match unix::net::UnixListener::bind(&from_unix) {
+                Err(e) => {
+                    log::error!("failed to bind Unix {}: {}", from_unix.display(), e);
+                    return;
+                }
+                Ok(listener) => listener,
+            };
+
+            thread::Builder::new()
+                .name("diode-send-unix-server".into())
+                .spawn_scoped(scope, || unix_listener_loop(unix_listener, &sender))
+                .expect("thread spawn");
         }
     });
 }

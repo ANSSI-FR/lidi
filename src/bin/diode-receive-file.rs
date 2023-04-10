@@ -1,7 +1,6 @@
 use clap::{Arg, Command};
 use diode::file;
-use log::error;
-use std::{env, net::SocketAddr, path::PathBuf, str::FromStr};
+use std::{env, net, path, str::FromStr};
 
 fn main() {
     let args = Command::new(env!("CARGO_BIN_NAME"))
@@ -12,6 +11,12 @@ fn main() {
                 .value_name("ip:port")
                 .default_value("127.0.0.1:7000")
                 .help("Address and port to listen for diode-receive"),
+        )
+        .arg(
+            Arg::new("from_unix")
+                .long("from_unix")
+                .value_name("path")
+                .help("Patch to listen for diode-receive"),
         )
         .arg(
             Arg::new("buffer_size")
@@ -29,21 +34,27 @@ fn main() {
         )
         .get_matches();
 
-    let from_tcp = SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
-        .expect("invalid from_tcp parameter");
+    let from_tcp = args
+        .get_one::<String>("from_tcp")
+        .map(|s| net::SocketAddr::from_str(s).expect("invalid from_tcp parameter"));
+    let from_unix = args
+        .get_one::<String>("from_unix")
+        .map(|s| path::PathBuf::from_str(s).expect("from_unix must point to a valid path"));
     let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
     let output_directory =
-        PathBuf::from(args.get_one::<String>("output_directory").expect("default"));
+        path::PathBuf::from(args.get_one::<String>("output_directory").expect("default"));
 
-    let config = file::Config {
-        socket_addr: from_tcp,
-        buffer_size,
+    let diode = file::DiodeReceive {
+        from_tcp,
+        from_unix,
     };
+
+    let config = file::Config { diode, buffer_size };
 
     init_logger();
 
-    if let Err(e) = file::receive::receive_files(config, output_directory) {
-        error!("{e}");
+    if let Err(e) = file::receive::receive_files(&config, &output_directory) {
+        log::error!("{e}");
     }
 }
 
