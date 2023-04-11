@@ -45,7 +45,7 @@ fn command_args() -> Config {
                 .long("from_udp")
                 .value_name("ip:port")
                 .default_value("127.0.0.1:6000")
-                .help("From where to read data"),
+                .help("IP address and port where to receive UDP packets from diode-send"),
         )
         .arg(
             Arg::new("from_udp_mtu")
@@ -53,7 +53,7 @@ fn command_args() -> Config {
                 .value_name("nb_bytes")
                 .default_value("1500") // mtu
                 .value_parser(clap::value_parser!(u16))
-                .help("MTU of the incoming UDP link"),
+                .help("MTU of the input UDP link"),
         )
         .arg(
             Arg::new("nb_clients")
@@ -99,13 +99,13 @@ fn command_args() -> Config {
             Arg::new("to_tcp")
                 .long("to_tcp")
                 .value_name("ip:port")
-                .help("Where to connect to TCP server"),
+                .help("IP address and port to connect to TCP server"),
         )
         .arg(
             Arg::new("to_unix")
                 .long("to_unix")
                 .value_name("path")
-                .help("Where to connect to Unix socket"),
+                .help("Path of socket to connect to Unix server"),
         )
         .group(
             ArgGroup::new("to")

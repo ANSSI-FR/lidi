@@ -9,13 +9,13 @@ fn main() {
             Arg::new("to_tcp")
                 .long("to_tcp")
                 .value_name("ip:port")
-                .help("TCP address and port to connect to diode-send"),
+                .help("IP address and port to connect in TCP to diode-send"),
         )
         .arg(
             Arg::new("to_unix")
                 .long("to_unix")
                 .value_name("path")
-                .help("Path to Unix socket to connect to diode-send"),
+                .help("Path of Unix socket to connect to diode-send"),
         )
         .group(
             ArgGroup::new("to")
@@ -28,7 +28,7 @@ fn main() {
                 .value_name("nb_bytes")
                 .default_value("4194304") // 4096 * 1024
                 .value_parser(clap::value_parser!(usize))
-                .help("Size of file read/TCP write buffer"),
+                .help("Size of file read/client write buffer"),
         )
         .arg(
             Arg::new("file")

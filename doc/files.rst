@@ -9,9 +9,9 @@ Sending files with Lidi
      <file>...
    
    Options:
-         --to_tcp <ip:port>        TCP address and port to connect to diode-send
-         --to_unix <path>          Path to Unix socket to connect to diode-send
-         --buffer_size <nb_bytes>  Size of file read/TCP write buffer [default: 4194304]
+         --to_tcp <ip:port>        IP address and port to connect in TCP to diode-send
+         --to_unix <path>          Path of Unix socket to connect to diode-send
+         --buffer_size <nb_bytes>  Size of file read/client write buffer [default: 4194304]
      -h, --help                    Print help
      -V, --version                 Print version
 
@@ -23,8 +23,8 @@ Sending files with Lidi
      [dir]  Output directory [default: .]
    
    Options:
-         --from_tcp <ip:port>      Address and port to listen for diode-receive [default: 127.0.0.1:7000]
-         --from_unix <path>        Patch to listen for diode-receive
-         --buffer_size <nb_bytes>  Size of TCP write buffer [default: 4194304]
+         --from_tcp <ip:port>      IP address and port to listen for TCP connections from diode-receive [default: 127.0.0.1:7000]
+         --from_unix <path>        Path to listen for Unix connections from diode-receive
+         --buffer_size <nb_bytes>  Size of client write buffer [default: 4194304]
      -h, --help                    Print help
      -V, --version                 Print version

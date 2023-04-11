@@ -31,13 +31,13 @@ fn command_args() -> Config {
                 .long("from_tcp")
                 .value_name("ip:port")
                 .default_value("127.0.0.1:5000")
-                .help("From where to accept TCP clients"),
+                .help("IP address and port to accept TCP clients"),
         )
         .arg(
             Arg::new("from_unix")
                 .long("from_unix")
                 .value_name("path")
-                .help("From where to accept Unix clients"),
+                .help("Path of Unix socket to accept clients"),
         )
         .arg(
             Arg::new("nb_clients")
@@ -84,7 +84,7 @@ fn command_args() -> Config {
                 .long("to_udp")
                 .value_name("ip:port")
                 .default_value("127.0.0.1:6000")
-                .help("Where to send UDP traffic"),
+                .help("IP address and port where to send UDP packets to diode-receive"),
         )
         .arg(
             Arg::new("to_udp_mtu")
@@ -92,7 +92,7 @@ fn command_args() -> Config {
                 .value_name("nb_bytes")
                 .default_value("1500") // mtu
                 .value_parser(clap::value_parser!(u16))
-                .help("MTU in bytes of output UDP link"),
+                .help("MTU of the output UDP link"),
         )
         .arg(
             Arg::new("heartbeat")
