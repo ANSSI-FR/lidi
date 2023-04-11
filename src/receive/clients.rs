@@ -14,7 +14,7 @@ where
         receiver.multiplex_control.acquire();
         log::debug!("multiplex access acquired");
 
-        let client_res = client::start(receiver, client_id, recvq);
+        let client_res = client::start(receiver, client_id, &recvq);
 
         receiver.multiplex_control.release();
 

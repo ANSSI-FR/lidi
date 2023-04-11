@@ -74,8 +74,7 @@ fn receive_unix_loop<'a>(
             "new Unix client ({}) connected",
             client_addr
                 .as_pathname()
-                .map(|p| p.display().to_string())
-                .unwrap_or("unknown".to_string())
+                .map_or("unknown".to_string(), |p| p.display().to_string())
         );
         if let Err(e) = client.shutdown(std::net::Shutdown::Write) {
             log::warn!("failed to shutdown Unix client write: {e}");

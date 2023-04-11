@@ -162,9 +162,9 @@ pub fn object_transmission_information(
     let data_mtu: u16 =
         RAPTORQ_ALIGNMENT * ((mtu - PACKET_HEADER_SIZE - RAPTORQ_HEADER_SIZE) / RAPTORQ_ALIGNMENT);
 
-    let nb_encoding_packets = logical_block_size / data_mtu as u64;
+    let nb_encoding_packets = logical_block_size / u64::from(data_mtu);
 
-    let encoding_block_size = data_mtu as u64 * nb_encoding_packets;
+    let encoding_block_size = u64::from(data_mtu) * nb_encoding_packets;
 
     let data_mtu = (encoding_block_size / nb_encoding_packets) as u16;
 
@@ -180,12 +180,12 @@ pub fn packet_size(oti: &raptorq::ObjectTransmissionInformation) -> u16 {
 }
 
 pub fn nb_encoding_packets(oti: &raptorq::ObjectTransmissionInformation) -> u64 {
-    oti.transfer_length() / data_mtu(oti) as u64
+    oti.transfer_length() / u64::from(data_mtu(oti))
 }
 
 pub fn nb_repair_packets(
     oti: &raptorq::ObjectTransmissionInformation,
     repair_block_size: u32,
 ) -> u32 {
-    repair_block_size / data_mtu(oti) as u32
+    repair_block_size / u32::from(data_mtu(oti))
 }

@@ -62,12 +62,12 @@ impl<D> UdpMessages<D> {
 
         for i in 0..vlen {
             if let Some(msglen) = msglen {
-                iovecs[i].iov_base = buffers[i].as_mut_ptr() as *mut libc::c_void;
+                iovecs[i].iov_base = buffers[i].as_mut_ptr().cast::<libc::c_void>();
                 iovecs[i].iov_len = msglen;
             }
             if let Some(sockaddr) = &mut sockaddr {
                 msgvec[i].msg_hdr.msg_name =
-                    sockaddr.as_mut() as *mut libc::sockaddr as *mut libc::c_void;
+                    (sockaddr.as_mut() as *mut libc::sockaddr).cast::<libc::c_void>();
                 msgvec[i].msg_hdr.msg_namelen = mem::size_of::<libc::sockaddr_in>() as u32;
             }
             msgvec[i].msg_hdr.msg_iov = &mut iovecs[i];
@@ -132,7 +132,7 @@ impl UdpMessages<UdpSend> {
 
             for (i, buf) in bufchunk.iter_mut().enumerate() {
                 self.msgvec[i].msg_len = buf.len() as u32;
-                self.iovecs[i].iov_base = buf.as_mut_ptr() as *mut libc::c_void;
+                self.iovecs[i].iov_base = buf.as_mut_ptr().cast::<libc::c_void>();
                 self.iovecs[i].iov_len = buf.len();
             }
 

@@ -32,8 +32,8 @@ impl Config {
         let nb_encoding_packets = protocol::nb_encoding_packets(&oti);
         let nb_repair_packets = protocol::nb_repair_packets(&oti, self.repair_block_size);
 
-        self.encoding_block_size = nb_encoding_packets * packet_size as u64;
-        self.repair_block_size = nb_repair_packets * packet_size as u32;
+        self.encoding_block_size = nb_encoding_packets * u64::from(packet_size);
+        self.repair_block_size = nb_repair_packets * u32::from(packet_size);
     }
 }
 

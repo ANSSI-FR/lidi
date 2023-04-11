@@ -8,11 +8,11 @@ use std::{
 };
 
 pub fn send_files(
-    config: file::Config<file::DiodeSend>,
-    files: Vec<String>,
+    config: &file::Config<file::DiodeSend>,
+    files: &[String],
 ) -> Result<(), file::Error> {
-    for file in &files {
-        let total = send_file(&config, file)?;
+    for file in files {
+        let total = send_file(config, file)?;
         log::info!("file send, {total} bytes sent");
     }
     Ok(())

@@ -12,7 +12,7 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
 
     let sbep = raptorq::SourceBlockEncodingPlan::generate(
         (sender.object_transmission_info.transfer_length()
-            / sender.object_transmission_info.symbol_size() as u64) as u16,
+            / u64::from(sender.object_transmission_info.symbol_size())) as u16,
     );
 
     loop {

@@ -13,7 +13,7 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket)?;
     log::info!("UDP socket send buffer size set to {sock_buffer_size}");
     if (sock_buffer_size as u64)
-        < 2 * (sender.config.encoding_block_size + sender.config.repair_block_size as u64)
+        < 2 * (sender.config.encoding_block_size + u64::from(sender.config.repair_block_size))
     {
         log::warn!("UDP socket send buffer may be too small to achieve optimal performances");
         log::warn!("Please review the kernel parameters using sysctl");

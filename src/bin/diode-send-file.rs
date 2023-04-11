@@ -45,7 +45,11 @@ fn main() {
         .get_one::<String>("to_unix")
         .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
     let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
-    let files = args.get_many("file").expect("required").cloned().collect();
+    let files = args
+        .get_many("file")
+        .expect("required")
+        .cloned()
+        .collect::<Vec<_>>();
 
     let diode = if let Some(to_tcp) = to_tcp {
         file::DiodeSend::Tcp(to_tcp)
@@ -57,7 +61,7 @@ fn main() {
 
     init_logger();
 
-    if let Err(e) = file::send::send_files(config, files) {
+    if let Err(e) = file::send::send_files(&config, &files) {
         log::error!("{e}");
     }
 }

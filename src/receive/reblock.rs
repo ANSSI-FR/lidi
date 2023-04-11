@@ -45,7 +45,7 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             Ok(packet) => packet,
         };
 
-        for packet in packets.into_iter() {
+        for packet in packets {
             let payload_id = packet.payload_id();
             let message_block_id = payload_id.source_block_number();
 

@@ -7,7 +7,7 @@ use std::{
 pub(crate) fn start<C, F, E>(
     receiver: &receive::Receiver<F>,
     client_id: protocol::ClientId,
-    recvq: crossbeam_channel::Receiver<protocol::Message>,
+    recvq: &crossbeam_channel::Receiver<protocol::Message>,
 ) -> Result<(), receive::Error>
 where
     C: Write + AsRawFd,
@@ -16,7 +16,7 @@ where
 {
     log::info!("client {client_id:x}: starting transfer");
 
-    let client = (receiver.new_client)().map_err(|e| e.into())?;
+    let client = (receiver.new_client)().map_err(Into::into)?;
 
     let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&client)?;
     if (sock_buffer_size as usize) < 2 * receiver.to_buffer_size {
