@@ -1,6 +1,6 @@
-use crate::protocol;
+use crate::{protocol, receive};
 
-pub(crate) fn start<F>(receiver: &super::Receiver<F>) -> Result<(), super::Error> {
+pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
     let encoding_block_size = receiver.object_transmission_info.transfer_length();
 
     loop {

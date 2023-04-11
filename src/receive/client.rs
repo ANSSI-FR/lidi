@@ -1,18 +1,18 @@
-use crate::{protocol, sock_utils};
+use crate::{protocol, receive, sock_utils};
 use std::{
     io::{self, Write},
     os::fd::AsRawFd,
 };
 
 pub(crate) fn start<C, F, E>(
-    receiver: &super::Receiver<F>,
+    receiver: &receive::Receiver<F>,
     client_id: protocol::ClientId,
     recvq: crossbeam_channel::Receiver<protocol::Message>,
-) -> Result<(), super::Error>
+) -> Result<(), receive::Error>
 where
     C: Write + AsRawFd,
     F: Send + Sync + Fn() -> Result<C, E>,
-    E: Into<super::Error>,
+    E: Into<receive::Error>,
 {
     log::info!("client {client_id:x}: starting transfer");
 
@@ -42,11 +42,11 @@ where
         match recvq.recv_timeout(receiver.config.abort_timeout) {
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
                 log::warn!("client {client_id:x}: transfer timeout, aborting");
-                return Err(super::Error::from(
+                return Err(receive::Error::from(
                     crossbeam_channel::RecvTimeoutError::Timeout,
                 ));
             }
-            Err(e) => return Err(super::Error::from(e)),
+            Err(e) => return Err(receive::Error::from(e)),
             Ok(message) => {
                 let message_type = message.message_type()?;
 

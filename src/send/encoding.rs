@@ -1,6 +1,6 @@
-use crate::protocol;
+use crate::{protocol, send};
 
-pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error> {
+pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     let nb_repair_packets = protocol::nb_repair_packets(
         &sender.object_transmission_info,
         sender.config.repair_block_size,

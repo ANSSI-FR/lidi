@@ -1,9 +1,7 @@
-use crate::protocol;
-
-use super::client;
+use crate::{protocol, send, send::client};
 use std::{io::Read, os::fd::AsRawFd};
 
-pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error>
+pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error>
 where
     C: Read + AsRawFd + Send,
 {

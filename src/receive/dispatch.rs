@@ -1,11 +1,10 @@
+use crate::{protocol, receive};
 use std::{
     collections::{BTreeMap, BTreeSet},
     time,
 };
 
-use crate::protocol;
-
-pub(crate) fn start<F>(receiver: &super::Receiver<F>) -> Result<(), super::Error> {
+pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
     let mut active_transfers: BTreeMap<
         protocol::ClientId,
         crossbeam_channel::Sender<protocol::Message>,

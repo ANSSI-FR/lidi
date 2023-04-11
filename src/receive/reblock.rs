@@ -1,6 +1,6 @@
-use crate::protocol;
+use crate::{protocol, receive};
 
-pub(crate) fn start<F>(receiver: &super::Receiver<F>) -> Result<(), super::Error> {
+pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
     let nb_normal_packets = protocol::nb_encoding_packets(&receiver.object_transmission_info);
     let nb_repair_packets = protocol::nb_repair_packets(
         &receiver.object_transmission_info,
@@ -41,7 +41,7 @@ pub(crate) fn start<F>(receiver: &super::Receiver<F>) -> Result<(), super::Error
                 }
                 continue;
             }
-            Err(e) => return Err(super::Error::from(e)),
+            Err(e) => return Err(receive::Error::from(e)),
             Ok(packet) => packet,
         };
 

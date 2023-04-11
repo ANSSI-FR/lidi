@@ -1,6 +1,6 @@
-use crate::protocol;
+use crate::{protocol, send};
 
-pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error> {
+pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     let alarm = crossbeam_channel::tick(sender.config.hearbeat_interval);
 
     loop {

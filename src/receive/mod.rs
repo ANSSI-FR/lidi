@@ -1,3 +1,4 @@
+use crate::{protocol, semaphore};
 use std::{
     fmt,
     io::{self, Write},
@@ -5,8 +6,6 @@ use std::{
     os::fd::AsRawFd,
     sync, thread, time,
 };
-
-use crate::{protocol, semaphore};
 
 mod client;
 mod clients;

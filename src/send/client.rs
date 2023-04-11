@@ -1,12 +1,11 @@
+use crate::{protocol, send, sock_utils};
 use std::{io::Read, os::fd::AsRawFd};
 
-use crate::{protocol, sock_utils};
-
 pub(crate) fn start<C>(
-    sender: &super::Sender<C>,
+    sender: &send::Sender<C>,
     client_id: protocol::ClientId,
     mut client: C,
-) -> Result<(), super::Error>
+) -> Result<(), send::Error>
 where
     C: Read + AsRawFd + Send,
 {

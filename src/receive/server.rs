@@ -1,8 +1,7 @@
+use crate::{receive, sock_utils, udp};
 use std::net;
 
-use crate::{sock_utils, udp};
-
-pub(crate) fn start<F>(receiver: &super::Receiver<F>) -> Result<(), super::Error> {
+pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
     log::info!(
         "listening for UDP packets at {} with MTU {}",
         receiver.config.from_udp,
