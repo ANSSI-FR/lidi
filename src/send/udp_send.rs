@@ -1,10 +1,7 @@
 use crate::{sock_utils, udp};
-use std::{io::Read, net, os::fd::AsRawFd};
+use std::net;
 
-pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error>
-where
-    C: Read + AsRawFd + Send,
-{
+pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error> {
     log::info!(
         "sending UDP traffic to {} with MTU {} binding to {}",
         sender.config.to_udp,

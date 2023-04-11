@@ -1,11 +1,6 @@
-use std::{io::Read, os::fd::AsRawFd};
-
 use crate::protocol;
 
-pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error>
-where
-    C: Read + AsRawFd + Send,
-{
+pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error> {
     let alarm = crossbeam_channel::tick(sender.config.hearbeat_interval);
 
     loop {
