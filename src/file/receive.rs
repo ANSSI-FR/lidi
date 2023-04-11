@@ -18,17 +18,24 @@ pub fn receive_files(
     }
 
     thread::scope(|scope| -> Result<(), file::Error> {
+        if let Some(from_unix) = &config.diode.from_unix {
+            if from_unix.exists() {
+                return Err(file::Error::Other(format!(
+                    "Unix socket path '{}' already exists",
+                    from_unix.display()
+                )));
+            }
+
+            let server = unix::net::UnixListener::bind(from_unix)?;
+            thread::Builder::new().spawn_scoped(scope, || {
+                receive_unix_loop(config, output_dir, scope, server)
+            })?;
+        }
+
         if let Some(from_tcp) = &config.diode.from_tcp {
             let server = net::TcpListener::bind(from_tcp)?;
             thread::Builder::new().spawn_scoped(scope, || {
                 receive_tcp_loop(config, output_dir, scope, server)
-            })?;
-        }
-
-        if let Some(from_unix) = &config.diode.from_unix {
-            let server = unix::net::UnixListener::bind(from_unix)?;
-            thread::Builder::new().spawn_scoped(scope, || {
-                receive_unix_loop(config, output_dir, scope, server)
             })?;
         }
 
