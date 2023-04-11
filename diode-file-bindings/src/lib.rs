@@ -14,7 +14,7 @@ use std::{
 pub unsafe extern "C" fn diode_new_config(
     ptr_addr: *const c_char,
     buffer_size: u32,
-) -> *mut file::Config {
+) -> *mut file::Config<file::DiodeSend> {
     if ptr_addr.is_null() {
         return ptr::null_mut();
     }
@@ -23,7 +23,7 @@ pub unsafe extern "C" fn diode_new_config(
     let socket_addr = SocketAddr::from_str(&rust_addr).expect("ip:port");
 
     let config = Box::new(file::Config {
-        socket_addr,
+        diode: file::DiodeSend::Tcp(socket_addr),
         buffer_size: buffer_size as usize,
     });
     Box::into_raw(config)
@@ -31,7 +31,7 @@ pub unsafe extern "C" fn diode_new_config(
 
 #[no_mangle]
 #[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn diode_free_config(ptr: *mut file::Config) {
+pub unsafe extern "C" fn diode_free_config(ptr: *mut file::Config<file::DiodeSend>) {
     if ptr.is_null() {
         return;
     }
@@ -43,7 +43,7 @@ pub unsafe extern "C" fn diode_free_config(ptr: *mut file::Config) {
 #[no_mangle]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn diode_send_file(
-    ptr: *mut file::Config,
+    ptr: *mut file::Config<file::DiodeSend>,
     ptr_filepath: *const c_char,
 ) -> u32 {
     if ptr.is_null() {
@@ -62,11 +62,25 @@ pub unsafe extern "C" fn diode_send_file(
 
 #[no_mangle]
 #[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn diode_receive_files(ptr: *mut file::Config, ptr_odir: *const c_char) {
+pub unsafe extern "C" fn diode_receive_files(
+    ptr: *mut file::Config<file::DiodeSend>,
+    ptr_odir: *const c_char,
+) {
     if ptr.is_null() {
         return;
     }
     let config = unsafe { ptr.as_ref() }.expect("config");
+    let file::DiodeSend::Tcp(socket_addr) = config.diode else {
+        return;
+    };
+
+    let config = file::Config {
+        diode: file::DiodeReceive {
+            from_tcp: Some(socket_addr),
+            from_unix: None,
+        },
+        buffer_size: config.buffer_size,
+    };
 
     if ptr_odir.is_null() {
         return;
@@ -75,5 +89,5 @@ pub unsafe extern "C" fn diode_receive_files(ptr: *mut file::Config, ptr_odir: *
     let rust_odir = String::from_utf8_lossy(cstr_odir.to_bytes()).to_string();
     let odir = PathBuf::from(rust_odir);
 
-    let _ = file::receive::receive_files(config.clone(), odir);
+    let _ = file::receive::receive_files(&config, &odir);
 }
