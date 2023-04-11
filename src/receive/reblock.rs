@@ -1,13 +1,6 @@
-use std::{io::Write, os::fd::AsRawFd};
-
 use crate::protocol;
 
-pub(crate) fn start<C, F, E>(receiver: &super::Receiver<C, F, E>) -> Result<(), super::Error>
-where
-    C: Write + AsRawFd,
-    F: Send + Sync + Fn() -> Result<C, E>,
-    E: Into<super::Error>,
-{
+pub(crate) fn start<F>(receiver: &super::Receiver<F>) -> Result<(), super::Error> {
     let nb_normal_packets = protocol::nb_encoding_packets(&receiver.object_transmission_info);
     let nb_repair_packets = protocol::nb_repair_packets(
         &receiver.object_transmission_info,

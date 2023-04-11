@@ -132,12 +132,7 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub struct Receiver<C, F, E>
-where
-    C: Write + AsRawFd,
-    F: Send + Sync + Fn() -> Result<C, E>,
-    E: Into<Error>,
-{
+pub struct Receiver<F> {
     pub(crate) config: Config,
     pub(crate) object_transmission_info: raptorq::ObjectTransmissionInformation,
     pub(crate) to_buffer_size: usize,
@@ -161,7 +156,7 @@ where
     pub(crate) new_client: F,
 }
 
-impl<C, F, E> Receiver<C, F, E>
+impl<C, F, E> Receiver<F>
 where
     C: Write + AsRawFd,
     F: Send + Sync + Fn() -> Result<C, E>,

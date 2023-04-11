@@ -118,7 +118,8 @@ fn command_args() -> Config {
     let to_udp = net::SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
-    let heartbeat = *args.get_one::<u16>("heartbeat").expect("default");
+    let heartbeat =
+        time::Duration::from_secs(*args.get_one::<u16>("heartbeat").expect("default") as u64);
 
     Config {
         from_tcp,
@@ -130,7 +131,7 @@ fn command_args() -> Config {
         to_bind,
         to_udp,
         to_udp_mtu,
-        heartbeat: time::Duration::from_secs(heartbeat as u64),
+        heartbeat,
     }
 }
 

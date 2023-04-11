@@ -148,7 +148,8 @@ fn command_args() -> Config {
 
     let abort_timeout =
         time::Duration::from_secs(*args.get_one::<u64>("abort_timeout").expect("default"));
-    let heartbeat = *args.get_one::<u16>("heartbeat").expect("default");
+    let heartbeat =
+        time::Duration::from_secs(*args.get_one::<u16>("heartbeat").expect("default") as u64);
 
     let to = if let Some(to_tcp) = to_tcp {
         ClientConfig::Tcp(to_tcp)
@@ -166,7 +167,7 @@ fn command_args() -> Config {
         flush_timeout,
         to,
         abort_timeout,
-        heartbeat: time::Duration::from_secs(heartbeat as u64),
+        heartbeat,
     }
 }
 

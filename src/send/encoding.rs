@@ -1,11 +1,6 @@
-use std::{io::Read, os::fd::AsRawFd};
-
 use crate::protocol;
 
-pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error>
-where
-    C: Read + AsRawFd + Send,
-{
+pub(crate) fn start<C>(sender: &super::Sender<C>) -> Result<(), super::Error> {
     let nb_repair_packets = protocol::nb_repair_packets(
         &sender.object_transmission_info,
         sender.config.repair_block_size,

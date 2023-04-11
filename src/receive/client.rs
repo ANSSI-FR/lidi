@@ -5,7 +5,7 @@ use std::{
 };
 
 pub(crate) fn start<C, F, E>(
-    receiver: &super::Receiver<C, F, E>,
+    receiver: &super::Receiver<F>,
     client_id: protocol::ClientId,
     recvq: crossbeam_channel::Receiver<protocol::Message>,
 ) -> Result<(), super::Error>

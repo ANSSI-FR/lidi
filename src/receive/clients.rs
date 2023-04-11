@@ -2,7 +2,7 @@ use std::{io::Write, os::fd::AsRawFd};
 
 use crate::receive::client;
 
-pub(crate) fn start<C, F, E>(receiver: &super::Receiver<C, F, E>) -> Result<(), super::Error>
+pub(crate) fn start<C, F, E>(receiver: &super::Receiver<F>) -> Result<(), super::Error>
 where
     C: Write + AsRawFd,
     F: Send + Sync + Fn() -> Result<C, E>,

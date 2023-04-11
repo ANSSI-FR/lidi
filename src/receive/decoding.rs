@@ -1,13 +1,6 @@
-use std::{io::Write, os::fd::AsRawFd};
-
 use crate::protocol;
 
-pub(crate) fn start<C, F, E>(receiver: &super::Receiver<C, F, E>) -> Result<(), super::Error>
-where
-    C: Write + AsRawFd,
-    F: Send + Sync + Fn() -> Result<C, E>,
-    E: Into<super::Error>,
-{
+pub(crate) fn start<F>(receiver: &super::Receiver<F>) -> Result<(), super::Error> {
     let encoding_block_size = receiver.object_transmission_info.transfer_length();
 
     loop {

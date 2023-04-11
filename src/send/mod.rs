@@ -89,10 +89,7 @@ impl From<protocol::Error> for Error {
     }
 }
 
-pub struct Sender<C>
-where
-    C: Read + AsRawFd + Send,
-{
+pub struct Sender<C> {
     pub(crate) config: Config,
     pub(crate) object_transmission_info: raptorq::ObjectTransmissionInformation,
     pub(crate) from_buffer_size: u32,

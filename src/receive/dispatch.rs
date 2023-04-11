@@ -1,18 +1,11 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io::Write,
-    os::fd::AsRawFd,
     time,
 };
 
 use crate::protocol;
 
-pub(crate) fn start<C, F, E>(receiver: &super::Receiver<C, F, E>) -> Result<(), super::Error>
-where
-    C: Write + AsRawFd,
-    F: Send + Sync + Fn() -> Result<C, E>,
-    E: Into<super::Error>,
-{
+pub(crate) fn start<F>(receiver: &super::Receiver<F>) -> Result<(), super::Error> {
     let mut active_transfers: BTreeMap<
         protocol::ClientId,
         crossbeam_channel::Sender<protocol::Message>,
