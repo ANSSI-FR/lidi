@@ -48,6 +48,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#adresses-and-ports">Adresses and ports</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#tcp-data-source">TCP data source</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#tcp-data-destination">TCP data destination</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#unix-data-source">Unix data source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#unix-data-destination">Unix data destination</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#udp-transfer">UDP transfer</a></li>
 </ul>
 </li>
@@ -119,6 +121,20 @@
 </pre></div>
 </div>
 <p>Default value is 127.0.0.1:7000.</p>
+</section>
+<section id="unix-data-source">
+<h3>Unix data source<a class="headerlink" href="#unix-data-source" title="Permalink to this heading"></a></h3>
+<p>The diode-send side gets data from Unix connections. It is necessary to specify ip address and port in which Unix connections will be accepted with the following parameter:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">from_unix</span> <span class="o">&lt;</span><span class="n">path</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+</section>
+<section id="unix-data-destination">
+<h3>Unix data destination<a class="headerlink" href="#unix-data-destination" title="Permalink to this heading"></a></h3>
+<p>On the diode-receive side, data will be sent to Unix connected clients. To specify listening Unix socket path:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_unix</span> <span class="o">&lt;</span><span class="n">path</span><span class="o">&gt;</span>
+</pre></div>
+</div>
 </section>
 <section id="udp-transfer">
 <h3>UDP transfer<a class="headerlink" href="#udp-transfer" title="Permalink to this heading"></a></h3>

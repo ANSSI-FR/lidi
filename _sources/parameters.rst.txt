@@ -48,6 +48,24 @@ On the diode-receive side, data will be sent to TCP connected clients. To specif
 
 Default value is 127.0.0.1:7000.
 
+Unix data source
+""""""""""""""""
+
+The diode-send side gets data from Unix connections. It is necessary to specify ip address and port in which Unix connections will be accepted with the following parameter:
+
+.. code-block::
+
+   --from_unix <path>
+
+Unix data destination
+"""""""""""""""""""""
+
+On the diode-receive side, data will be sent to Unix connected clients. To specify listening Unix socket path:
+
+.. code-block::
+
+   --to_unix <path>
+
 UDP transfer
 """"""""""""
 
