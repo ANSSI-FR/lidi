@@ -52,9 +52,6 @@ fn receive_tcp_loop<'a>(
     loop {
         let (client, client_addr) = server.accept()?;
         log::info!("new Unix client ({client_addr}) connected");
-        if let Err(e) = client.shutdown(std::net::Shutdown::Write) {
-            log::warn!("failed to shutdown TCP client write: {e}");
-        }
         scope.spawn(|| match receive_file(config, client, output_dir) {
             Ok(total) => log::info!("file received, {total} bytes received"),
             Err(e) => log::error!("failed to receive file: {e}"),
@@ -76,9 +73,6 @@ fn receive_unix_loop<'a>(
                 .as_pathname()
                 .map_or("unknown".to_string(), |p| p.display().to_string())
         );
-        if let Err(e) = client.shutdown(std::net::Shutdown::Write) {
-            log::warn!("failed to shutdown Unix client write: {e}");
-        }
         scope.spawn(|| match receive_file(config, client, output_dir) {
             Ok(total) => log::info!("file received, {total} bytes received"),
             Err(e) => log::error!("failed to receive file: {e}"),

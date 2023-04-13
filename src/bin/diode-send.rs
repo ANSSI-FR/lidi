@@ -166,10 +166,6 @@ fn unix_listener_loop(listener: unix::net::UnixListener, sender: &send::Sender<C
                 return;
             }
             Ok(client) => {
-                if let Err(e) = client.shutdown(net::Shutdown::Write) {
-                    log::warn!("failed to shutdown write on Unix client: {e}");
-                }
-
                 if let Err(e) = sender.new_client(Client::Unix(client)) {
                     log::error!("failed to send Unix client to connect queue: {e}");
                 }
@@ -186,10 +182,6 @@ fn tcp_listener_loop(listener: net::TcpListener, sender: &send::Sender<Client>) 
                 return;
             }
             Ok(client) => {
-                if let Err(e) = client.shutdown(net::Shutdown::Write) {
-                    log::warn!("failed to shutdown write on TCP client: {e}");
-                }
-
                 if let Err(e) = sender.new_client(Client::Tcp(client)) {
                     log::error!("failed to send TCP client to connect queue: {e}");
                 }

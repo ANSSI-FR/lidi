@@ -27,12 +27,10 @@ pub fn send_file(
     match &config.diode {
         file::DiodeSend::Tcp(socket_addr) => {
             let diode = net::TcpStream::connect(socket_addr)?;
-            diode.shutdown(std::net::Shutdown::Read)?;
             send_file_aux(config, diode, file_path)
         }
         file::DiodeSend::Unix(path) => {
             let diode = unix::net::UnixStream::connect(path)?;
-            diode.shutdown(std::net::Shutdown::Read)?;
             send_file_aux(config, diode, file_path)
         }
     }

@@ -208,16 +208,10 @@ impl TryFrom<&ClientConfig> for Client {
         match config {
             ClientConfig::Tcp(s) => {
                 let client = net::TcpStream::connect(s)?;
-                if let Err(e) = client.shutdown(net::Shutdown::Read) {
-                    log::warn!("failed to shutdown TCP socket read: {e}");
-                }
                 Ok(Self::Tcp(client))
             }
             ClientConfig::Unix(p) => {
                 let client = unix::net::UnixStream::connect(p)?;
-                if let Err(e) = client.shutdown(net::Shutdown::Read) {
-                    log::warn!("failed to shutdown Unix socket read: {e}");
-                }
                 Ok(Self::Unix(client))
             }
         }

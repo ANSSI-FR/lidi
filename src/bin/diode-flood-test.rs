@@ -45,17 +45,11 @@ fn main() {
     if let Some(to_tcp) = to_tcp {
         log::debug!("TCP connect to {}", to_tcp);
         let diode = net::TcpStream::connect(to_tcp).expect("TCP connect");
-        diode
-            .shutdown(net::Shutdown::Read)
-            .expect("TCP read shutdown");
         start(diode, buffer_size)
     } else {
         let to_unix = to_unix.expect("to_tcp and to_unix are mutually exclusive");
         log::debug!("Unix connect to {}", to_unix.display());
         let diode = unix::net::UnixStream::connect(to_unix).expect("Unix connect");
-        diode
-            .shutdown(net::Shutdown::Read)
-            .expect("Unix read shutdown");
         start(diode, buffer_size)
     }
 }
