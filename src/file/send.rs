@@ -1,6 +1,9 @@
+use fasthash::HasherExt;
+
 use crate::file;
 use std::{
     fs,
+    hash::Hash,
     io::{Read, Write},
     net,
     os::unix::{self, fs::PermissionsExt},
@@ -82,13 +85,25 @@ where
     let mut cursor = 0;
     let mut total = 0;
 
+    let mut hasher = fasthash::Murmur3HasherExt::default();
+
     loop {
         match file.read(&mut buffer[cursor..])? {
             0 => {
                 if 0 < cursor {
                     total += cursor;
+                    if config.hash {
+                        buffer[..cursor].hash(&mut hasher);
+                    }
                     diode.write_all(&buffer[..cursor])?;
                 }
+
+                let footer = file::protocol::Footer {
+                    hash: if config.hash { hasher.finish_ext() } else { 0 },
+                };
+
+                footer.serialize_to(&mut diode)?;
+
                 diode.flush()?;
                 return Ok(total);
             }
@@ -98,6 +113,9 @@ where
                     continue;
                 }
                 total += config.buffer_size;
+                if config.hash {
+                    buffer.hash(&mut hasher);
+                }
                 diode.write_all(&buffer)?;
                 cursor = 0;
             }

@@ -1,4 +1,4 @@
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, Command};
 use diode::file;
 use std::{env, net, path, str::FromStr};
 
@@ -27,6 +27,14 @@ fn main() {
                 .help("Size of client write buffer"),
         )
         .arg(
+            Arg::new("hash")
+                .long("hash")
+                .action(ArgAction::SetTrue)
+                .default_value("false")
+                .value_parser(clap::value_parser!(bool))
+                .help("Verify the hash of file content (default is false)"),
+        )
+        .arg(
             Arg::new("output_directory")
                 .value_name("dir")
                 .default_value(".")
@@ -41,6 +49,7 @@ fn main() {
         .get_one::<String>("from_unix")
         .map(|s| path::PathBuf::from_str(s).expect("invalid from_unix parameter"));
     let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
+    let hash = args.get_one::<bool>("hash").copied().expect("default");
     let output_directory =
         path::PathBuf::from(args.get_one::<String>("output_directory").expect("default"));
 
@@ -49,7 +58,11 @@ fn main() {
         from_unix,
     };
 
-    let config = file::Config { diode, buffer_size };
+    let config = file::Config {
+        diode,
+        buffer_size,
+        hash,
+    };
 
     init_logger();
 

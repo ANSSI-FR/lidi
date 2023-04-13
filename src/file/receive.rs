@@ -1,6 +1,9 @@
-use crate::file;
+use fasthash::HasherExt;
+
+use crate::file::{self, protocol};
 use std::{
     fs,
+    hash::Hash,
     io::{Read, Write},
     net,
     os::unix::{self, fs::PermissionsExt},
@@ -91,6 +94,7 @@ where
     let header = file::protocol::Header::deserialize_from(&mut diode)?;
 
     log::debug!("receiving file \"{}\"", header.file_name);
+    log::debug!("file size = {}", header.file_length);
 
     let file_path = path::PathBuf::from(header.file_name);
     let file_name = file_path
@@ -118,24 +122,63 @@ where
 
     let mut buffer = vec![0; config.buffer_size];
     let mut cursor = 0;
-    let mut total = 0;
+    let mut remaining = header.file_length as usize;
+
+    let mut hasher = fasthash::Murmur3HasherExt::default();
 
     loop {
-        match diode.read(&mut buffer[cursor..])? {
+        let end = if remaining >= (config.buffer_size - cursor) {
+            config.buffer_size
+        } else {
+            cursor + remaining
+        };
+        match diode.read(&mut buffer[cursor..end])? {
             0 => {
                 if 0 < cursor {
-                    total += cursor;
+                    if config.hash {
+                        buffer[..cursor].hash(&mut hasher);
+                    }
                     file.write_all(&buffer[..cursor])?;
                 }
+
                 file.flush()?;
-                return Ok(total);
+
+                let received = header.file_length as usize - remaining;
+
+                let footer = file::protocol::Footer::deserialize_from(&mut diode)?;
+
+                if remaining != 0 {
+                    log::debug!("expected file size = {}", header.file_length);
+                    log::debug!("received file size = {received}");
+                    return Err(file::Error::Diode(protocol::Error::InvalidFileSize(
+                        header.file_length as usize,
+                        received,
+                    )));
+                }
+
+                if config.hash {
+                    let hash = hasher.finish_ext();
+                    log::debug!("expected hash = {}", footer.hash);
+                    log::debug!("computed hash = {hash}");
+                    if footer.hash != hash {
+                        return Err(file::Error::Diode(protocol::Error::InvalidHash(
+                            hash,
+                            footer.hash,
+                        )));
+                    }
+                }
+
+                return Ok(received);
             }
             nread => {
+                remaining -= nread;
                 if (cursor + nread) < config.buffer_size {
                     cursor += nread;
                     continue;
                 }
-                total += config.buffer_size;
+                if config.hash {
+                    buffer.hash(&mut hasher);
+                }
                 file.write_all(&buffer)?;
                 cursor = 0;
             }

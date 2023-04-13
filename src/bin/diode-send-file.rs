@@ -31,6 +31,14 @@ fn main() {
                 .help("Size of file read/client write buffer"),
         )
         .arg(
+            Arg::new("hash")
+                .long("hash")
+                .action(ArgAction::SetTrue)
+                .default_value("false")
+                .value_parser(clap::value_parser!(bool))
+                .help("Compute a hash of file content (default is false)"),
+        )
+        .arg(
             Arg::new("file")
                 .action(ArgAction::Append)
                 .allow_hyphen_values(true)
@@ -45,6 +53,7 @@ fn main() {
         .get_one::<String>("to_unix")
         .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
     let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
+    let hash = args.get_one::<bool>("hash").copied().expect("default");
     let files = args
         .get_many("file")
         .expect("required")
@@ -57,7 +66,11 @@ fn main() {
         file::DiodeSend::Unix(to_unix.expect("to_tcp and to_unix are mutually exclusive"))
     };
 
-    let config = file::Config { diode, buffer_size };
+    let config = file::Config {
+        diode,
+        buffer_size,
+        hash,
+    };
 
     init_logger();
 

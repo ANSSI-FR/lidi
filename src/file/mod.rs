@@ -38,6 +38,7 @@ impl fmt::Display for DiodeReceive {
 pub struct Config<D> {
     pub diode: D,
     pub buffer_size: usize,
+    pub hash: bool,
 }
 
 pub enum Error {
