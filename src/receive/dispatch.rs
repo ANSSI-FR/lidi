@@ -68,29 +68,35 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
 
         log::trace!("message = {message}");
 
-        let client_sendq = active_transfers.get(&client_id).expect("active transfer");
-
-        if let Err(e) = client_sendq.send(message) {
-            log::error!("failed to send payload to client {client_id:x}: {e}");
-            active_transfers.remove(&client_id);
-            failed_transfers.insert(client_id);
-            continue;
-        }
-
-        if will_end {
-            let client_sendq = active_transfers
-                .remove(&client_id)
-                .expect("active transfer");
-
-            ended_transfers.retain(|client_id, client_sendq| {
-                let retain = !client_sendq.is_empty();
-                if !retain {
-                    log::debug!("purging ended transfer of client {client_id:x}");
+        match active_transfers.get(&client_id) {
+            None => {
+                log::error!("receive data for inactive transfer {client_id:x}");
+                failed_transfers.insert(client_id);
+            }
+            Some(client_sendq) => {
+                if let Err(e) = client_sendq.send(message) {
+                    log::error!("failed to send payload to client {client_id:x}: {e}");
+                    active_transfers.remove(&client_id);
+                    failed_transfers.insert(client_id);
+                    continue;
                 }
-                retain
-            });
 
-            ended_transfers.insert(client_id, client_sendq);
+                if will_end {
+                    let client_sendq = active_transfers
+                        .remove(&client_id)
+                        .expect("active transfer");
+
+                    ended_transfers.retain(|client_id, client_sendq| {
+                        let retain = !client_sendq.is_empty();
+                        if !retain {
+                            log::debug!("purging ended transfer of client {client_id:x}");
+                        }
+                        retain
+                    });
+
+                    ended_transfers.insert(client_id, client_sendq);
+                }
+            }
         }
     }
 }
