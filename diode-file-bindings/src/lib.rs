@@ -25,6 +25,7 @@ pub unsafe extern "C" fn diode_new_config(
     let config = Box::new(file::Config {
         diode: file::DiodeSend::Tcp(socket_addr),
         buffer_size: buffer_size as usize,
+        hash: false,
     });
     Box::into_raw(config)
 }
@@ -80,6 +81,7 @@ pub unsafe extern "C" fn diode_receive_files(
             from_unix: None,
         },
         buffer_size: config.buffer_size,
+        hash: false,
     };
 
     if ptr_odir.is_null() {
