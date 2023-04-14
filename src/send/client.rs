@@ -51,6 +51,8 @@ where
                         protocol::MessageType::Data
                     };
 
+                    is_first = false;
+
                     sender.to_encoding.send(protocol::Message::new(
                         message_type,
                         sender.from_buffer_size,
@@ -59,12 +61,14 @@ where
                     ))?;
                 }
 
-                sender.to_encoding.send(protocol::Message::new(
-                    protocol::MessageType::End,
-                    sender.from_buffer_size,
-                    client_id,
-                    None,
-                ))?;
+                if !is_first {
+                    sender.to_encoding.send(protocol::Message::new(
+                        protocol::MessageType::End,
+                        sender.from_buffer_size,
+                        client_id,
+                        None,
+                    ))?;
+                }
 
                 log::info!("client {client_id:x}: disconnect, {transmitted} bytes transmitted");
 
