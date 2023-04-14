@@ -22,7 +22,7 @@ where
     if (sock_buffer_size as usize) < 2 * receiver.to_buffer_size {
         sock_utils::set_socket_send_buffer_size(&client, receiver.to_buffer_size as i32)?;
         let new_sock_buffer_size = sock_utils::get_socket_send_buffer_size(&client)?;
-        log::info!(
+        log::debug!(
             "client socket send buffer size set to {}",
             new_sock_buffer_size
         );

@@ -19,12 +19,14 @@ where
     if (sock_buffer_size as u32) < 2 * sender.from_buffer_size {
         sock_utils::set_socket_recv_buffer_size(&client, sender.from_buffer_size as i32)?;
         let new_sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&client)?;
-        log::info!(
-            "TCP socket recv buffer size set to {}",
+        log::debug!(
+            "client socket recv buffer size set to {}",
             new_sock_buffer_size
         );
         if (new_sock_buffer_size as u32) < 2 * sender.from_buffer_size {
-            log::warn!("TCP socket recv buffer may be too small to achieve optimal performances");
+            log::warn!(
+                "client socket recv buffer may be too small to achieve optimal performances"
+            );
         }
     }
 
