@@ -207,14 +207,9 @@ See the <a class="reference internal" href="tweaking.html#tweaking-parameters"><
 <h2>Timeouts<a class="headerlink" href="#timeouts" title="Permalink to this heading"></a></h2>
 <p>Since lidi uses UDP protocol to transfer data, blocks and datagrams can be reordered.
 Fountain codes are used to ensure data integrity despite possible transfer reordering and losses. Also, it can be harder for the receiving part to know that a particular transfer is done, since an EOF-like marker can be received before the end of the data, or simply lost.
-Thus, configurable timeouts are used in lidi to decide when to reset fountain code status:</p>
+Thus, a configurable timeout is used in lidi to decide when to reset fountain code status:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">flush_timeout</span> <span class="o">&lt;</span><span class="n">nb_milliseconds</span><span class="o">&gt;</span>
   <span class="p">(</span><span class="n">receiver</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">500</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>and when to abort an incomplete incoming transfer:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">abort_timeout</span> <span class="o">&lt;</span><span class="n">nb_seconds</span><span class="o">&gt;</span>
-  <span class="p">(</span><span class="n">receiver</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">10</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>

@@ -156,19 +156,12 @@ Timeouts
 
 Since lidi uses UDP protocol to transfer data, blocks and datagrams can be reordered.
 Fountain codes are used to ensure data integrity despite possible transfer reordering and losses. Also, it can be harder for the receiving part to know that a particular transfer is done, since an EOF-like marker can be received before the end of the data, or simply lost.
-Thus, configurable timeouts are used in lidi to decide when to reset fountain code status:
+Thus, a configurable timeout is used in lidi to decide when to reset fountain code status:
 
 .. code-block::
 
    --flush_timeout <nb_milliseconds>
      (receiver side, default: 500)
-
-and when to abort an incomplete incoming transfer:
-  
-.. code-block::
-
-   --abort_timeout <nb_seconds>
-     (receiver side, default: 10)
 
 Heartbeat
 ---------
