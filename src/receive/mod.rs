@@ -22,7 +22,6 @@ pub struct Config {
     pub repair_block_size: u32,
     pub flush_timeout: time::Duration,
     pub nb_decoding_threads: u8,
-    pub abort_timeout: time::Duration,
     pub heartbeat_interval: time::Duration,
 }
 
@@ -231,11 +230,6 @@ where
         log::info!(
             "flush timeout is {} ms",
             self.config.flush_timeout.as_millis()
-        );
-
-        log::info!(
-            "abort timeout is {} second(s)",
-            self.config.abort_timeout.as_secs()
         );
 
         for i in 0..self.config.nb_clients {

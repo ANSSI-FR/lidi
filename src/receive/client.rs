@@ -39,13 +39,8 @@ where
     let mut transmitted = 0;
 
     loop {
-        match recvq.recv_timeout(receiver.config.abort_timeout) {
-            Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                log::warn!("client {client_id:x}: transfer timeout, aborting");
-                return Err(receive::Error::from(
-                    crossbeam_channel::RecvTimeoutError::Timeout,
-                ));
-            }
+        match recvq.recv_timeout(receiver.config.flush_timeout) {
+            Err(crossbeam_channel::RecvTimeoutError::Timeout) => client.flush()?,
             Err(e) => return Err(receive::Error::from(e)),
             Ok(message) => {
                 let message_type = message.message_type()?;

@@ -1,5 +1,5 @@
 use crate::{protocol, send, sock_utils};
-use std::{io::Read, os::fd::AsRawFd};
+use std::{io, os::fd::AsRawFd};
 
 pub(crate) fn start<C>(
     sender: &send::Sender<C>,
@@ -7,7 +7,7 @@ pub(crate) fn start<C>(
     mut client: C,
 ) -> Result<(), send::Error>
 where
-    C: Read + AsRawFd + Send,
+    C: io::Read + AsRawFd + Send,
 {
     log::info!("client {client_id:x}: connected");
 
@@ -35,8 +35,35 @@ where
     loop {
         log::trace!("client {client_id:x}: read...");
 
-        match client.read(&mut buffer[cursor..])? {
-            0 => {
+        match client.read(&mut buffer[cursor..]) {
+            Err(e) => match e.kind() {
+                io::ErrorKind::WouldBlock => {
+                    if 0 < cursor {
+                        log::debug!("client {client_id:x}: flushing pending data");
+
+                        transmitted += cursor;
+
+                        let message_type = if is_first {
+                            protocol::MessageType::Start
+                        } else {
+                            protocol::MessageType::Data
+                        };
+
+                        is_first = false;
+
+                        sender.to_encoding.send(protocol::Message::new(
+                            message_type,
+                            sender.from_buffer_size,
+                            client_id,
+                            Some(&buffer[..cursor]),
+                        ))?;
+
+                        cursor = 0;
+                    }
+                }
+                _ => return Err(e.into()),
+            },
+            Ok(0) => {
                 log::trace!("client {client_id:x}: end of stream");
 
                 if 0 < cursor {
@@ -75,7 +102,7 @@ where
                 return Ok(());
             }
 
-            nread => {
+            Ok(nread) => {
                 log::trace!("client {client_id:x}: {nread} bytes read");
 
                 if (cursor + nread) < sender.from_buffer_size as usize {

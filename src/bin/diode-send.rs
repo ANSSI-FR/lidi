@@ -13,6 +13,7 @@ use std::{
 struct Config {
     from_tcp: net::SocketAddr,
     from_unix: Option<path::PathBuf>,
+    flush_timeout: Option<time::Duration>,
     nb_clients: u16,
     encoding_block_size: u64,
     repair_block_size: u32,
@@ -38,6 +39,14 @@ fn command_args() -> Config {
                 .long("from_unix")
                 .value_name("path")
                 .help("Path of Unix socket to accept clients"),
+        )
+        .arg(
+            Arg::new("flush_timeout")
+                .long("flush_timeout")
+                .value_name("nb_milliseconds")
+                .default_value("1000")
+                .value_parser(clap::value_parser!(u64))
+                .help("Flush pending data after duration (0 = no flush)"),
         )
         .arg(
             Arg::new("nb_clients")
@@ -97,10 +106,10 @@ fn command_args() -> Config {
         .arg(
             Arg::new("heartbeat")
                 .long("heartbeat")
-                .value_name("nb_secs")
+                .value_name("nb_seconds")
                 .default_value("5")
                 .value_parser(clap::value_parser!(u16))
-                .help("Duration in seconds between heartbeat messages"),
+                .help("Duration between two emitted heartbeat messages"),
         )
         .get_matches();
 
@@ -109,6 +118,12 @@ fn command_args() -> Config {
     let from_unix = args
         .get_one::<String>("from_unix")
         .map(|s| path::PathBuf::from_str(s).expect("invalid from_unix parameter"));
+    let flush_timeout_ms = *args.get_one::<u64>("flush_timeout").expect("default");
+    let flush_timeout = if flush_timeout_ms == 0 {
+        None
+    } else {
+        Some(time::Duration::from_millis(flush_timeout_ms))
+    };
     let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
     let nb_encoding_threads = *args.get_one::<u8>("nb_encoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
@@ -124,6 +139,7 @@ fn command_args() -> Config {
     Config {
         from_tcp,
         from_unix,
+        flush_timeout,
         nb_clients,
         nb_encoding_threads,
         encoding_block_size,
@@ -158,7 +174,11 @@ impl AsRawFd for Client {
     }
 }
 
-fn unix_listener_loop(listener: unix::net::UnixListener, sender: &send::Sender<Client>) {
+fn unix_listener_loop(
+    listener: unix::net::UnixListener,
+    sender: &send::Sender<Client>,
+    timeout: Option<time::Duration>,
+) {
     for client in listener.incoming() {
         match client {
             Err(e) => {
@@ -166,6 +186,9 @@ fn unix_listener_loop(listener: unix::net::UnixListener, sender: &send::Sender<C
                 return;
             }
             Ok(client) => {
+                if let Err(e) = client.set_read_timeout(timeout) {
+                    log::error!("failed to set client read timeout: {e}");
+                }
                 if let Err(e) = sender.new_client(Client::Unix(client)) {
                     log::error!("failed to send Unix client to connect queue: {e}");
                 }
@@ -174,7 +197,11 @@ fn unix_listener_loop(listener: unix::net::UnixListener, sender: &send::Sender<C
     }
 }
 
-fn tcp_listener_loop(listener: net::TcpListener, sender: &send::Sender<Client>) {
+fn tcp_listener_loop(
+    listener: net::TcpListener,
+    sender: &send::Sender<Client>,
+    timeout: Option<time::Duration>,
+) {
     for client in listener.incoming() {
         match client {
             Err(e) => {
@@ -182,6 +209,9 @@ fn tcp_listener_loop(listener: net::TcpListener, sender: &send::Sender<Client>) 
                 return;
             }
             Ok(client) => {
+                if let Err(e) = client.set_read_timeout(timeout) {
+                    log::error!("failed to set client read timeout: {e}");
+                }
                 if let Err(e) = sender.new_client(Client::Tcp(client)) {
                     log::error!("failed to send TCP client to connect queue: {e}");
                 }
@@ -224,7 +254,9 @@ fn main() {
 
         thread::Builder::new()
             .name("diode-send-tcp-server".into())
-            .spawn_scoped(scope, || tcp_listener_loop(tcp_listener, &sender))
+            .spawn_scoped(scope, || {
+                tcp_listener_loop(tcp_listener, &sender, config.flush_timeout)
+            })
             .expect("thread spawn");
 
         if let Some(from_unix) = config.from_unix {
@@ -245,7 +277,9 @@ fn main() {
 
             thread::Builder::new()
                 .name("diode-send-unix-server".into())
-                .spawn_scoped(scope, || unix_listener_loop(unix_listener, &sender))
+                .spawn_scoped(scope, || {
+                    unix_listener_loop(unix_listener, &sender, config.flush_timeout)
+                })
                 .expect("thread spawn");
         }
     });

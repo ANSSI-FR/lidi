@@ -4,6 +4,7 @@ use std::{
     env, fmt,
     io::{self, Write},
     net,
+    num::NonZeroU64,
     os::{fd::AsRawFd, unix},
     path,
     str::FromStr,
@@ -19,7 +20,6 @@ struct Config {
     flush_timeout: time::Duration,
     nb_decoding_threads: u8,
     to: ClientConfig,
-    abort_timeout: time::Duration,
     heartbeat: time::Duration,
 }
 
@@ -91,9 +91,9 @@ fn command_args() -> Config {
             Arg::new("flush_timeout")
                 .long("flush_timeout")
                 .value_name("nb_milliseconds")
-                .default_value("500")
-                .value_parser(clap::value_parser!(u64))
-                .help("Duration in milliseconds after resetting RaptorQ status"),
+                .default_value("1000")
+                .value_parser(clap::value_parser!(NonZeroU64))
+                .help("Flush pending data after duration"),
         )
         .arg(
             Arg::new("to_tcp")
@@ -113,20 +113,12 @@ fn command_args() -> Config {
                 .args(["to_tcp", "to_unix"]),
         )
         .arg(
-            Arg::new("abort_timeout")
-                .long("abort_timeout")
-                .value_name("nb_seconds")
-                .default_value("10")
-                .value_parser(clap::value_parser!(u64))
-                .help("Duration in seconds after a transfer without incoming data is aborted"),
-        )
-        .arg(
             Arg::new("heartbeat")
                 .long("heartbeat")
-                .value_name("nb_secs")
+                .value_name("nb_seconds")
                 .default_value("10")
                 .value_parser(clap::value_parser!(u16))
-                .help("Duration in seconds between heartbeat messages"),
+                .help("Maximum duration expected between heartbeat messages"),
         )
         .get_matches();
 
@@ -137,8 +129,11 @@ fn command_args() -> Config {
     let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
-    let flush_timeout =
-        time::Duration::from_millis(*args.get_one::<u64>("flush_timeout").expect("default"));
+    let flush_timeout = time::Duration::from_millis(
+        args.get_one::<NonZeroU64>("flush_timeout")
+            .expect("default")
+            .get(),
+    );
     let to_tcp = args
         .get_one::<String>("to_tcp")
         .map(|s| net::SocketAddr::from_str(s).expect("to_tcp must be of the form ip:port"));
@@ -146,8 +141,6 @@ fn command_args() -> Config {
         .get_one::<String>("to_unix")
         .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
 
-    let abort_timeout =
-        time::Duration::from_secs(*args.get_one::<u64>("abort_timeout").expect("default"));
     let heartbeat =
         time::Duration::from_secs(*args.get_one::<u16>("heartbeat").expect("default") as u64);
 
@@ -166,7 +159,6 @@ fn command_args() -> Config {
         repair_block_size,
         flush_timeout,
         to,
-        abort_timeout,
         heartbeat,
     }
 }
@@ -234,7 +226,6 @@ fn main() {
             repair_block_size: config.repair_block_size,
             flush_timeout: config.flush_timeout,
             nb_decoding_threads: config.nb_decoding_threads,
-            abort_timeout: config.abort_timeout,
             heartbeat_interval: config.heartbeat,
         },
         || Client::try_from(&config.to),

@@ -66,8 +66,6 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             protocol::MessageType::Data => (),
         }
 
-        log::trace!("message = {message}");
-
         match active_transfers.get(&client_id) {
             None => {
                 log::error!("receive data for inactive transfer {client_id:x}");
