@@ -13,4 +13,16 @@ For more information about the general purpose and concept of unidirectional net
 
 ## Where to find some documentation?
 
-The documentation is available at <https://anssi-fr.github.io/lidi/>.
+The *user* documentation is available at <https://anssi-fr.github.io/lidi/>, or can be built and opened with:
+
+```
+$ cd doc
+$ make html
+$ xdg-open _build/html/index.html
+```
+
+The *developper* documentation can be built and opened by running:
+
+```
+$ cargo doc --document-private-items --no-deps --lib --open
+```

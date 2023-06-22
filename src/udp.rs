@@ -1,3 +1,5 @@
+//! Functions and wrappers over libc's UDP socket multiple messages receive and send
+
 use std::marker::PhantomData;
 use std::os::fd::AsRawFd;
 use std::{io, mem, net};
@@ -5,6 +7,11 @@ use std::{io, mem, net};
 pub struct UdpRecv;
 pub struct UdpSend;
 
+/// Wrapper structure over the socket and buffers used to send and receive multiple messages.
+/// Inner data are used to call libc recvmmsg and sendmmsg.
+///
+/// The `D` type parameter is intended to be [UdpRecv] or [UdpSend] to ensure structures are
+/// correctly initialized according to the data transfer direction.
 pub struct UdpMessages<D> {
     socket: net::UdpSocket,
     vlen: usize,

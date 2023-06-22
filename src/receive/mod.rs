@@ -1,3 +1,21 @@
+//! Receiver functions module
+//!
+//! Several threads are involved in the receipt pipeline. Each worker is run with a `start`
+//! function of a submodule of the [crate::receive] module, data being passed through
+//! [crossbeam_channel] bounded channels to form the following data pipeline:
+//!
+//! ```text
+//!       -----------             ------------------               ------------
+//! udp --| packets |-> reblock --| vec of packets |-> decodings --| messages |-> dispatch
+//!       -----------             ------------------               ------------
+//! ```
+//!
+//! Notes:
+//! - heartbeat does not need a dedicated worker on the receiver side, heartbeat messages are
+//! handled by the dispatch worker,
+//! - there are `nb_clients` clients workers running in parallel,
+//! - there are `nb_decoding_threads` decoding workers running in parallel.
+
 use crate::{protocol, semaphore};
 use std::{
     fmt,
@@ -130,6 +148,8 @@ impl From<protocol::Error> for Error {
     }
 }
 
+/// An instance of this data structure is shared by workers to synchronize them and to access
+/// communication channels
 pub struct Receiver<F> {
     pub(crate) config: Config,
     pub(crate) object_transmission_info: raptorq::ObjectTransmissionInformation,

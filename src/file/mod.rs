@@ -1,3 +1,4 @@
+//! Module for sending/receiving entire files into/from Lidi TCP or Unix sockets
 pub mod protocol;
 pub mod receive;
 pub mod send;

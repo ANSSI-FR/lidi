@@ -1,3 +1,5 @@
+//! Worker that decodes RaptorQ packets into protocol messages
+
 use crate::{protocol, receive};
 
 pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {

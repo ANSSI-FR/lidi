@@ -1,3 +1,5 @@
+//! Worker that writes decoded and reordered messages to client
+
 use crate::{protocol, receive, sock_utils};
 use std::{
     io::{self, Write},

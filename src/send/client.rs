@@ -1,3 +1,5 @@
+//! Worker that reads data from a client socket and split it into [crate::protocol] messages
+
 use crate::{protocol, send, sock_utils};
 use std::{io, os::fd::AsRawFd};
 

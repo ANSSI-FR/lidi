@@ -1,3 +1,5 @@
+//! Optional worker that periodically inserts [crate::protocol] heartbeat message in the encoding queue
+
 use crate::{protocol, send};
 
 pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {

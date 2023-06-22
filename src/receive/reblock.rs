@@ -1,3 +1,6 @@
+//! Worker for grouping packets according to their block numbers to handle potential UDP packets
+//! reordering
+
 use crate::{protocol, receive};
 
 pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {

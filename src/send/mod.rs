@@ -1,3 +1,24 @@
+//! Sender functions module
+//!
+//! Several threads are used to form a pipeline for the data to be prepared before sending it over
+//! UDP. Every submodule of the [crate::send] module is equipped with a `start` function that
+//! launch the worker process. Data pass through the workers pipelines via [crossbeam_channel]
+//! bounded channels.
+//!
+//! Here follows a simplified representation of the workers pipeline:
+//!
+//! ```text
+//!             ----------             ------------               -----------
+//! listeners --| client |-> clients --| messages |-> encodings --| packets |-> udp
+//!             ----------             ------------               -----------
+//! ```
+//!
+//! Notes:
+//! - listeners threads are spawned from binary and not the library crate,
+//! - heartbeat worker has been omitted from the representation for readability,
+//! - there are `nb_clients` clients workers running in parallel,
+//! - there are `nb_encoding_threads` encoding workers running in parallel.
+
 use crate::{protocol, semaphore};
 use std::{
     fmt,
@@ -89,6 +110,11 @@ impl From<protocol::Error> for Error {
     }
 }
 
+/// An instance of this data structure is shared by workers to synchronize them and to access
+/// communication channels
+///
+/// The `C` type variable represents the socket from which data is read before being sent over the
+/// diode.
 pub struct Sender<C> {
     pub(crate) config: Config,
     pub(crate) object_transmission_info: raptorq::ObjectTransmissionInformation,

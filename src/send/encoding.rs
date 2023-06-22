@@ -1,3 +1,5 @@
+//! Worker that encodes protocol messages into RaptorQ packets
+
 use crate::{protocol, send};
 
 pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {

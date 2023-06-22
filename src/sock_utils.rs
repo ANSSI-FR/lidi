@@ -1,3 +1,5 @@
+//! Bindings and wrappers for socket buffer size libc funtions
+
 use std::os::fd::AsRawFd;
 use std::{io, mem, ptr};
 

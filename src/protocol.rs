@@ -1,3 +1,37 @@
+//! Definition of the Lidi protocol used to transfer data over UDP
+//!
+//! The Lidi protocol is rather simple: since the communications are unidirectional, it is defined
+//! by the messages structure. There are 5 message types:
+//! - `MessageType::Heartbeat` lets know the receiver that transfer can happen,
+//! - `MessageType::Start` informs the receiver that the sent data chunk represents the beginning of a new transfer,
+//! - `MessageType::Data` is used to send a data chunk that is not the beginning nor the ending of
+//! a transfer,
+//! - `MessageType::Abort` informs the receiver that the current transfer has been aborted on the
+//! sender side,
+//! - `MessageType::End` informs the receiver that the current transfer is completed (i.e. all
+//! data have been sent).
+//!
+//! A message is stored in a `Vec` of `u8`s, with the following representation:
+//!
+//! ```text
+//!
+//! <-- 4 bytes -> <--- 1 byte ---> <-- 4 bytes -->
+//! --------------+----------------+---------------+--------------------------------------
+//! |             |                |               |                                     |
+//! |  client_id  |  message_type  |  data_length  |  payload = data + optional padding  |
+//! |             |                |               |                                     |
+//! --------------+----------------+---------------+--------------------------------------
+//!  <------------ SERIALIZE_OVERHEAD ------------> <--------- message_length ---------->
+//!
+//! ```
+//!
+//! 4-bytes values are encoded in little-endian byte order.
+//!
+//! In `Heartbeat` messages, `client_id` is unused and should be set to 0 by the constructor
+//! caller. Also no data payload should be provided by the constructor caller in case the message
+//! is of type `Heartbeat`, `Abort` or `End`. Then the `data_length` will be set to 0 by the
+//! message constructor and the data chunk will be fully padded with zeros.
+
 use std::{fmt, io};
 
 pub enum Error {
@@ -69,6 +103,14 @@ pub struct Message(Vec<u8>);
 const SERIALIZE_OVERHEAD: usize = 4 + 1 + 4;
 
 impl Message {
+    /// Message constructor, craft a message according to the representation introduced in
+    /// [crate::protocol].
+    ///
+    /// Some (unchecked) constraints on arguments must be respected:
+    /// - if `message` is `MessageType::Heartbeat`, `MessageType::Abort` or `MessageType::End`
+    /// then no data should be provided,
+    /// - if `message` is `MessageType::Heartbear` then `client_id` should be equal to 0,
+    /// - if there is some `data`, its length must be greater than `message_length`.
     pub(crate) fn new(
         message: MessageType,
         message_length: u32,
@@ -121,11 +163,11 @@ impl Message {
         u32::from_le_bytes(data_len_bytes)
     }
 
-    pub(crate) fn deserialize(data: Vec<u8>) -> Self {
+    pub(crate) const fn deserialize(data: Vec<u8>) -> Self {
         Self(data)
     }
 
-    pub fn serialize_overhead() -> usize {
+    pub const fn serialize_overhead() -> usize {
         SERIALIZE_OVERHEAD
     }
 

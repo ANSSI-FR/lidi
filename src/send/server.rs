@@ -1,3 +1,5 @@
+//! Worker that gets a client socket and becomes a `crate::send::client` worker
+
 use crate::{protocol, send, send::client};
 use std::{io::Read, os::fd::AsRawFd};
 

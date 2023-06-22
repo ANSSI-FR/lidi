@@ -1,3 +1,5 @@
+//! Simple semaphores built on top of `std::sync` primitives, no external dependency
+
 use std::sync::{Arc, Condvar, Mutex};
 
 #[derive(Clone)]

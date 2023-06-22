@@ -1,3 +1,6 @@
+//! Worker that manages active transfers queue and dispatch incoming [crate::protocol]
+//! messages to clients
+
 use crate::{protocol, receive};
 use std::{
     collections::{BTreeMap, BTreeSet},
