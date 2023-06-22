@@ -11,7 +11,7 @@ mod client;
 mod encoding;
 mod heartbeat;
 mod server;
-mod udp_send;
+mod udp;
 
 pub struct Config {
     pub nb_clients: u16,
@@ -177,7 +177,7 @@ where
 
         thread::Builder::new()
             .name("udp".into())
-            .spawn_scoped(scope, || udp_send::start(self))?;
+            .spawn_scoped(scope, || udp::start(self))?;
 
         for i in 0..self.config.nb_encoding_threads {
             thread::Builder::new()

@@ -12,7 +12,7 @@ mod clients;
 mod decoding;
 mod dispatch;
 mod reblock;
-mod server;
+mod udp;
 
 pub struct Config {
     pub from_udp: net::SocketAddr,
@@ -254,7 +254,7 @@ where
 
         thread::Builder::new()
             .name("udp".to_string())
-            .spawn_scoped(scope, || server::start(self))?;
+            .spawn_scoped(scope, || udp::start(self))?;
 
         Ok(())
     }

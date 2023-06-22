@@ -1,3 +1,5 @@
+//! Worker that actually receives packets from the UDP diode link
+
 use crate::{receive, sock_utils, udp};
 use std::net;
 
