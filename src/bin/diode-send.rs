@@ -21,7 +21,7 @@ struct Config {
     to_bind: net::SocketAddr,
     to_udp: net::SocketAddr,
     to_udp_mtu: u16,
-    heartbeat: time::Duration,
+    heartbeat: Option<time::Duration>,
 }
 
 fn command_args() -> Config {
@@ -109,7 +109,7 @@ fn command_args() -> Config {
                 .value_name("nb_seconds")
                 .default_value("5")
                 .value_parser(clap::value_parser!(u16))
-                .help("Duration between two emitted heartbeat messages"),
+                .help("Duration between two emitted heartbeat messages, 0 to disable"),
         )
         .get_matches();
 
@@ -133,8 +133,10 @@ fn command_args() -> Config {
     let to_udp = net::SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
         .expect("invalid to_udp parameter");
     let to_udp_mtu = *args.get_one::<u16>("to_udp_mtu").expect("default");
-    let heartbeat =
-        time::Duration::from_secs(*args.get_one::<u16>("heartbeat").expect("default") as u64);
+    let heartbeat = {
+        let hb = *args.get_one::<u16>("heartbeat").expect("default") as u64;
+        (hb != 0).then(|| time::Duration::from_secs(hb))
+    };
 
     Config {
         from_tcp,

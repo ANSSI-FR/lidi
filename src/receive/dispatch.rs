@@ -21,20 +21,21 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
     let mut last_heartbeat = time::Instant::now();
 
     loop {
-        let message = match receiver
-            .for_dispatch
-            .recv_timeout(receiver.config.heartbeat_interval)
-        {
-            Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                if last_heartbeat.elapsed() > receiver.config.heartbeat_interval {
-                    log::warn!(
-                        "no heartbeat message received during the last {} second(s)",
-                        receiver.config.heartbeat_interval.as_secs()
-                    );
+        let message = if let Some(hb_interval) = receiver.config.heartbeat_interval {
+            match receiver.for_dispatch.recv_timeout(hb_interval) {
+                Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
+                    if last_heartbeat.elapsed() > hb_interval {
+                        log::warn!(
+                            "no heartbeat message received during the last {} second(s)",
+                            hb_interval.as_secs()
+                        );
+                    }
+                    continue;
                 }
-                continue;
+                other => other?,
             }
-            other => other?,
+        } else {
+            receiver.for_dispatch.recv()?
         };
 
         log::trace!("received {message}");

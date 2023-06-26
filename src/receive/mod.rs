@@ -40,7 +40,7 @@ pub struct Config {
     pub repair_block_size: u32,
     pub flush_timeout: time::Duration,
     pub nb_decoding_threads: u8,
-    pub heartbeat_interval: time::Duration,
+    pub heartbeat_interval: Option<time::Duration>,
 }
 
 impl Config {
@@ -251,6 +251,15 @@ where
             "flush timeout is {} ms",
             self.config.flush_timeout.as_millis()
         );
+
+        if let Some(hb_interval) = self.config.heartbeat_interval {
+            log::info!(
+                "heartbeat interval is set to {} seconds",
+                hb_interval.as_secs()
+            );
+        } else {
+            log::info!("heartbeat is disabled");
+        }
 
         for i in 0..self.config.nb_clients {
             thread::Builder::new()

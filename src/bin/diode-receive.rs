@@ -20,7 +20,7 @@ struct Config {
     flush_timeout: time::Duration,
     nb_decoding_threads: u8,
     to: ClientConfig,
-    heartbeat: time::Duration,
+    heartbeat: Option<time::Duration>,
 }
 
 enum ClientConfig {
@@ -118,7 +118,7 @@ fn command_args() -> Config {
                 .value_name("nb_seconds")
                 .default_value("10")
                 .value_parser(clap::value_parser!(u16))
-                .help("Maximum duration expected between heartbeat messages"),
+                .help("Maximum duration expected between heartbeat messages, 0 to disable"),
         )
         .get_matches();
 
@@ -141,8 +141,10 @@ fn command_args() -> Config {
         .get_one::<String>("to_unix")
         .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
 
-    let heartbeat =
-        time::Duration::from_secs(*args.get_one::<u16>("heartbeat").expect("default") as u64);
+    let heartbeat = {
+        let hb = *args.get_one::<u16>("heartbeat").expect("default") as u64;
+        (hb != 0).then(|| time::Duration::from_secs(hb))
+    };
 
     let to = if let Some(to_tcp) = to_tcp {
         ClientConfig::Tcp(to_tcp)

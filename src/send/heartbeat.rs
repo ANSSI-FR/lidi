@@ -3,7 +3,8 @@
 use crate::{protocol, send};
 
 pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
-    let alarm = crossbeam_channel::tick(sender.config.hearbeat_interval);
+    let alarm =
+        crossbeam_channel::tick(sender.config.hearbeat_interval.expect("heartbeat enabled"));
 
     loop {
         sender.to_encoding.send(protocol::Message::new(
