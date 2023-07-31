@@ -17,6 +17,7 @@ struct Config {
     nb_clients: u16,
     encoding_block_size: u64,
     repair_block_size: u32,
+    udp_buffer_size: u32,
     flush_timeout: time::Duration,
     nb_decoding_threads: u8,
     to: ClientConfig,
@@ -88,6 +89,14 @@ fn command_args() -> Config {
                 .help("Size of repair data in bytes"),
         )
         .arg(
+            Arg::new("udp_buffer_size")
+                .long("udp_buffer_size")
+                .value_name("nb_bytes")
+                .default_value("1073741823") // i32::MAX / 2
+                .value_parser(clap::value_parser!(u32).range(..1073741824))
+                .help("Size of UDP socket recv buffer"),
+        )
+        .arg(
             Arg::new("flush_timeout")
                 .long("flush_timeout")
                 .value_name("nb_milliseconds")
@@ -128,6 +137,7 @@ fn command_args() -> Config {
     let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
     let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
+    let udp_buffer_size = *args.get_one::<u32>("udp_buffer_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
     let flush_timeout = time::Duration::from_millis(
         args.get_one::<NonZeroU64>("flush_timeout")
@@ -159,6 +169,7 @@ fn command_args() -> Config {
         nb_decoding_threads,
         encoding_block_size,
         repair_block_size,
+        udp_buffer_size,
         flush_timeout,
         to,
         heartbeat,
@@ -226,6 +237,7 @@ fn main() {
             nb_clients: config.nb_clients,
             encoding_block_size: config.encoding_block_size,
             repair_block_size: config.repair_block_size,
+            udp_buffer_size: config.udp_buffer_size,
             flush_timeout: config.flush_timeout,
             nb_decoding_threads: config.nb_decoding_threads,
             heartbeat_interval: config.heartbeat,

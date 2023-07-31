@@ -11,7 +11,7 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
         sender.config.to_bind
     );
     let socket = net::UdpSocket::bind(sender.config.to_bind)?;
-    sock_utils::set_socket_send_buffer_size(&socket, i32::MAX)?;
+    sock_utils::set_socket_send_buffer_size(&socket, sender.config.udp_buffer_size as i32)?;
     let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket)?;
     log::info!("UDP socket send buffer size set to {sock_buffer_size}");
     if (sock_buffer_size as u64)

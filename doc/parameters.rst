@@ -91,6 +91,15 @@ On the receiver side, the option:
 
 defines ip and port to listen for incoming UDP packets, and should be set to the same value as `--to-udp`.
 
+Optionally, you can set the size of the UDP socket buffers with following option:
+
+.. code-block::
+
+   --udp_buffer_size <nb_bytes>
+
+This option is available on both sides. Default value is 1073741824 which is the highest possible value.
+The specified size is then doubled by the kernel (see https://man7.org/linux/man-pages/man7/socket.7.html).
+
 Block and packet sizes
 ----------------------
 

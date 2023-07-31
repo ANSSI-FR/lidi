@@ -38,6 +38,7 @@ pub struct Config {
     pub nb_clients: u16,
     pub encoding_block_size: u64,
     pub repair_block_size: u32,
+    pub udp_buffer_size: u32,
     pub nb_encoding_threads: u8,
     pub hearbeat_interval: Option<time::Duration>,
     pub to_bind: net::SocketAddr,
