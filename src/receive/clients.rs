@@ -1,4 +1,4 @@
-//! Worker that aquires multiplex access and then becomes a `crate::receive::client` worker
+//! Worker that acquires multiplex access and then becomes a `crate::receive::client` worker
 
 use crate::{receive, receive::client};
 use std::{io::Write, os::fd::AsRawFd};
