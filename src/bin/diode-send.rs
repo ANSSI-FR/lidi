@@ -232,7 +232,7 @@ fn main() {
         encoding_block_size: config.encoding_block_size,
         repair_block_size: config.repair_block_size,
         nb_encoding_threads: config.nb_encoding_threads,
-        hearbeat_interval: config.heartbeat,
+        heartbeat_interval: config.heartbeat,
         to_bind: config.to_bind,
         to_udp: config.to_udp,
         to_mtu: config.to_udp_mtu,
