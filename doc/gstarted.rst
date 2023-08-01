@@ -32,7 +32,7 @@ Building lidi is fairly easy once you have all the dependencies set-up:
 
    $ cargo build --release
 
-This step provides you with the two main binaries for lidi: the sender and the receiver part, in addition to other utilitary binaries, such as file sending/receiving ones.
+This step provides you with the two main binaries for lidi: the sender and the receiver part, in addition to other utility binaries, such as file sending/receiving ones.
 
 Setting up a simple case
 ------------------------
@@ -74,6 +74,6 @@ Finally, we should be able to connect and send raw data through the diode in a f
    Hello Lidi!
    <Ctrl-D>
 
-The message should have been transfered with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!
+The message should have been transferred with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!
 
 Next steps is to review :ref:`Command line parameters` to adapt them to your use case, and eventually :ref:`Tweaking parameters` to achieve optimal transfer performances.
