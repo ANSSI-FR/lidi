@@ -32,7 +32,7 @@ Building lidi is fairly easy once you have all the dependencies set-up:
 
    $ cargo build --release
 
-This step provides you with the two main binaries for lidi: the sender and the receiver part, in addition to other utilitary binaries, such as file sending/receiving ones.
+This step provides you with the two main binaries for lidi: the sender and the receiver part, in addition to other utility binaries, such as file sending/receiving ones.
 
 Setting up a simple case
 ------------------------
@@ -47,11 +47,11 @@ In a first terminal, we start by running the sender part of lidi with default pa
 
 Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5000 and that the traffic will go through the diode on UDP port 6000.
 
-Next, we run the receiving part of lidi, with default parameters too:
+Next, we run the receiving part of lidi:
 
 .. code-block::
   
-   $ cargo run --release --bin diode-receive
+   $ cargo run --release --bin diode-receive -- --to_tcp 127.0.0.1:7000
 
 This time, logging will indicate that traffic will come up on UDP port 6000 and that transferred content will be served on TCP port 7000.
 
@@ -64,7 +64,7 @@ We run a first netcat instance waiting for connection on port 7000 with the foll
 
 .. code-block::
 
-   $ nc -lvp 7000
+   $ nc -lv 127.0.0.1 7000
 
 Finally, we should be able to connect and send raw data through the diode in a fourth terminal:
 
@@ -74,6 +74,6 @@ Finally, we should be able to connect and send raw data through the diode in a f
    Hello Lidi!
    <Ctrl-D>
 
-The message should have been transfered with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!
+The message should have been transferred with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!
 
 Next steps is to review :ref:`Command line parameters` to adapt them to your use case, and eventually :ref:`Tweaking parameters` to achieve optimal transfer performances.

@@ -31,7 +31,7 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
                         block_id = block_id.wrapping_add(1);
                     } else {
                         log::debug!(
-                            "no enough packets ({qlen} packates) to decode block {block_id}"
+                            "not enough packets ({qlen} packets) to decode block {block_id}"
                         );
                         log::warn!("lost block {block_id}");
                         desynchro = true;

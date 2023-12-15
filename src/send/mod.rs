@@ -39,7 +39,7 @@ pub struct Config {
     pub encoding_block_size: u64,
     pub repair_block_size: u32,
     pub nb_encoding_threads: u8,
-    pub hearbeat_interval: Option<time::Duration>,
+    pub heartbeat_interval: Option<time::Duration>,
     pub to_bind: net::SocketAddr,
     pub to_udp: net::SocketAddr,
     pub to_mtu: u16,
@@ -211,7 +211,7 @@ where
                 .spawn_scoped(scope, || encoding::start(self))?;
         }
 
-        if let Some(hb_interval) = self.config.hearbeat_interval {
+        if let Some(hb_interval) = self.config.heartbeat_interval {
             log::info!(
                 "heartbeat message will be sent every {} seconds",
                 hb_interval.as_secs()

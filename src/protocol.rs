@@ -109,7 +109,7 @@ impl Message {
     /// Some (unchecked) constraints on arguments must be respected:
     /// - if `message` is `MessageType::Heartbeat`, `MessageType::Abort` or `MessageType::End`
     /// then no data should be provided,
-    /// - if `message` is `MessageType::Heartbear` then `client_id` should be equal to 0,
+    /// - if `message` is `MessageType::Heartbeat` then `client_id` should be equal to 0,
     /// - if there is some `data`, its length must be greater than `message_length`.
     pub(crate) fn new(
         message: MessageType,
