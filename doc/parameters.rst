@@ -46,8 +46,6 @@ On the diode-receive side, data will be sent to TCP connected clients. To specif
 
    --to_tcp <ip:port>
 
-Default value is 127.0.0.1:7000.
-
 Unix data source
 """"""""""""""""
 
