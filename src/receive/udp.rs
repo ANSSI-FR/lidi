@@ -10,7 +10,7 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
         receiver.config.from_udp_mtu
     );
     let socket = net::UdpSocket::bind(receiver.config.from_udp)?;
-    sock_utils::set_socket_recv_buffer_size(&socket, i32::MAX)?;
+    sock_utils::set_socket_recv_buffer_size(&socket, receiver.config.udp_buffer_size as i32)?;
     let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&socket)?;
     log::info!("UDP socket receive buffer size set to {sock_buffer_size}");
     if (sock_buffer_size as u64)

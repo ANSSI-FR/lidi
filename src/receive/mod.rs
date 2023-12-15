@@ -38,6 +38,7 @@ pub struct Config {
     pub nb_clients: u16,
     pub encoding_block_size: u64,
     pub repair_block_size: u32,
+    pub udp_buffer_size: u32,
     pub flush_timeout: time::Duration,
     pub nb_decoding_threads: u8,
     pub heartbeat_interval: Option<time::Duration>,
