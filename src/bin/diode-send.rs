@@ -17,6 +17,7 @@ struct Config {
     nb_clients: u16,
     encoding_block_size: u64,
     repair_block_size: u32,
+    udp_buffer_size: u32,
     nb_encoding_threads: u8,
     to_bind: net::SocketAddr,
     to_udp: net::SocketAddr,
@@ -81,6 +82,14 @@ fn command_args() -> Config {
                 .help("Size of repair data in bytes"),
         )
         .arg(
+            Arg::new("udp_buffer_size")
+                .long("udp_buffer_size")
+                .value_name("nb_bytes")
+                .default_value("1073741823") // i32::MAX / 2
+                .value_parser(clap::value_parser!(u32).range(..1073741824))
+                .help("Size of UDP socket send buffer"),
+        )
+        .arg(
             Arg::new("to_bind")
                 .long("to_bind")
                 .value_name("ip:port")
@@ -128,6 +137,7 @@ fn command_args() -> Config {
     let nb_encoding_threads = *args.get_one::<u8>("nb_encoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
+    let udp_buffer_size = *args.get_one::<u32>("udp_buffer_size").expect("default");
     let to_bind = net::SocketAddr::from_str(args.get_one::<String>("to_bind").expect("default"))
         .expect("invalid to_bind parameter");
     let to_udp = net::SocketAddr::from_str(args.get_one::<String>("to_udp").expect("default"))
@@ -145,6 +155,7 @@ fn command_args() -> Config {
         nb_clients,
         nb_encoding_threads,
         encoding_block_size,
+        udp_buffer_size,
         repair_block_size,
         to_bind,
         to_udp,
@@ -231,6 +242,7 @@ fn main() {
         nb_clients: config.nb_clients,
         encoding_block_size: config.encoding_block_size,
         repair_block_size: config.repair_block_size,
+        udp_buffer_size: config.udp_buffer_size,
         nb_encoding_threads: config.nb_encoding_threads,
         heartbeat_interval: config.heartbeat,
         to_bind: config.to_bind,
