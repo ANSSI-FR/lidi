@@ -5,15 +5,15 @@ edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-clap = "4.1"
+clap = "4"
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
 fasthash = "0.4"
 libc = "0.2"
 log = "0.4"
 rand = "0.8"
-raptorq = "1.7"
-simple_logger = "4.1"
+raptorq = "1.8"
+simple_logger = "4"
 
 [profile.release]
 lto = true
