@@ -20,20 +20,20 @@ fn discard_queues_outside_retention_window(
         if !retain && (v.len() < nb_normal_packets) {
             log::warn!("discarding incomplete block {k} (currently on block {leading_block_id})")
         }
-        return retain;
+        retain
     });
 }
 
 // Returns true if block_id is between (leading_block_id - window_size) and
 // leading_block_id; otherwise, returns false.
 fn is_in_retention_window(block_id: u8, leading_block_id: u8, window_size: u8) -> bool {
-    return is_in_wrapped_interval(
+    is_in_wrapped_interval(
         block_id,
         (
             leading_block_id.wrapping_sub(window_size - 1),
             leading_block_id,
         ),
-    );
+    )
 }
 
 // Returns true if value is between (leading_block_id - window_size) and
@@ -42,10 +42,10 @@ fn is_in_wrapped_interval(value: u8, interval: (u8, u8)) -> bool {
     let (lower_bound, upper_bound) = interval;
     if lower_bound < upper_bound {
         // continuous interval like within 32-48
-        return lower_bound <= value && value <= upper_bound;
+        lower_bound <= value && value <= upper_bound
     } else {
         // wrapped interval like (0-8 or 248-255)
-        return value <= upper_bound || lower_bound <= value;
+        value <= upper_bound || lower_bound <= value
     }
 }
 

@@ -115,6 +115,7 @@ where
         .read(false)
         .write(true)
         .create(true)
+        .truncate(true)
         .open(&file_path)?;
 
     log::debug!("setting mode to {}", header.mode);
