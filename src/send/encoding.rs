@@ -1,20 +1,68 @@
 //! Worker that encodes protocol messages into RaptorQ packets
 
-use crate::{protocol, send};
+use raptorq::EncodingPacket;
 
-pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
-    let nb_repair_packets = protocol::nb_repair_packets(
-        &sender.object_transmission_info,
-        sender.config.repair_block_size,
-    );
+use crate::{
+    protocol::{self, Message},
+    send,
+};
 
-    if nb_repair_packets == 0 {
-        log::warn!("configuration produces 0 repair packet");
+struct Encoding {
+    nb_repair_packets: u32,
+    object_transmission_info: raptorq::ObjectTransmissionInformation,
+    sbep: raptorq::SourceBlockEncodingPlan,
+}
+
+impl Encoding {
+    pub fn new(
+        object_transmission_info: raptorq::ObjectTransmissionInformation,
+        repair_block_size: u32,
+    ) -> Encoding {
+        let nb_repair_packets =
+            protocol::nb_repair_packets(&object_transmission_info, repair_block_size);
+
+        if nb_repair_packets == 0 {
+            log::warn!("configuration produces 0 repair packet");
+        }
+
+        let sbep = raptorq::SourceBlockEncodingPlan::generate(
+            (object_transmission_info.transfer_length()
+                / u64::from(object_transmission_info.symbol_size())) as u16,
+        );
+
+        Self {
+            nb_repair_packets,
+            object_transmission_info,
+            sbep,
+        }
     }
 
-    let sbep = raptorq::SourceBlockEncodingPlan::generate(
-        (sender.object_transmission_info.transfer_length()
-            / u64::from(sender.object_transmission_info.symbol_size())) as u16,
+    pub fn encode(&self, message: Message, block_id: u8) -> Vec<EncodingPacket> {
+        let data = message.serialized();
+
+        log::trace!("encoding a serialized block of {} bytes", data.len());
+
+        let encoder = raptorq::SourceBlockEncoder::with_encoding_plan2(
+            block_id,
+            &self.object_transmission_info,
+            data,
+            &self.sbep,
+        );
+
+        let mut packets = encoder.source_packets();
+
+        if 0 < self.nb_repair_packets {
+            packets.extend(encoder.repair_packets(0, self.nb_repair_packets));
+        }
+
+        packets
+    }
+}
+
+pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
+    let encoding = Encoding::new(
+        sender.object_transmission_info,
+        sender.config.repair_block_size,
     );
 
     loop {
@@ -39,22 +87,7 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
             _ => (),
         }
 
-        let data = message.serialized();
-
-        log::trace!("encoding a serialized block of {} bytes", data.len());
-
-        let encoder = raptorq::SourceBlockEncoder::with_encoding_plan2(
-            block_id,
-            &sender.object_transmission_info,
-            data,
-            &sbep,
-        );
-
-        let mut packets = encoder.source_packets();
-
-        if 0 < nb_repair_packets {
-            packets.extend(encoder.repair_packets(0, nb_repair_packets));
-        }
+        let packets = encoding.encode(message, block_id);
 
         loop {
             let mut to_send = sender.block_to_send.lock().expect("acquire lock");
