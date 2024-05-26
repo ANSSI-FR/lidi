@@ -7,7 +7,7 @@ use crate::{
     send,
 };
 
-struct Encoding {
+pub struct Encoding {
     nb_repair_packets: u32,
     object_transmission_info: raptorq::ObjectTransmissionInformation,
     sbep: raptorq::SourceBlockEncodingPlan,
@@ -97,5 +97,48 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::protocol::{object_transmission_information, Message, MessageType};
+    use crate::send::encoding::Encoding;
+    use rand::{Rng, SeedableRng};
+    use rand_xorshift::XorShiftRng;
+
+    #[test]
+    fn test_encode() {
+        // set a seed for random algorithm generation
+        let mut rng = XorShiftRng::from_seed([
+            3, 42, 93, 129, 1, 85, 72, 42, 84, 23, 95, 212, 253, 10, 4, 2,
+        ]);
+
+        // transmission propreties, set by user
+        let mtu = 1500;
+        let block_size = 60000;
+        let repair_block_size = 6000;
+
+        // create configuration based on user configuration
+        let object_transmission_info = object_transmission_information(mtu, block_size);
+
+        // get real transfer size (algorithm constraint)
+        let block_size = object_transmission_info.transfer_length() as usize;
+
+        // create our encoding module
+        let encoding = Encoding::new(object_transmission_info, repair_block_size);
+
+        // get real transfer data size ( remove message header overhead )
+        let real_data_size = block_size - Message::serialize_overhead();
+
+        // generate some random data
+        let data = (0..real_data_size)
+            .map(|_| rng.gen_range(0..=255) as u8)
+            .collect::<Vec<_>>();
+
+        // now encode a message
+        let block_id = 0;
+        let message = Message::new(MessageType::Data, data.len() as _, 0, Some(&data));
+        encoding.encode(message, block_id);
     }
 }

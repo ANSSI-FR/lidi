@@ -29,14 +29,14 @@ $ cargo doc --document-private-items --no-deps --lib --open
 
 # running tests
 
-Functional testing using behave
+## Functional testing using behave
 
 ```
 $ apt install python3-behave
 $ behave --tags=~fail
 ```
 
-## failures
+### failures
 
 Failing scenarios:
   features/interrupt.feature:3  Send 3x100KB file with network interrupt, 2 first files lost, last one transmitted
@@ -49,3 +49,19 @@ Failing scenarios:
 Explanation:
 * interrupt tests are failing because of a bug in lidi (see https://github.com/ANSSI-FR/lidi/issues/3 )
 * big files in 'simple' test suite are failing because there is no rate limit so there are too many packets dropped
+
+## Performance testing
+
+### without profiling
+
+```
+cargo bench
+```
+
+### with profiling
+
+```
+cargo bench --bench encoding -- --profile-time=5
+```
+
+And result will be in target/criterion/encoding/profile/flamegraph.svg

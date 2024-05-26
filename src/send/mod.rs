@@ -29,7 +29,7 @@ use std::{
 };
 
 mod client;
-mod encoding;
+pub mod encoding;
 mod heartbeat;
 mod server;
 mod udp;

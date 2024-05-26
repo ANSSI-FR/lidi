@@ -54,7 +54,7 @@ impl From<io::Error> for Error {
     }
 }
 
-pub(crate) enum MessageType {
+pub enum MessageType {
     Heartbeat,
     Start,
     Data,
@@ -92,9 +92,9 @@ const ID_DATA: u8 = 0x02;
 const ID_ABORT: u8 = 0x03;
 const ID_END: u8 = 0x04;
 
-pub(crate) type ClientId = u32;
+pub type ClientId = u32;
 
-pub(crate) fn new_client_id() -> ClientId {
+pub fn new_client_id() -> ClientId {
     rand::random::<ClientId>()
 }
 
@@ -111,7 +111,7 @@ impl Message {
     /// then no data should be provided,
     /// - if `message` is `MessageType::Heartbear` then `client_id` should be equal to 0,
     /// - if there is some `data`, its length must be greater than `message_length`.
-    pub(crate) fn new(
+    pub fn new(
         message: MessageType,
         message_length: u32,
         client_id: ClientId,
