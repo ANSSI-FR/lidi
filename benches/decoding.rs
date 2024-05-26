@@ -7,7 +7,8 @@ use std::time::Instant;
 use criterion::{criterion_group, criterion_main, Criterion};
 
 use diode::{
-    protocol::object_transmission_information, send::encoding::Encoding, test::build_random_message,
+    protocol::object_transmission_information, receive::decoding::Decoding,
+    send::encoding::Encoding, test::build_random_message,
 };
 
 pub fn criterion_benchmark(c: &mut Criterion) {
@@ -19,21 +20,25 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // create configuration based on user configuration
     let object_transmission_info = object_transmission_information(mtu, block_size);
 
+    let message = build_random_message(object_transmission_info);
+
     // create our encoding module
     let encoding = Encoding::new(object_transmission_info, repair_block_size);
 
-    let message = build_random_message(object_transmission_info);
+    // encode one block
+    let block_id = 0;
+    let packets = encoding.encode(message, block_id);
+
+    // prepare decoding
+    let decoder = Decoding::new(object_transmission_info);
 
     // now bench encoding performance
     let now = Instant::now();
     let mut counter = 0;
 
-    c.bench_function("encoding", |b| {
+    c.bench_function("decoding", |b| {
         b.iter(|| {
-            // TODO : find what is this block id
-            let block_id = 0;
-            encoding.encode(message.clone(), block_id);
-
+            decoder.decode(packets.clone(), block_id);
             counter += 1;
         });
     });
@@ -48,7 +53,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let human_data_rate = human_bytes(data_rate as f64);
 
     println!(
-        "{counter} encoding of {transfer_length} bytes, {human_data_encoded} encoded in {elapsed:.2}s : {human_data_rate}/s",
+        "{counter} decoding of {transfer_length} bytes, {human_data_encoded} decoded in {elapsed:.2}s : {human_data_rate}/s",
     );
 }
 

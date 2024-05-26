@@ -98,6 +98,7 @@ pub fn new_client_id() -> ClientId {
     rand::random::<ClientId>()
 }
 
+#[derive(Clone)]
 pub struct Message(Vec<u8>);
 
 const SERIALIZE_OVERHEAD: usize = 4 + 1 + 4;
@@ -171,12 +172,12 @@ impl Message {
         SERIALIZE_OVERHEAD
     }
 
-    pub(crate) fn payload(&self) -> &[u8] {
+    pub fn payload(&self) -> &[u8] {
         let len = self.payload_len();
         &self.0[SERIALIZE_OVERHEAD..(SERIALIZE_OVERHEAD + len as usize)]
     }
 
-    pub(crate) fn serialized(&self) -> &[u8] {
+    pub fn serialized(&self) -> &[u8] {
         &self.0
     }
 }

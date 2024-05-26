@@ -27,7 +27,7 @@ use std::{
 
 mod client;
 mod clients;
-mod decoding;
+pub mod decoding;
 mod dispatch;
 mod reblock;
 mod udp;
