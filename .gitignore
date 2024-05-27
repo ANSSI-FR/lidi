@@ -1,3 +1,5 @@
+Cargo.lock
 /target
 *~
 doc/_build
+/features/steps/__pycache__/
