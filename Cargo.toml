@@ -38,3 +38,19 @@ harness = false
 name = "decoding"
 harness = false
 
+[[bench]]
+name = "socket_send"
+harness = false
+
+[[bench]]
+name = "socket_recv"
+harness = false
+
+[[bench]]
+name = "socket_send_big_mtu"
+harness = false
+
+[[bench]]
+name = "socket_recv_big_mtu"
+harness = false
+
