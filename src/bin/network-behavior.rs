@@ -57,9 +57,7 @@ struct LossRate {
 
 impl LossRate {
     fn new(rate: usize) -> Self {
-        if rate > 100 {
-            panic!("loss rate must be <= 100");
-        }
+        assert!(rate <= 100, "loss rate must be <= 100");
 
         // we gonna drop 1 packet every 100/rate
         // for instance, if rate is 2%, we will drop 1 packet on 50
@@ -244,18 +242,22 @@ fn main() {
 
     let mut stats = Stats::new();
 
-    let rx_socket = UdpSocket::bind(args.from_udp).unwrap();
+    let rx_socket = UdpSocket::bind(args.from_udp).expect("Cant bind rx socket");
     let rx_size = 1_000_000;
-    setsockopt(&rx_socket, RcvBuf, &rx_size).unwrap();
+    setsockopt(&rx_socket, RcvBuf, &rx_size).expect("Cant set rx socket rcvbuf");
 
-    let tx_socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
-    tx_socket.connect(args.to_udp).unwrap();
+    let tx_socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("Cant bind tx socket");
+    tx_socket
+        .connect(args.to_udp)
+        .expect("Cant connect tx socket");
 
     let mut buf: [u8; u16::MAX as usize] = [0; u16::MAX as usize];
     loop {
         let mut send_packet = true;
 
-        let len = rx_socket.recv(&mut buf).unwrap();
+        let len = rx_socket
+            .recv(&mut buf)
+            .expect("Can't recv message from socket");
 
         // apply all network algo. we drop packet if at least one says no
         if let Some(ref mut loss_rate) = loss_rate {
