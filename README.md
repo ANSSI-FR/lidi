@@ -32,7 +32,7 @@ $ cargo doc --document-private-items --no-deps --lib --open
 ## Functional testing using behave
 
 ```
-$ apt install python3-behave
+$ apt install python3-behave python3-fusepy
 $ behave --tags=~fail
 ```
 

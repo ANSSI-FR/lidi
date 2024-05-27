@@ -18,3 +18,9 @@ jobs:
     - uses: actions/checkout@v3
     - name: Build
       run: cargo build --verbose --workspace
+    - name: Run tests
+      run: cargo test
+    - name: Install behave
+      run: sudo apt install python3-behave python3-fusepy
+    - name: Run integration tests
+      run: behave --tags=~fail
