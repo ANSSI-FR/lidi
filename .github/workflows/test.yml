@@ -1,0 +1,26 @@
+name: Ubuntu compilation and tests
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run doc tests
+      run: cargo test --doc
+    - name: Run unit tests
+      run: cargo test
+    - name: Install behave
+      run: apt install python3-behave
+    - name: Run integration tests
+      run: behave --tags=~fail
