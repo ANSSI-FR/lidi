@@ -70,4 +70,3 @@ impl<'a> Profiler for FlamegraphProfiler<'a> {
         }
     }
 }
-

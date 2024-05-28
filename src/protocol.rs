@@ -2,26 +2,23 @@
 //!
 //! The Lidi protocol is rather simple: since the communications are unidirectional, it is defined
 //! by the messages structure. There are 5 message types:
-//! - `MessageType::Heartbeat` lets know the receiver that transfer can happen,
+//! - `MessageType::Heartbeat` message without data to tell receiver the other side is alive
 //! - `MessageType::Start` informs the receiver that the sent data chunk represents the beginning of a new transfer,
-//! - `MessageType::Data` is used to send a data chunk that is not the beginning nor the ending of
-//! a transfer,
-//! - `MessageType::Abort` informs the receiver that the current transfer has been aborted on the
-//! sender side,
-//! - `MessageType::End` informs the receiver that the current transfer is completed (i.e. all
-//! data have been sent).
+//! - `MessageType::Data` is used to inform this packet contains data
+//! - `MessageType::End` informs the receiver that the current transfer is completed (i.e. this is
+//! the last message for the current connection)
 //!
 //! A message is stored in a `Vec` of `u8`s, with the following representation:
 //!
 //! ```text
 //!
-//! <-- 4 bytes -> <--- 1 byte ---> <-- 4 bytes -->
-//! --------------+----------------+---------------+--------------------------------------
-//! |             |                |               |                                     |
-//! |  client_id  |  message_type  |  data_length  |  payload = data + optional padding  |
-//! |             |                |               |                                     |
-//! --------------+----------------+---------------+--------------------------------------
-//!  <------------ SERIALIZE_OVERHEAD ------------> <--------- message_length ---------->
+//!  <--- 1 byte ---> <-- 1 byte --> <-- 2 bytes ->
+//! +----------------+--------------+--------------+-----------------------------------------------------------+
+//! |                |              |              |                                                           |
+//! |  message_flags |  session_id  |    seq_id    |  payload = 4 bytes data length + data + optional padding  |
+//! |                |              |              |                                                           |
+//! +----------------+--------------+--------------+-----------------------------------------------------------+
+//!  <------------ SERIALIZE_OVERHEAD ------------> <------------------- message_length -------------------->
 //!
 //! ```
 //!
@@ -32,78 +29,81 @@
 //! is of type `Heartbeat`, `Abort` or `End`. Then the `data_length` will be set to 0 by the
 //! message constructor and the data chunk will be fully padded with zeros.
 
-use std::{fmt, io};
+use crate::error::Error;
+use bitflags::bitflags;
+use std::fmt;
 
-pub enum Error {
-    Io(io::Error),
-    InvalidMessageType(Option<u8>),
+pub struct DecodedBlock {
+    pub header: Header,
+    pub block: Vec<u8>,
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        match self {
-            Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::InvalidMessageType(b) => write!(fmt, "invalid message type: {b:?}"),
+impl DecodedBlock {
+    pub fn new(header: Header, block: Vec<u8>) -> Self {
+        Self { header, block }
+    }
+}
+
+bitflags! {
+    #[repr(transparent)]
+    #[derive(Copy, Clone, PartialEq, Eq)]
+    pub struct MessageType: u8 {
+        const Heartbeat = 0b00000001;
+        const Start     = 0b00000010;
+        const Data      = 0b00000100;
+        const End       = 0b00001000;
+        const Abort     = 0b00010000;
+        const Init      = 0b10000000;
+    }
+}
+
+fn display_bit(
+    fmt: &mut fmt::Formatter<'_>,
+    flags: MessageType,
+    flag: MessageType,
+    name: &str,
+    count: &mut usize,
+) -> Result<(), fmt::Error> {
+    if flags.contains(flag) {
+        if *count != 0 {
+            write!(fmt, "|")?;
         }
+        write!(fmt, "{name}")?;
+        *count += 1;
     }
-}
 
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-pub enum MessageType {
-    Heartbeat,
-    Start,
-    Data,
-    Abort,
-    End,
-}
-
-impl MessageType {
-    fn serialized(self) -> u8 {
-        match self {
-            Self::Heartbeat => ID_HEARTBEAT,
-            Self::Start => ID_START,
-            Self::Data => ID_DATA,
-            Self::Abort => ID_ABORT,
-            Self::End => ID_END,
-        }
-    }
+    Ok(())
 }
 
 impl fmt::Display for MessageType {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            Self::Heartbeat => write!(fmt, "Heartbeat"),
-            Self::Start => write!(fmt, "Start"),
-            Self::Data => write!(fmt, "Data"),
-            Self::Abort => write!(fmt, "Abort"),
-            Self::End => write!(fmt, "End"),
-        }
+        let mut count = 0;
+
+        display_bit(fmt, *self, MessageType::Heartbeat, "Heartbeat", &mut count)?;
+        display_bit(fmt, *self, MessageType::Start, "Start", &mut count)?;
+        display_bit(fmt, *self, MessageType::Data, "Data", &mut count)?;
+        display_bit(fmt, *self, MessageType::End, "End", &mut count)?;
+        display_bit(fmt, *self, MessageType::Init, "Init", &mut count)?;
+
+        Ok(())
     }
 }
 
-const ID_HEARTBEAT: u8 = 0x00;
-const ID_START: u8 = 0x01;
-const ID_DATA: u8 = 0x02;
-const ID_ABORT: u8 = 0x03;
-const ID_END: u8 = 0x04;
-
-pub type ClientId = u32;
-
-pub fn new_client_id() -> ClientId {
-    rand::random::<ClientId>()
+#[derive(Copy, Clone)]
+pub struct Header {
+    flags: MessageType,
+    session: u8,
+    seq: u8,
+    block: u8,
 }
 
-#[derive(Clone)]
-pub struct Message(Vec<u8>);
+const SERIALIZE_OVERHEAD: u16 = 4;
+/// data added to each block to store real data size (without protocol padding)
+pub const PAYLOAD_OVERHEAD: usize = 4;
+pub const FIRST_BLOCK_ID: u8 = 0;
+pub const FIRST_SESSION_ID: u8 = 0;
 
-const SERIALIZE_OVERHEAD: usize = 4 + 1 + 4;
-
-impl Message {
+impl Header {
     /// Message constructor, craft a message according to the representation introduced in
     /// [crate::protocol].
     ///
@@ -112,84 +112,79 @@ impl Message {
     /// then no data should be provided,
     /// - if `message` is `MessageType::Heartbear` then `client_id` should be equal to 0,
     /// - if there is some `data`, its length must be greater than `message_length`.
-    pub fn new(
-        message: MessageType,
-        message_length: u32,
-        client_id: ClientId,
-        data: Option<&[u8]>,
-    ) -> Self {
-        match data {
-            None => {
-                let mut content = vec![0u8; message_length as usize + SERIALIZE_OVERHEAD];
-                let bytes = client_id.to_le_bytes();
-                content[0] = bytes[0];
-                content[1] = bytes[1];
-                content[2] = bytes[2];
-                content[3] = bytes[3];
-                content[4] = message.serialized();
-                Self(content)
-            }
-            Some(data) => {
-                let mut content = Vec::with_capacity(message_length as usize + SERIALIZE_OVERHEAD);
-                content.extend_from_slice(&client_id.to_le_bytes());
-                content.push(message.serialized());
-                content.extend_from_slice(&u32::to_le_bytes(data.len() as u32));
-                content.extend_from_slice(data);
-                if content.len() < content.capacity() {
-                    content.resize(content.capacity(), 0);
-                }
-                Self(content)
-            }
+    pub fn new(flags: MessageType, session: u8, block: u8) -> Self {
+        Self {
+            flags,
+            session,
+            block,
+            seq: 0,
         }
     }
 
-    pub(crate) fn client_id(&self) -> ClientId {
-        let bytes = [self.0[0], self.0[1], self.0[2], self.0[3]];
-        u32::from_le_bytes(bytes)
+    pub fn message_type(&self) -> MessageType {
+        self.flags
     }
 
-    pub(crate) fn message_type(&self) -> Result<MessageType, Error> {
-        match self.0.get(4) {
-            Some(&ID_HEARTBEAT) => Ok(MessageType::Heartbeat),
-            Some(&ID_START) => Ok(MessageType::Start),
-            Some(&ID_DATA) => Ok(MessageType::Data),
-            Some(&ID_ABORT) => Ok(MessageType::Abort),
-            Some(&ID_END) => Ok(MessageType::End),
-            b => Err(Error::InvalidMessageType(b.copied())),
+    pub(crate) const fn deserialize(data: &[u8]) -> Result<Header, Error> {
+        // very unlikely
+        if data.len() < SERIALIZE_OVERHEAD as usize {
+            return Err(Error::UdpHeaderDeserialize);
         }
-    }
 
-    fn payload_len(&self) -> u32 {
-        let data_len_bytes = [self.0[5], self.0[6], self.0[7], self.0[8]];
-        u32::from_le_bytes(data_len_bytes)
-    }
-
-    pub(crate) const fn deserialize(data: Vec<u8>) -> Self {
-        Self(data)
+        // check flags
+        if let Some(flags) = MessageType::from_bits(data[0]) {
+            let session = data[1];
+            let block = data[2];
+            let seq = data[3];
+            Ok(Header {
+                flags,
+                session,
+                block,
+                seq,
+            })
+        } else {
+            Err(Error::UdpHeaderDeserialize)
+        }
     }
 
     pub const fn serialize_overhead() -> usize {
-        SERIALIZE_OVERHEAD
+        SERIALIZE_OVERHEAD as _
     }
 
-    pub fn payload(&self) -> &[u8] {
-        let len = self.payload_len();
-        &self.0[SERIALIZE_OVERHEAD..(SERIALIZE_OVERHEAD + len as usize)]
+    pub fn serialized(&self) -> [u8; 4] {
+        let mut data: [u8; 4] = [0; 4];
+        data[0] = self.flags.bits();
+        data[1] = self.session;
+        data[2] = self.block;
+        data[3] = self.seq;
+        data
     }
 
-    pub fn serialized(&self) -> &[u8] {
-        &self.0
+    pub fn block(&self) -> u8 {
+        self.block
+    }
+
+    pub fn seq(&self) -> u8 {
+        self.seq
+    }
+
+    pub fn session(&self) -> u8 {
+        self.session
+    }
+
+    pub fn incr_seq(&mut self) {
+        self.seq += 1;
     }
 }
 
-impl fmt::Display for Message {
+impl fmt::Display for Header {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             fmt,
-            "client {:x} message = {} data = {} byte(s)",
-            self.client_id(),
-            self.message_type().map_err(|_| fmt::Error)?,
-            self.payload_len()
+            "client message = {} session {} seq {}",
+            self.message_type(),
+            self.session,
+            self.seq
         )
     }
 }
@@ -202,10 +197,11 @@ pub fn object_transmission_information(
     mtu: u16,
     logical_block_size: u64,
 ) -> raptorq::ObjectTransmissionInformation {
-    let data_mtu: u16 =
-        RAPTORQ_ALIGNMENT * ((mtu - PACKET_HEADER_SIZE - RAPTORQ_HEADER_SIZE) / RAPTORQ_ALIGNMENT);
+    let data_mtu: u16 = RAPTORQ_ALIGNMENT
+        * ((mtu - PACKET_HEADER_SIZE - RAPTORQ_HEADER_SIZE - SERIALIZE_OVERHEAD)
+            / RAPTORQ_ALIGNMENT);
 
-    let nb_encoding_packets = logical_block_size / u64::from(data_mtu);
+    let nb_encoding_packets = (logical_block_size + PAYLOAD_OVERHEAD as u64) / u64::from(data_mtu);
 
     let encoding_block_size = u64::from(data_mtu) * nb_encoding_packets;
 

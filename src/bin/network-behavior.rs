@@ -10,18 +10,28 @@
 // so it should be used for testing purpose with low volume only
 
 use clap::Parser;
+use log::LevelFilter;
+use log4rs::{
+    append::{
+        console::{ConsoleAppender, Target},
+        file::FileAppender,
+    },
+    config::{Appender, Root},
+    encode::pattern::PatternEncoder,
+    filter::threshold::ThresholdFilter,
+    Config,
+};
 use nix::sys::socket::{setsockopt, sockopt::RcvBuf};
 use std::net::Ipv4Addr;
+use std::net::UdpSocket;
 use std::time::Instant;
-use std::{env, net::UdpSocket};
 
-/// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     /// UDP ip:port to bind to receive packets
     #[arg(short, long)]
-    from_udp: String,
+    bind_udp: String,
 
     /// UDP ip:port to connect to sent packets
     #[arg(short, long)]
@@ -242,7 +252,7 @@ fn main() {
 
     let mut stats = Stats::new();
 
-    let rx_socket = UdpSocket::bind(args.from_udp).expect("Cant bind rx socket");
+    let rx_socket = UdpSocket::bind(args.bind_udp).expect("Cant bind rx socket");
     let rx_size = 1_000_000;
     setsockopt(&rx_socket, RcvBuf, &rx_size).expect("Cant set rx socket rcvbuf");
 
@@ -284,10 +294,39 @@ fn main() {
 }
 
 fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env()
-    } else {
-        simple_logger::init_with_level(log::Level::Info)
-    }
-    .expect("logger initialization")
+    let level = log::LevelFilter::Info;
+    let file_path = "/tmp/network.log";
+
+    // Build a stderr logger.
+    let stderr = ConsoleAppender::builder().target(Target::Stderr).build();
+
+    // Logging to log file.
+    let logfile = FileAppender::builder()
+        // Pattern: https://docs.rs/log4rs/*/log4rs/encode/pattern/index.html
+        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+        .build(file_path)
+        .unwrap();
+
+    // Log Trace level output to file where trace is the default level
+    // and the programmatically specified level to stderr.
+    let config = Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .appender(
+            Appender::builder()
+                .filter(Box::new(ThresholdFilter::new(level)))
+                .build("stderr", Box::new(stderr)),
+        )
+        .build(
+            Root::builder()
+                .appender("logfile")
+                .appender("stderr")
+                .build(LevelFilter::Trace),
+        )
+        .unwrap();
+
+    // Use this to change log levels at runtime.
+    // This means you can change the default log level to trace
+    // if you are trying to debug an issue and need more logs on then turn it off
+    // once you are done.
+    let _handle = log4rs::init_config(config).unwrap();
 }

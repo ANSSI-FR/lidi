@@ -22,7 +22,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // create our encoding module
     let encoding = Encoding::new(object_transmission_info, repair_block_size);
 
-    let message = build_random_message(object_transmission_info);
+    let real_data_size = object_transmission_info.transfer_length() as usize;
+    let (_header, payload) = build_random_message(real_data_size);
 
     // now bench encoding performance
     let now = Instant::now();
@@ -32,7 +33,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             // TODO : find what is this block id
             let block_id = 0;
-            encoding.encode(message.clone(), block_id);
+            encoding.encode(payload.clone(), block_id);
 
             counter += 1;
         });

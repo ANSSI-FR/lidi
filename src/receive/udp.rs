@@ -1,35 +1,53 @@
 //! Worker that actually receives packets from the UDP diode link
 
-use crate::{receive, sock_utils, udp};
-use std::net;
+use crate::sock_utils;
+use std::net::{self, SocketAddr};
+use std::{io::Result, net::UdpSocket};
 
-pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
-    log::info!(
-        "listening for UDP packets at {} with MTU {}",
-        receiver.config.from_udp,
-        receiver.config.from_udp_mtu
-    );
-    let socket = net::UdpSocket::bind(receiver.config.from_udp)?;
-    sock_utils::set_socket_recv_buffer_size(&socket, i32::MAX)?;
-    let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&socket)?;
-    log::info!("UDP socket receive buffer size set to {sock_buffer_size}");
-    if (sock_buffer_size as u64)
-        < 2 * (receiver.config.encoding_block_size + u64::from(receiver.config.repair_block_size))
-    {
-        log::warn!("UDP socket recv buffer may be too small to achieve optimal performances");
-        log::warn!("Please review the kernel parameters using sysctl");
+// TODO : refactor with send/udp to do
+// TODO : remove unwrap
+
+pub struct UdpReceiver {
+    socket: UdpSocket,
+    mtu: u16,
+}
+
+impl UdpReceiver {
+    pub fn new(
+        from_udp: SocketAddr,
+        from_udp_mtu: u16,
+        min_buf_size: u64,
+        _from_max_messages: u16,
+    ) -> Self {
+        log::info!(
+            "listening for UDP packets at {} with MTU {}",
+            from_udp,
+            from_udp_mtu
+        );
+        let mut socket = net::UdpSocket::bind(from_udp).unwrap();
+
+        // set recv buf size to maximum allowed by system conf
+        sock_utils::set_socket_recv_buffer_size(&mut socket, i32::MAX).unwrap();
+
+        // check if it is big enough or print warning
+        let sock_buffer_size = sock_utils::get_socket_recv_buffer_size(&socket).unwrap();
+        log::info!("UDP socket receive buffer size set to {sock_buffer_size}");
+        if (sock_buffer_size as u64) < 5 * min_buf_size {
+            log::warn!("UDP socket recv buffer is be too small to achieve optimal performances");
+            log::warn!("Please modify the kernel parameters using sysctl -w net.core.rmem_max");
+        }
+
+        Self {
+            socket,
+            mtu: from_udp_mtu,
+        }
     }
 
-    let mut udp_messages = udp::UdpMessages::new_receiver(
-        socket,
-        usize::from(receiver.from_max_messages),
-        usize::from(receiver.config.from_udp_mtu),
-    );
+    pub fn recv(&mut self, buffer: &mut [u8]) -> Result<usize> {
+        self.socket.recv(buffer)
+    }
 
-    loop {
-        let packets = udp_messages
-            .recv_mmsg()?
-            .map(raptorq::EncodingPacket::deserialize);
-        receiver.to_reblock.send(packets.collect())?;
+    pub fn mtu(&self) -> u16 {
+        self.mtu
     }
 }

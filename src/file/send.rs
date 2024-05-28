@@ -6,47 +6,28 @@ use std::{
     hash::Hash,
     io::{Read, Write},
     net,
-    os::unix::{self, fs::PermissionsExt},
+    os::unix::fs::PermissionsExt,
     path,
 };
 
-pub fn send_files(
-    config: &file::Config<file::DiodeSend>,
-    files: &[String],
-) -> Result<(), file::Error> {
-    for file in files {
-        let total = send_file(config, file)?;
-        log::info!("file send, {total} bytes sent");
-    }
+pub fn send_files(config: &file::Config, files: &[String]) -> Result<(), file::Error> {
+    log::debug!("connecting to {}", config.diode);
+    let mut diode = net::TcpStream::connect(config.diode)?;
+    files.iter().enumerate().for_each(|(count, file)| {
+        match send_file(config, &mut diode, file, count == files.len() - 1) {
+            Ok(total) => log::info!("{file} sent, {total} bytes"),
+            Err(e) => log::error!("Cannot send file {file}: {e}"),
+        }
+    });
     Ok(())
 }
 
 pub fn send_file(
-    config: &file::Config<file::DiodeSend>,
-    file_path: &String,
+    config: &file::Config,
+    diode: &mut net::TcpStream,
+    file_path: &str,
+    stream_end: bool,
 ) -> Result<usize, file::Error> {
-    log::debug!("connecting to {}", config.diode);
-
-    match &config.diode {
-        file::DiodeSend::Tcp(socket_addr) => {
-            let diode = net::TcpStream::connect(socket_addr)?;
-            send_file_aux(config, diode, file_path)
-        }
-        file::DiodeSend::Unix(path) => {
-            let diode = unix::net::UnixStream::connect(path)?;
-            send_file_aux(config, diode, file_path)
-        }
-    }
-}
-
-fn send_file_aux<D>(
-    config: &file::Config<file::DiodeSend>,
-    mut diode: D,
-    file_path: &String,
-) -> Result<usize, file::Error>
-where
-    D: Read + Write,
-{
     log::debug!("opening file \"{}\"", file_path);
 
     let file_path = path::PathBuf::from(file_path);
@@ -79,7 +60,7 @@ where
         file_length: metadata.len(),
     };
 
-    header.serialize_to(&mut diode)?;
+    header.serialize_to(diode)?;
 
     let mut buffer = vec![0; config.buffer_size];
     let mut cursor = 0;
@@ -100,9 +81,10 @@ where
 
                 let footer = file::protocol::Footer {
                     hash: if config.hash { hasher.finish_ext() } else { 0 },
+                    stream_end,
                 };
 
-                footer.serialize_to(&mut diode)?;
+                footer.serialize_to(diode)?;
 
                 diode.flush()?;
                 return Ok(total);

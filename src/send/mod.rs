@@ -8,184 +8,217 @@
 //! Here follows a simplified representation of the workers pipeline:
 //!
 //! ```text
-//!             ----------             ------------               -----------
-//! listeners --| client |-> clients --| messages |-> encodings --| packets |-> udp
-//!             ----------             ------------               -----------
+//!             ----------              -------------------
+//! tcp rcv   --| blocks |->  encoder --| encoded packets |-> udp sender
+//!             ----------              -------------------
 //! ```
 //!
+//! Target :
+//!
+//! ```text
+//!                                     /-- >  encoder + udp sender (udp sock)
+//!                        ----------   |
+//! (tcp sock) tcp recv  --| blocks |---+-- >  encoder + udp sender (udp sock)
+//!                        ----------   |
+//!                                     +-- >  encoder + udp sender (udp sock)
+//!                                     .
+//!                                     .
+//!                                     .
+//!                                     \-- >  encoder + udp sender (udp sock)
+//!
+//!                                         +  heatbeat (udp sock)
+//! ```
+//!
+//! tcp recv:
+//! * rate limit
+//! * split in block to encode
+//! * allocate a block id per block
+//! * dispatch (round robin) on multiple encoders
+//!
+//! each encoder + udp sender thread
+//! * encode in predefined packet size
+//! * add repair packets
+//! * send all packet on udp
+//! * there must be a reasonnable number of encoding threads (max ~20), because of block_id encoded on 8 bits
+//!
+//! heartbeat
+//! * send periodically on dedicated socket
+//!
 //! Notes:
-//! - listeners threads are spawned from binary and not the library crate,
+//! - tcp reader thread is spawned from binary and not the library crate,
 //! - heartbeat worker has been omitted from the representation for readability,
-//! - there are `nb_clients` clients workers running in parallel,
-//! - there are `nb_encoding_threads` encoding workers running in parallel.
+//! - performance considerations (see benched)
+//!   + tcp reader is very fast and should never be an issue
+//!   + udp sender depends on MTU
+//!     * with 1500 MTU, it is a bit slow but can go up to 20 Gb/s : socket_send bench
+//!     * with 9000 MTU, it is quick and can go up to 90 Gb/s : socket_send_big_mtu_bench
+//!   + encoding is a bit slow, less than 10 Gb/s, so there should be multiple (at least 2) `nb_encoding_threads` workers running in parallel.
+//!
 
-use crate::{protocol, semaphore};
-use std::{
-    fmt,
-    io::{self, Read},
-    net,
-    os::fd::AsRawFd,
-    sync, thread, time,
+use crate::error::Error;
+use crate::protocol::{Header, MessageType, FIRST_BLOCK_ID, FIRST_SESSION_ID};
+use crate::{
+    protocol,
+    send::{encoding::Encoding, udp::UdpSender},
 };
+use std::{net, thread, time};
 
-mod client;
 pub mod encoding;
 mod heartbeat;
-mod server;
+pub mod tcp;
 mod udp;
-
-pub struct Config {
-    pub nb_clients: u16,
-    pub encoding_block_size: u64,
-    pub repair_block_size: u32,
-    pub nb_encoding_threads: u8,
-    pub hearbeat_interval: Option<time::Duration>,
-    pub to_bind: net::SocketAddr,
-    pub to_udp: net::SocketAddr,
-    pub to_mtu: u16,
-}
-
-impl Config {
-    pub(crate) fn adjust(&mut self) {
-        let oti = protocol::object_transmission_information(self.to_mtu, self.encoding_block_size);
-
-        let packet_size = protocol::packet_size(&oti);
-        let nb_encoding_packets = protocol::nb_encoding_packets(&oti);
-        let nb_repair_packets = protocol::nb_repair_packets(&oti, self.repair_block_size);
-
-        self.encoding_block_size = nb_encoding_packets * u64::from(packet_size);
-        self.repair_block_size = nb_repair_packets * u32::from(packet_size);
-    }
-}
-
-pub enum Error {
-    Io(io::Error),
-    SendMessage(crossbeam_channel::SendError<protocol::Message>),
-    SendUdp(crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>),
-    Receive(crossbeam_channel::RecvError),
-    Protocol(protocol::Error),
-    Diode(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        match self {
-            Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::SendMessage(e) => write!(fmt, "crossbeam send message error: {e}"),
-            Self::SendUdp(e) => write!(fmt, "crossbeam send UDP error: {e}"),
-            Self::Receive(e) => write!(fmt, "crossbeam receive error: {e}"),
-            Self::Protocol(e) => write!(fmt, "diode protocol error: {e}"),
-            Self::Diode(e) => write!(fmt, "diode error: {e}"),
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<crossbeam_channel::SendError<protocol::Message>> for Error {
-    fn from(e: crossbeam_channel::SendError<protocol::Message>) -> Self {
-        Self::SendMessage(e)
-    }
-}
-
-impl From<crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>> for Error {
-    fn from(e: crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>) -> Self {
-        Self::SendUdp(e)
-    }
-}
-
-impl From<crossbeam_channel::RecvError> for Error {
-    fn from(e: crossbeam_channel::RecvError) -> Self {
-        Self::Receive(e)
-    }
-}
-
-impl From<protocol::Error> for Error {
-    fn from(e: protocol::Error) -> Self {
-        Self::Protocol(e)
-    }
-}
+use crossbeam_channel::{Receiver, Sender};
+use metrics::counter;
 
 /// An instance of this data structure is shared by workers to synchronize them and to access
 /// communication channels
 ///
 /// The `C` type variable represents the socket from which data is read before being sent over the
 /// diode.
-pub struct Sender<C> {
-    pub(crate) config: Config,
-    pub(crate) object_transmission_info: raptorq::ObjectTransmissionInformation,
-    pub(crate) from_buffer_size: u32,
-    pub(crate) to_max_messages: u16,
-    pub(crate) multiplex_control: semaphore::Semaphore,
-    pub(crate) block_to_encode: sync::Mutex<u8>,
-    pub(crate) block_to_send: sync::Mutex<u8>,
-    pub(crate) to_server: crossbeam_channel::Sender<C>,
-    pub(crate) for_server: crossbeam_channel::Receiver<C>,
-    pub(crate) to_encoding: crossbeam_channel::Sender<protocol::Message>,
-    pub(crate) for_encoding: crossbeam_channel::Receiver<protocol::Message>,
-    pub(crate) to_send: crossbeam_channel::Sender<Vec<raptorq::EncodingPacket>>,
-    pub(crate) for_send: crossbeam_channel::Receiver<Vec<raptorq::EncodingPacket>>,
+pub struct SenderConfig {
+    // command line values
+    pub encoding_block_size: u64,
+    pub repair_block_size: u32,
+    pub nb_threads: u8,
+    pub hearbeat_interval: time::Duration,
+    pub bind_udp: net::SocketAddr,
+    pub to_udp: net::SocketAddr,
+    pub to_udp_mtu: u16,
+    pub from_tcp: net::SocketAddr,
+    // computed values
+    pub object_transmission_info: raptorq::ObjectTransmissionInformation,
+    pub from_buffer_size: u32,
+    pub to_max_messages: u16,
+    pub to_encoding: Vec<Sender<(Header, Vec<u8>)>>,
+    pub for_encoding: Vec<Receiver<(Header, Vec<u8>)>>,
+    pub max_bandwidth: Option<f64>,
 }
 
-impl<C> Sender<C>
-where
-    C: Read + AsRawFd + Send,
-{
-    pub fn new(mut config: Config) -> Self {
-        config.adjust();
+impl SenderConfig {
+    fn start_encoder_sender(
+        for_encoding: &Receiver<(Header, Vec<u8>)>,
+        encoding: Encoding,
+        mut sender: UdpSender,
+    ) {
+        loop {
+            let packets;
+            let (header, payload) = match for_encoding.recv() {
+                Ok(ret) => {
+                    counter!("tx_encoding_blocks").increment(1);
+                    ret
+                }
+                Err(e) => {
+                    log::debug!("Error receiving data: {e}");
+                    counter!("tx_encoding_blocks_err").increment(1);
+                    continue;
+                }
+            };
 
-        let object_transmission_info =
-            protocol::object_transmission_information(config.to_mtu, config.encoding_block_size);
+            let message_type = header.message_type();
 
-        let from_buffer_size = (object_transmission_info.transfer_length()
-            - protocol::Message::serialize_overhead() as u64) as u32;
+            if message_type.contains(MessageType::Start) {
+                log::debug!("start of encoding block for client")
+            }
+            if message_type.contains(MessageType::End) {
+                log::debug!("end of encoding block for client")
+            }
 
-        let to_max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
-            + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size)
-                as u16;
+            if !payload.is_empty() {
+                packets = encoding.encode(payload, header.block());
 
-        let multiplex_control = semaphore::Semaphore::new(config.nb_clients as usize);
+                let mut header = header;
 
-        let block_to_encode = sync::Mutex::new(0);
+                for packet in packets {
+                    header.incr_seq();
+                    // todo : try to remove this serialize and get only data
 
-        let block_to_send = sync::Mutex::new(0);
+                    let packet = packet.serialize();
+                    let payload_len = packet.len();
+                    match sender.send(header, packet) {
+                        Ok(_) => {
+                            counter!("tx_udp_pkts").increment(1);
+                            counter!("tx_udp_bytes").increment(payload_len as u64);
+                        }
+                        Err(_e) => {
+                            counter!("tx_udp_pkts_err").increment(1);
+                            counter!("tx_udp_bytes_err").increment(payload_len as u64);
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-        let (to_server, for_server) = crossbeam_channel::bounded::<C>(1);
+    fn tcp_listener_loop(&self, listener: net::TcpListener) {
+        let mut session_id = FIRST_SESSION_ID;
 
-        let (to_encoding, for_encoding) =
-            crossbeam_channel::bounded::<protocol::Message>(config.nb_clients as usize);
+        for client in listener.incoming() {
+            match client {
+                Err(e) => {
+                    log::error!("failed to accept TCP client: {e}");
+                    return;
+                }
+                Ok(client) => {
+                    let mut tcp = tcp::Tcp::new(
+                        client,
+                        self.from_buffer_size,
+                        session_id,
+                        self.max_bandwidth,
+                    );
 
-        let (to_send, for_send) = crossbeam_channel::bounded::<Vec<raptorq::EncodingPacket>>(
-            2 * config.nb_encoding_threads as usize,
-        );
+                    if let Err(e) = tcp.configure() {
+                        log::warn!("client: error: {e}");
+                    }
 
-        Self {
-            config,
-            object_transmission_info,
-            from_buffer_size,
-            to_max_messages,
-            multiplex_control,
-            block_to_encode,
-            block_to_send,
-            to_server,
-            for_server,
-            to_encoding,
-            for_encoding,
-            to_send,
-            for_send,
+                    log::debug!("tcp connected");
+
+                    let mut to_encoding_id = 0;
+
+                    loop {
+                        match tcp.read() {
+                            Ok(message) => {
+                                if let Some((message, payload)) = message {
+                                    counter!("tx_tcp_blocks").increment(1);
+                                    counter!("tx_tcp_bytes").increment(payload.len() as u64);
+
+                                    let message_type = message.message_type();
+
+                                    if let Err(e) = self.to_encoding[to_encoding_id as usize]
+                                        .send((message, payload))
+                                    {
+                                        log::warn!("Sender tcp read: {e}");
+                                    }
+
+                                    // send next message to next thread
+                                    to_encoding_id = if to_encoding_id == self.nb_threads - 1 {
+                                        0
+                                    } else {
+                                        to_encoding_id + 1
+                                    };
+
+                                    if message_type.contains(MessageType::End) {
+                                        break;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("Error tcp read: {e}");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if session_id == u8::MAX {
+                session_id = 0;
+            } else {
+                session_id += 1;
+            }
         }
     }
 
     pub fn start<'a>(&'a self, scope: &'a thread::Scope<'a, '_>) -> Result<(), Error> {
-        log::info!(
-            "accepting {} simultaneous transfers",
-            self.config.nb_clients
-        );
-
         log::info!(
             "client socket buffer size is {} bytes",
             self.from_buffer_size
@@ -194,48 +227,67 @@ where
         log::info!(
             "encoding will produce {} packets ({} bytes per block) + {} repair packets",
             protocol::nb_encoding_packets(&self.object_transmission_info),
-            self.config.encoding_block_size,
-            protocol::nb_repair_packets(
-                &self.object_transmission_info,
-                self.config.repair_block_size
-            ),
+            self.encoding_block_size,
+            protocol::nb_repair_packets(&self.object_transmission_info, self.repair_block_size),
         );
 
+        for i in 0..self.nb_threads {
+            let for_encoding = &self.for_encoding[i as usize];
+
+            thread::Builder::new()
+                .name(format!("lidi_tx_udp_{i}"))
+                .spawn_scoped(scope, move || {
+                    log::info!(
+                        "sending UDP traffic to {} with MTU {} binding to {}",
+                        self.to_udp,
+                        self.to_udp_mtu,
+                        self.bind_udp
+                    );
+
+                    let encoding =
+                        Encoding::new(self.object_transmission_info, self.repair_block_size);
+                    let mut sender = UdpSender::new(
+                        self.bind_udp,
+                        self.to_udp,
+                        self.encoding_block_size + self.repair_block_size as u64,
+                    );
+
+                    // first, send one "init" packet
+                    if i == 0 {
+                        let header =
+                            Header::new(MessageType::Init, FIRST_SESSION_ID, FIRST_BLOCK_ID);
+                        let _ = sender.send(header, vec![]);
+                    }
+
+                    // loop on packets to send
+                    SenderConfig::start_encoder_sender(for_encoding, encoding, sender);
+                })
+                .unwrap();
+        }
+
+        log::info!(
+            "heartbeat message will be sent every {} seconds",
+            self.hearbeat_interval.as_secs()
+        );
         thread::Builder::new()
-            .name("udp".into())
-            .spawn_scoped(scope, || udp::start(self))?;
+            .name("lidi_tx_heartbeat".into())
+            .spawn_scoped(scope, || heartbeat::start(self))?;
 
-        for i in 0..self.config.nb_encoding_threads {
-            thread::Builder::new()
-                .name(format!("encoding_{i}"))
-                .spawn_scoped(scope, || encoding::start(self))?;
-        }
+        log::info!("accepting TCP clients at {}", self.from_tcp);
 
-        if let Some(hb_interval) = self.config.hearbeat_interval {
-            log::info!(
-                "heartbeat message will be sent every {} seconds",
-                hb_interval.as_secs()
-            );
-            thread::Builder::new()
-                .name("heartbeat".into())
-                .spawn_scoped(scope, || heartbeat::start(self))?;
-        } else {
-            log::info!("heartbeat is disabled");
-        }
+        let tcp_listener = match net::TcpListener::bind(self.from_tcp) {
+            Err(e) => {
+                log::error!("failed to bind TCP {}: {}", self.from_tcp, e);
+                return Ok(());
+            }
+            Ok(listener) => listener,
+        };
 
-        for i in 0..self.config.nb_clients {
-            thread::Builder::new()
-                .name(format!("client_{i}"))
-                .spawn_scoped(scope, || server::start(self))?;
-        }
+        thread::Builder::new()
+            .name("lidi_tx_tcp".into())
+            .spawn_scoped(scope, || self.tcp_listener_loop(tcp_listener))
+            .expect("thread spawn");
 
-        Ok(())
-    }
-
-    pub fn new_client(&self, client: C) -> Result<(), Error> {
-        if let Err(e) = self.to_server.send(client) {
-            return Err(Error::Diode(format!("failed to enqueue client: {e}")));
-        }
         Ok(())
     }
 }

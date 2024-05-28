@@ -43,34 +43,37 @@ In a first terminal, we start by running the sender part of lidi with default pa
 
 .. code-block::
 
-   $ cargo run --release --bin diode-send
+   $ cargo run --release --bin diode-send -- --to-udp 127.0.0.1:5000
 
-Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5000 and that the traffic will go through the diode on UDP port 6000.
+Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5001 (default port if --bind-tcp is not set) and that the traffic will go through the diode on UDP port 5000.
 
 Next, we run the receiving part of lidi, with default parameters too:
 
 .. code-block::
   
-   $ cargo run --release --bin diode-receive
+   $ cargo run --release --bin diode-receive -- --bind-udp 127.0.0.1:5000
 
-This time, logging will indicate that traffic will come up on UDP port 6000 and that transferred content will be served on TCP port 7000.
+This time, logging will indicate that traffic will come up on UDP port 5000 and that transfered content will be served on TCP port 5002 (default port if --to-tcp is not set).
 
 .. note::
+
+   NOT IMPLEMENTED
+
    Warning messages about the receiver not receiving the heartbeat message may appear on the receiving part terminal. For example, this is the case if the receiver part is launched several seconds before the sender part is run.
    If it is the case, double check that the sender part is still running and that ip addresses and ports for the UDP traffic are the same on the two parts.
 
 The diode is now waiting for TCP connections to send and receive data.
-We run a first netcat instance waiting for connection on port 7000 with the following command:
+We run a first netcat instance waiting for connection on port 5001 with the following command:
 
 .. code-block::
 
-   $ nc -lvp 7000
+   $ nc -lvp 5002
 
 Finally, we should be able to connect and send raw data through the diode in a fourth terminal:
 
 .. code-block::
 
-   $ nc 127.0.0.1 5000
+   $ nc 127.0.0.1 5001
    Hello Lidi!
    <Ctrl-D>
 

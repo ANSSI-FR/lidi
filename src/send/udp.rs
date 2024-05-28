@@ -1,39 +1,52 @@
 //! Worker that actually sends packets on the UDP diode link
 
-use crate::{send, sock_utils, udp};
-use std::net;
+use crate::{protocol::Header, sock_utils};
 
-pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
-    log::info!(
-        "sending UDP traffic to {} with MTU {} binding to {}",
-        sender.config.to_udp,
-        sender.config.to_mtu,
-        sender.config.to_bind
-    );
-    let socket = net::UdpSocket::bind(sender.config.to_bind)?;
-    sock_utils::set_socket_send_buffer_size(&socket, i32::MAX)?;
-    let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket)?;
-    log::info!("UDP socket send buffer size set to {sock_buffer_size}");
-    if (sock_buffer_size as u64)
-        < 2 * (sender.config.encoding_block_size + u64::from(sender.config.repair_block_size))
-    {
-        log::warn!("UDP socket send buffer may be too small to achieve optimal performances");
-        log::warn!("Please review the kernel parameters using sysctl");
+use std::net::{self, SocketAddr, UdpSocket};
+
+pub struct UdpSender {
+    //udp_messages: UdpMessages<udp::UdpSend>,
+    socket: UdpSocket,
+    buffer: Vec<u8>,
+}
+
+impl UdpSender {
+    pub fn new(to_bind: SocketAddr, to_udp: SocketAddr, min_buf_size: u64) -> Self {
+        let mut socket = net::UdpSocket::bind(to_bind).unwrap();
+        sock_utils::set_socket_send_buffer_size(&mut socket, i32::MAX).unwrap();
+        let sock_buffer_size = sock_utils::get_socket_send_buffer_size(&socket).unwrap();
+        log::info!("UDP socket send buffer size set to {sock_buffer_size}");
+        if (sock_buffer_size as u64) < 2 * min_buf_size {
+            log::warn!("UDP socket send buffer may be too small to achieve optimal performances");
+            log::warn!("Please review the kernel parameters using sysctl");
+        }
+        //let udp_messages = UdpMessages::new_sender(socket, usize::from(max_messages), to_udp);
+        //
+        socket.connect(to_udp).unwrap();
+
+        Self {
+            socket,
+            buffer: vec![0; 64 * 1024],
+        }
     }
 
-    let mut udp_messages = udp::UdpMessages::new_sender(
-        socket,
-        usize::from(sender.to_max_messages),
-        sender.config.to_udp,
-    );
+    pub fn send(&mut self, header: Header, payload: Vec<u8>) -> std::io::Result<()> {
+        log::trace!(
+            "udp: send session {} block {} seq {} flags {} len {}",
+            header.session(),
+            header.block(),
+            header.seq(),
+            header.message_type(),
+            payload.len()
+        );
 
-    loop {
-        let packets = sender.for_send.recv()?;
-        udp_messages.send_mmsg(
-            packets
-                .iter()
-                .map(raptorq::EncodingPacket::serialize)
-                .collect(),
-        )?;
+        let payload_len = payload.len();
+
+        self.buffer[0..4].copy_from_slice(&header.serialized());
+        self.buffer[4..payload_len + 4].copy_from_slice(&payload);
+
+        self.socket.send(&self.buffer[0..payload_len + 4])?;
+
+        Ok(())
     }
 }

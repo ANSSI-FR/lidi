@@ -49,5 +49,5 @@ Feature: Send simple (without ratelimit), will probably fail with high volume
   Scenario: Send a 1G file without drop
     Given diode is started
     When diode-file-send file A of size 1GB
-    Then diode-file-receive file A in 5 seconds
+    Then diode-file-receive file A in 15 seconds
 

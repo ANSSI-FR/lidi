@@ -29,7 +29,9 @@ Read the :ref:`Tweaking parameters` section for details.
 
    gstarted
    parameters
-   tweaking
+   performance
+   logging
+   metrics
    files 
 
 

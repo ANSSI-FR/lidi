@@ -1,250 +1,100 @@
-use clap::{Arg, ArgGroup, Command};
-use diode::receive;
-use std::{
-    env, fmt,
-    io::{self, Write},
-    net,
-    num::NonZeroU64,
-    os::{fd::AsRawFd, unix},
-    path,
-    str::FromStr,
-    thread, time,
+use diode::{
+    init_logger, init_metrics,
+    protocol::{self, Header},
+    receive::ReceiverConfig,
 };
+use std::{net::SocketAddr, str::FromStr, time::Duration};
 
-struct Config {
-    from_udp: net::SocketAddr,
-    from_udp_mtu: u16,
-    nb_clients: u16,
+use clap::Parser;
+
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct DiodeConfig {
+    /// IP address and port to connect to TCP server
+    #[arg(short, long, default_value_t = String::from("127.0.0.1:5002"))]
+    to_tcp: String,
+    /// Timeout before force incomplete block recovery (in ms)
+    #[arg(short, long, default_value_t = 500)]
+    flush_timeout: u16,
+    /// Size of RaptorQ block, in bytes
+    #[arg(short, long, default_value_t = 60000)]
     encoding_block_size: u64,
+    /// Size of repair data, in bytes
+    #[arg(short, long, default_value_t = 6000)]
     repair_block_size: u32,
-    flush_timeout: time::Duration,
-    nb_decoding_threads: u8,
-    to: ClientConfig,
-    heartbeat: Option<time::Duration>,
+    /// Number of parallel RX threads
+    #[arg(short, long, default_value_t = 1)]
+    nb_threads: u8,
+    /// IP address and port where to send UDP packets to diode-receive
+    #[arg(short, long)]
+    bind_udp: String,
+    /// MTU of the output UDP link
+    #[arg(short, long, default_value_t = 1500)]
+    udp_mtu: u16,
+    /// heartbeat period in ms
+    #[arg(short, long, default_value_t = 2000)]
+    heartbeat_interval: u16,
+    /// prometheus port
+    #[arg(short, long)]
+    metrics: Option<String>,
+    /// Path to log configuration file
+    #[arg(short, long)]
+    log_config: Option<String>,
+    /// Verbosity level. Using it multiple times adds more logs.
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    pub debug: u8,
+    /// Session expiration delay. Time to wait before changing session (in s). Default is 5.
+    #[arg(short, long, default_value_t = 5)]
+    pub session_expiration_delay: usize,
 }
 
-enum ClientConfig {
-    Tcp(net::SocketAddr),
-    Unix(path::PathBuf),
-}
+impl From<DiodeConfig> for ReceiverConfig {
+    fn from(config: DiodeConfig) -> Self {
+        let object_transmission_info =
+            protocol::object_transmission_information(config.udp_mtu, config.encoding_block_size);
 
-impl fmt::Display for ClientConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            Self::Tcp(s) => write!(f, "TCP {s}"),
-            Self::Unix(p) => write!(f, "Unix {}", p.display()),
-        }
-    }
-}
+        let to_buffer_size = object_transmission_info.transfer_length() as _;
 
-fn command_args() -> Config {
-    let args = Command::new(env!("CARGO_BIN_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("from_udp")
-                .long("from_udp")
-                .value_name("ip:port")
-                .default_value("127.0.0.1:6000")
-                .help("IP address and port where to receive UDP packets from diode-send"),
-        )
-        .arg(
-            Arg::new("from_udp_mtu")
-                .long("from_udp_mtu")
-                .value_name("nb_bytes")
-                .default_value("1500") // mtu
-                .value_parser(clap::value_parser!(u16))
-                .help("MTU of the input UDP link"),
-        )
-        .arg(
-            Arg::new("nb_clients")
-                .long("nb_clients")
-                .value_name("nb")
-                .default_value("2")
-                .value_parser(clap::value_parser!(u16))
-                .help("Number of simultaneous transfers"),
-        )
-        .arg(
-            Arg::new("nb_decoding_threads")
-                .long("nb_decoding_threads")
-                .value_name("nb")
-                .default_value("1")
-                .value_parser(clap::value_parser!(u8))
-                .help("Number of parallel RaptorQ decoding threads"),
-        )
-        .arg(
-            Arg::new("encoding_block_size")
-                .long("encoding_block_size")
-                .value_name("nb_bytes")
-                .default_value("60000") // (mtu * 40), optimal parameter -- to align with other size !
-                .value_parser(clap::value_parser!(u64))
-                .help("Size of RaptorQ block"),
-        )
-        .arg(
-            Arg::new("repair_block_size")
-                .long("repair_block_size")
-                .value_name("ratior")
-                .default_value("6000") // mtu * 4
-                .value_parser(clap::value_parser!(u32))
-                .help("Size of repair data in bytes"),
-        )
-        .arg(
-            Arg::new("flush_timeout")
-                .long("flush_timeout")
-                .value_name("nb_milliseconds")
-                .default_value("1000")
-                .value_parser(clap::value_parser!(NonZeroU64))
-                .help("Flush pending data after duration"),
-        )
-        .arg(
-            Arg::new("to_tcp")
-                .long("to_tcp")
-                .value_name("ip:port")
-                .help("IP address and port to connect to TCP server"),
-        )
-        .arg(
-            Arg::new("to_unix")
-                .long("to_unix")
-                .value_name("path")
-                .help("Path of socket to connect to Unix server"),
-        )
-        .group(
-            ArgGroup::new("to")
-                .required(true)
-                .args(["to_tcp", "to_unix"]),
-        )
-        .arg(
-            Arg::new("heartbeat")
-                .long("heartbeat")
-                .value_name("nb_seconds")
-                .default_value("10")
-                .value_parser(clap::value_parser!(u16))
-                .help("Maximum duration expected between heartbeat messages, 0 to disable"),
-        )
-        .get_matches();
+        let from_max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
+            + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size)
+                as u16;
 
-    let from_udp = net::SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
-        .expect("invalid from_udp parameter");
-    let from_udp_mtu = *args.get_one::<u16>("from_udp_mtu").expect("default");
-    let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
-    let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
-    let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
-    let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
-    let flush_timeout = time::Duration::from_millis(
-        args.get_one::<NonZeroU64>("flush_timeout")
-            .expect("default")
-            .get(),
-    );
-    let to_tcp = args
-        .get_one::<String>("to_tcp")
-        .map(|s| net::SocketAddr::from_str(s).expect("to_tcp must be of the form ip:port"));
-    let to_unix = args
-        .get_one::<String>("to_unix")
-        .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
+        let (to_reorder, for_reorder) = crossbeam_channel::unbounded::<(Header, Vec<u8>)>();
 
-    let heartbeat = {
-        let hb = *args.get_one::<u16>("heartbeat").expect("default") as u64;
-        (hb != 0).then(|| time::Duration::from_secs(hb))
-    };
-
-    let to = if let Some(to_tcp) = to_tcp {
-        ClientConfig::Tcp(to_tcp)
-    } else {
-        ClientConfig::Unix(to_unix.expect("to_tcp and to_unix are mutually exclusive"))
-    };
-
-    Config {
-        from_udp,
-        from_udp_mtu,
-        nb_clients,
-        nb_decoding_threads,
-        encoding_block_size,
-        repair_block_size,
-        flush_timeout,
-        to,
-        heartbeat,
-    }
-}
-
-enum Client {
-    Tcp(net::TcpStream),
-    Unix(unix::net::UnixStream),
-}
-
-impl Write for Client {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        match self {
-            Self::Tcp(socket) => socket.write(buf),
-            Self::Unix(socket) => socket.write(buf),
-        }
-    }
-
-    fn flush(&mut self) -> Result<(), std::io::Error> {
-        match self {
-            Self::Tcp(socket) => socket.flush(),
-            Self::Unix(socket) => socket.flush(),
-        }
-    }
-}
-
-impl AsRawFd for Client {
-    fn as_raw_fd(&self) -> i32 {
-        match self {
-            Self::Tcp(socket) => socket.as_raw_fd(),
-            Self::Unix(socket) => socket.as_raw_fd(),
-        }
-    }
-}
-
-impl TryFrom<&ClientConfig> for Client {
-    type Error = io::Error;
-
-    fn try_from(config: &ClientConfig) -> Result<Self, Self::Error> {
-        match config {
-            ClientConfig::Tcp(s) => {
-                let client = net::TcpStream::connect(s)?;
-                Ok(Self::Tcp(client))
-            }
-            ClientConfig::Unix(p) => {
-                let client = unix::net::UnixStream::connect(p)?;
-                Ok(Self::Unix(client))
-            }
+        Self {
+            // from command line
+            encoding_block_size: config.encoding_block_size,
+            repair_block_size: config.repair_block_size,
+            nb_threads: config.nb_threads,
+            heartbeat_interval: Duration::from_millis(config.heartbeat_interval as _),
+            from_udp: SocketAddr::from_str(&config.bind_udp)
+                .expect("cannot parse from-udp address"),
+            from_udp_mtu: config.udp_mtu,
+            to_tcp: SocketAddr::from_str(&config.to_tcp).expect("cannot parse to-tcp address"),
+            flush_timeout: Duration::from_millis(config.flush_timeout as _),
+            // computed
+            object_transmission_info,
+            to_buffer_size,
+            from_max_messages,
+            to_reorder,
+            for_reorder,
+            session_expiration_delay: config.session_expiration_delay,
         }
     }
 }
 
 fn main() {
-    let config = command_args();
+    let config = DiodeConfig::parse();
 
-    init_logger();
+    init_logger(config.log_config.as_ref(), config.debug);
+    init_metrics(config.metrics.as_ref());
 
-    log::info!("sending traffic to {}", config.to);
+    log::info!("sending traffic to {}", config.to_tcp);
 
-    let receiver = receive::Receiver::new(
-        receive::Config {
-            from_udp: config.from_udp,
-            from_udp_mtu: config.from_udp_mtu,
-            nb_clients: config.nb_clients,
-            encoding_block_size: config.encoding_block_size,
-            repair_block_size: config.repair_block_size,
-            flush_timeout: config.flush_timeout,
-            nb_decoding_threads: config.nb_decoding_threads,
-            heartbeat_interval: config.heartbeat,
-        },
-        || Client::try_from(&config.to),
-    );
+    let receiver = ReceiverConfig::from(config);
 
-    thread::scope(|scope| {
-        if let Err(e) = receiver.start(scope) {
-            log::error!("failed to start diode receiver: {e}");
-        }
-    });
-}
-
-fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env()
-    } else {
-        simple_logger::init_with_level(log::Level::Info)
+    if let Err(e) = receiver.start() {
+        log::error!("failed to start diode receiver: {e}");
     }
-    .expect("logger initialization")
 }

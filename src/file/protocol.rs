@@ -51,8 +51,17 @@ impl Header {
 
     pub fn deserialize_from<R: Read>(r: &mut R) -> Result<Self, Error> {
         let mut file_name_len = [0u8; 8];
+
+        log::trace!("read header");
         r.read_exact(&mut file_name_len)?;
         let file_name_len = usize::from_le_bytes(file_name_len);
+
+        if file_name_len > 1024 {
+            return Err(Error::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Invalid name length",
+            )));
+        }
 
         let mut file_name = vec![0; file_name_len];
         r.read_exact(&mut file_name)?;
@@ -76,11 +85,20 @@ impl Header {
 
 pub struct Footer {
     pub hash: u128,
+    pub stream_end: bool,
 }
 
 impl Footer {
     pub fn serialize_to<W: Write>(&self, w: &mut W) -> Result<(), Error> {
         w.write_all(&self.hash.to_le_bytes())?;
+        let mut stream_end = [0u8; 1];
+        if self.stream_end {
+            stream_end[0] = 1;
+        } else {
+            stream_end[0] = 0;
+        }
+        w.write_all(&stream_end)?;
+
         Ok(())
     }
 
@@ -89,6 +107,12 @@ impl Footer {
         r.read_exact(&mut hash)?;
         let hash = u128::from_le_bytes(hash);
 
-        Ok(Self { hash })
+        let mut stream_end = [0u8; 1];
+        r.read_exact(&mut stream_end)?;
+
+        Ok(Self {
+            hash,
+            stream_end: stream_end[0] == 1,
+        })
     }
 }

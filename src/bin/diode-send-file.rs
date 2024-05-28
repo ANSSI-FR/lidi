@@ -1,90 +1,50 @@
-use clap::{Arg, ArgAction, ArgGroup, Command};
-use diode::file;
-use std::{env, net, path, str::FromStr};
+use diode::{file, init_logger};
+use std::{net, str::FromStr};
+
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct SendFileConfig {
+    /// IP address and port to connect in TCP to diode-send (ex "127.0.0.1:5001")
+    #[arg(short, long, default_value_t = String::from("127.0.0.1:5001"))]
+    to_tcp: String,
+    /// Size of file buffer
+    #[arg(short, long, default_value_t = 8196)]
+    buffer_size: usize,
+    /// Compute a hash of file content (default is false)
+    #[arg(short, long, default_value_t = false)]
+    hash: bool,
+    /// List of files to send
+    #[arg()]
+    file: Vec<String>,
+    /// Path to log configuration file
+    #[arg(short, long)]
+    log_config: Option<String>,
+    /// Verbosity level. Using it multiple times adds more logs.
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    pub debug: u8,
+}
 
 fn main() {
-    let args = Command::new(env!("CARGO_BIN_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("to_tcp")
-                .long("to_tcp")
-                .value_name("ip:port")
-                .help("IP address and port to connect in TCP to diode-send"),
-        )
-        .arg(
-            Arg::new("to_unix")
-                .long("to_unix")
-                .value_name("path")
-                .help("Path of Unix socket to connect to diode-send"),
-        )
-        .group(
-            ArgGroup::new("to")
-                .required(true)
-                .args(["to_tcp", "to_unix"]),
-        )
-        .arg(
-            Arg::new("buffer_size")
-                .long("buffer_size")
-                .value_name("nb_bytes")
-                .default_value("4194304") // 4096 * 1024
-                .value_parser(clap::value_parser!(usize))
-                .help("Size of file read/client write buffer"),
-        )
-        .arg(
-            Arg::new("hash")
-                .long("hash")
-                .action(ArgAction::SetTrue)
-                .default_value("false")
-                .value_parser(clap::value_parser!(bool))
-                .help("Compute a hash of file content (default is false)"),
-        )
-        .arg(
-            Arg::new("file")
-                .action(ArgAction::Append)
-                .allow_hyphen_values(true)
-                .required(true),
-        )
-        .get_matches();
+    let args = SendFileConfig::parse();
 
-    let to_tcp = args
-        .get_one::<String>("to_tcp")
-        .map(|s| net::SocketAddr::from_str(s).expect("to_tcp must be of the form ip:port"));
-    let to_unix = args
-        .get_one::<String>("to_unix")
-        .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
-    let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
-    let hash = args.get_one::<bool>("hash").copied().expect("default");
-    let files = args
-        .get_many("file")
-        .expect("required")
-        .cloned()
-        .collect::<Vec<_>>();
+    init_logger(args.log_config.as_ref(), args.debug);
 
-    let diode = if let Some(to_tcp) = to_tcp {
-        file::DiodeSend::Tcp(to_tcp)
-    } else {
-        file::DiodeSend::Unix(to_unix.expect("to_tcp and to_unix are mutually exclusive"))
-    };
+    let to_tcp =
+        net::SocketAddr::from_str(&args.to_tcp).expect("to_tcp must be of the form ip:port");
+    let buffer_size = args.buffer_size;
+    let hash = args.hash;
+    let files = args.file;
 
     let config = file::Config {
-        diode,
+        diode: to_tcp,
         buffer_size,
         hash,
     };
-
-    init_logger();
 
     if let Err(e) = file::send::send_files(&config, &files) {
         log::error!("{e}");
         std::process::exit(1);
     }
-}
-
-fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env()
-    } else {
-        simple_logger::init_with_level(log::Level::Info)
-    }
-    .expect("logger initialization")
 }

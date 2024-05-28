@@ -1,34 +1,36 @@
 [package]
 name = "diode"
-version = "1.3.1"
+version = "2.0.0"
 edition = "2021"
 license = "GPL-3.0"
 
 [dependencies]
-clap = { version = "4.1", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
 fasthash = "0.4"
 libc = "0.2"
 log = "0.4"
 rand = "0.8"
-raptorq = "1.7"
-simple_logger = "4.1"
+raptorq = "2"
 nix = { version = "0.29", features = [ "socket" ]}
 rand_xorshift = "0.3"
+human_bytes = { version = "0.4", default-features = false }
+bitflags = "2"
+thiserror = "1"
+log4rs = "1"
+metrics = "0.23"
+metrics-exporter-prometheus = "0.15"
+inotify = "0.10"
 
 [dev-dependencies]
 criterion = "0.5"
 pprof = { version = "0.13", features = ["criterion", "flamegraph"] }
-human_bytes = { version = "0.4", default-features = false }
 
 [profile.release]
 lto = true
 opt-level = 3
 debug = false
-
-[workspace]
-members = [".", "diode-file-bindings"]
 
 [[bench]]
 name = "encoding"
@@ -52,5 +54,13 @@ harness = false
 
 [[bench]]
 name = "socket_recv_big_mtu"
+harness = false
+
+[[bench]]
+name = "diode_send"
+harness = false
+
+[[bench]]
+name = "encode_send"
 harness = false
 

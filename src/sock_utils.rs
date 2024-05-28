@@ -3,11 +3,11 @@
 use std::os::fd::AsRawFd;
 use std::{io, mem, ptr};
 
-pub fn set_socket_send_buffer_size<S: AsRawFd>(socket: &S, size: i32) -> Result<(), io::Error> {
+pub fn set_socket_send_buffer_size<S: AsRawFd>(socket: &mut S, size: i32) -> Result<(), io::Error> {
     unsafe { setsockopt_buffer_size(socket.as_raw_fd(), size, libc::SO_SNDBUF) }
 }
 
-pub fn set_socket_recv_buffer_size<S: AsRawFd>(socket: &S, size: i32) -> Result<(), io::Error> {
+pub fn set_socket_recv_buffer_size<S: AsRawFd>(socket: &mut S, size: i32) -> Result<(), io::Error> {
     unsafe { setsockopt_buffer_size(socket.as_raw_fd(), size, libc::SO_RCVBUF) }
 }
 

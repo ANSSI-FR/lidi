@@ -5,286 +5,425 @@
 //! [crossbeam_channel] bounded channels to form the following data pipeline:
 //!
 //! ```text
-//!       -----------             ------------------               ------------
-//! udp --| packets |-> reblock --| vec of packets |-> decodings --| messages |-> dispatch
-//!       -----------             ------------------               ------------
+//!                        -----------
+//! (udp sock) udp recv  --| packets |-- >  reorder + decoder + tcp sender (tcp sock)
+//!                        -----------
 //! ```
+//!
 //!
 //! Notes:
 //! - heartbeat does not need a dedicated worker on the receiver side, heartbeat messages are
 //! handled by the dispatch worker,
-//! - there are `nb_clients` clients workers running in parallel,
-//! - there are `nb_decoding_threads` decoding workers running in parallel.
+//!
+//! Performance notes:
+//! - decoding is fast so does not need a specific thread with ~80 Gb/s : decoding bench
+//! - tcp is really fast (TODO : test it)
+//! - udp recv depends a lot on MTU
+//!     * with 1500 MTU, it is slow, it can go up to 10 Gb/s : socket_recv bench
+//!     * with 9000 MTU, it is faster and can go up to 40 Gb/s : socket_recv_big_mtu bench
 
-use crate::{protocol, semaphore};
+use crossbeam_channel::{Receiver, Sender};
+use metrics::counter;
+
+use crate::protocol::{Header, MessageType};
+use crate::receive::decoding::Decoding;
+use crate::{protocol, receive::reorder::Reorder};
+use raptorq::{EncodingPacket, ObjectTransmissionInformation};
+use std::time::Duration;
 use std::{
-    fmt,
-    io::{self, Write},
-    net,
-    os::fd::AsRawFd,
-    sync, thread, time,
+    io::{Error, Result},
+    net::{self, SocketAddr, TcpStream},
+    thread,
 };
 
-mod client;
-mod clients;
+use crate::receive::tcp::Tcp;
+
 pub mod decoding;
-mod dispatch;
-mod reblock;
+mod reorder;
+mod tcp;
 mod udp;
 
-pub struct Config {
-    pub from_udp: net::SocketAddr,
-    pub from_udp_mtu: u16,
-    pub nb_clients: u16,
-    pub encoding_block_size: u64,
-    pub repair_block_size: u32,
-    pub flush_timeout: time::Duration,
-    pub nb_decoding_threads: u8,
-    pub heartbeat_interval: Option<time::Duration>,
-}
-
-impl Config {
-    pub(crate) fn adjust(&mut self) {
-        let oti =
-            protocol::object_transmission_information(self.from_udp_mtu, self.encoding_block_size);
-
-        let packet_size = protocol::packet_size(&oti);
-        let nb_encoding_packets = protocol::nb_encoding_packets(&oti);
-        let nb_repair_packets = protocol::nb_repair_packets(&oti, self.repair_block_size);
-
-        self.encoding_block_size = nb_encoding_packets * u64::from(packet_size);
-        self.repair_block_size = nb_repair_packets * u32::from(packet_size);
-    }
-}
-
-pub enum Error {
-    Io(io::Error),
-    SendPackets(crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>),
-    SendBlockPackets(crossbeam_channel::SendError<(u8, Vec<raptorq::EncodingPacket>)>),
-    SendMessage(crossbeam_channel::SendError<protocol::Message>),
-    SendClients(
-        crossbeam_channel::SendError<(
-            protocol::ClientId,
-            crossbeam_channel::Receiver<protocol::Message>,
-        )>,
-    ),
-    Receive(crossbeam_channel::RecvError),
-    ReceiveTimeout(crossbeam_channel::RecvTimeoutError),
-    Protocol(protocol::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        match self {
-            Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::SendPackets(e) => write!(fmt, "crossbeam send packets error: {e}"),
-            Self::SendBlockPackets(e) => write!(fmt, "crossbeam send block packets error: {e}"),
-            Self::SendMessage(e) => write!(fmt, "crossbeam send message error: {e}"),
-            Self::SendClients(e) => write!(fmt, "crossbeam send client error: {e}"),
-            Self::Receive(e) => write!(fmt, "crossbeam receive error: {e}"),
-            Self::ReceiveTimeout(e) => write!(fmt, "crossbeam receive timeout error: {e}"),
-            Self::Protocol(e) => write!(fmt, "diode protocol error: {e}"),
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Self::Io(e)
-    }
-}
-
-impl From<crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>> for Error {
-    fn from(e: crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>) -> Self {
-        Self::SendPackets(e)
-    }
-}
-
-impl From<crossbeam_channel::SendError<(u8, Vec<raptorq::EncodingPacket>)>> for Error {
-    fn from(e: crossbeam_channel::SendError<(u8, Vec<raptorq::EncodingPacket>)>) -> Self {
-        Self::SendBlockPackets(e)
-    }
-}
-
-impl From<crossbeam_channel::SendError<protocol::Message>> for Error {
-    fn from(e: crossbeam_channel::SendError<protocol::Message>) -> Self {
-        Self::SendMessage(e)
-    }
-}
-
-impl
-    From<
-        crossbeam_channel::SendError<(
-            protocol::ClientId,
-            crossbeam_channel::Receiver<protocol::Message>,
-        )>,
-    > for Error
-{
-    fn from(
-        e: crossbeam_channel::SendError<(
-            protocol::ClientId,
-            crossbeam_channel::Receiver<protocol::Message>,
-        )>,
-    ) -> Self {
-        Self::SendClients(e)
-    }
-}
-
-impl From<crossbeam_channel::RecvError> for Error {
-    fn from(e: crossbeam_channel::RecvError) -> Self {
-        Self::Receive(e)
-    }
-}
-
-impl From<crossbeam_channel::RecvTimeoutError> for Error {
-    fn from(e: crossbeam_channel::RecvTimeoutError) -> Self {
-        Self::ReceiveTimeout(e)
-    }
-}
-
-impl From<protocol::Error> for Error {
-    fn from(e: protocol::Error) -> Self {
-        Self::Protocol(e)
-    }
-}
+use self::udp::UdpReceiver;
 
 /// An instance of this data structure is shared by workers to synchronize them and to access
 /// communication channels
-pub struct Receiver<F> {
-    pub(crate) config: Config,
-    pub(crate) object_transmission_info: raptorq::ObjectTransmissionInformation,
-    pub(crate) to_buffer_size: usize,
-    pub(crate) from_max_messages: u16,
-    pub(crate) multiplex_control: semaphore::Semaphore,
-    pub(crate) block_to_receive: sync::Mutex<u8>,
-    pub(crate) to_reblock: crossbeam_channel::Sender<Vec<raptorq::EncodingPacket>>,
-    pub(crate) for_reblock: crossbeam_channel::Receiver<Vec<raptorq::EncodingPacket>>,
-    pub(crate) to_decoding: crossbeam_channel::Sender<(u8, Vec<raptorq::EncodingPacket>)>,
-    pub(crate) for_decoding: crossbeam_channel::Receiver<(u8, Vec<raptorq::EncodingPacket>)>,
-    pub(crate) to_dispatch: crossbeam_channel::Sender<protocol::Message>,
-    pub(crate) for_dispatch: crossbeam_channel::Receiver<protocol::Message>,
-    pub(crate) to_clients: crossbeam_channel::Sender<(
-        protocol::ClientId,
-        crossbeam_channel::Receiver<protocol::Message>,
-    )>,
-    pub(crate) for_clients: crossbeam_channel::Receiver<(
-        protocol::ClientId,
-        crossbeam_channel::Receiver<protocol::Message>,
-    )>,
-    pub(crate) new_client: F,
+pub struct ReceiverConfig {
+    pub to_tcp: SocketAddr,
+    pub flush_timeout: Duration,
+    pub encoding_block_size: u64,
+    pub repair_block_size: u32,
+    pub nb_threads: u8,
+    pub from_udp: SocketAddr,
+    pub from_udp_mtu: u16,
+    pub heartbeat_interval: Duration,
+    pub session_expiration_delay: usize,
+
+    pub object_transmission_info: ObjectTransmissionInformation,
+    pub to_buffer_size: usize,
+    pub from_max_messages: u16,
+    pub to_reorder: Sender<(Header, Vec<u8>)>,
+    pub for_reorder: Receiver<(Header, Vec<u8>)>,
 }
 
-impl<C, F, E> Receiver<F>
-where
-    C: Write + AsRawFd,
-    F: Send + Sync + Fn() -> Result<C, E>,
-    E: Into<Error>,
-{
-    pub fn new(mut config: Config, new_client: F) -> Self {
-        config.adjust();
-
-        let object_transmission_info = protocol::object_transmission_information(
-            config.from_udp_mtu,
-            config.encoding_block_size,
-        );
-
-        let to_buffer_size =
-            config.encoding_block_size as usize - protocol::Message::serialize_overhead();
-
-        let from_max_messages = protocol::nb_encoding_packets(&object_transmission_info) as u16
-            + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size)
-                as u16;
-
-        let multiplex_control = semaphore::Semaphore::new(config.nb_clients as usize);
-
-        let block_to_receive = sync::Mutex::new(0);
-
-        let (to_reblock, for_reblock) =
-            crossbeam_channel::unbounded::<Vec<raptorq::EncodingPacket>>();
-        let (to_decoding, for_decoding) =
-            crossbeam_channel::unbounded::<(u8, Vec<raptorq::EncodingPacket>)>();
-        let (to_dispatch, for_dispatch) = crossbeam_channel::unbounded::<protocol::Message>();
-
-        let (to_clients, for_clients) = crossbeam_channel::bounded::<(
-            protocol::ClientId,
-            crossbeam_channel::Receiver<protocol::Message>,
-        )>(1);
-
-        Self {
-            config,
-            object_transmission_info,
-            to_buffer_size,
-            from_max_messages,
-            multiplex_control,
-            block_to_receive,
-            to_reblock,
-            for_reblock,
-            to_decoding,
-            for_decoding,
-            to_dispatch,
-            for_dispatch,
-            to_clients,
-            for_clients,
-            new_client,
-        }
-    }
-
-    pub fn start<'a>(&'a self, scope: &'a thread::Scope<'a, '_>) -> Result<(), Error> {
-        log::info!(
-            "accepting {} simultaneous transfers",
-            self.config.nb_clients
-        );
+impl ReceiverConfig {
+    pub fn start(&self) -> Result<()> {
+        let mut threads = vec![];
 
         log::info!("client socket buffer size is {} bytes", self.to_buffer_size);
 
         log::info!(
             "decoding will expect {} packets ({} bytes per block) + {} repair packets",
             protocol::nb_encoding_packets(&self.object_transmission_info),
-            self.config.encoding_block_size,
-            protocol::nb_repair_packets(
-                &self.object_transmission_info,
-                self.config.repair_block_size
-            ),
+            self.encoding_block_size,
+            protocol::nb_repair_packets(&self.object_transmission_info, self.repair_block_size),
         );
+
+        log::info!("flush timeout is {} ms", self.flush_timeout.as_millis());
 
         log::info!(
-            "flush timeout is {} ms",
-            self.config.flush_timeout.as_millis()
+            "heartbeat interval is set to {} ms",
+            self.heartbeat_interval.as_millis()
+        );
+        let object_transmission_info = self.object_transmission_info;
+        let repair_block_size = self.repair_block_size;
+        let tcp_to = self.to_tcp;
+        let tcp_buffer_size = self.to_buffer_size;
+        let flush_timeout = self.flush_timeout;
+        let for_reorder = self.for_reorder.clone();
+        let session_expiration_delay = self.session_expiration_delay;
+
+        threads.push(
+            thread::Builder::new()
+                .name("lidi_rx_tcp".to_string())
+                .spawn(move || {
+                    ReceiverConfig::reorder_decoding_send_loop(
+                        object_transmission_info,
+                        repair_block_size,
+                        tcp_to,
+                        tcp_buffer_size,
+                        flush_timeout,
+                        session_expiration_delay,
+                        for_reorder,
+                    )
+                })
+                .expect("cannot spawn decoding thread"),
         );
 
-        if let Some(hb_interval) = self.config.heartbeat_interval {
-            log::info!(
-                "heartbeat interval is set to {} seconds",
-                hb_interval.as_secs()
-            );
-        } else {
-            log::info!("heartbeat is disabled");
-        }
+        let udp = udp::UdpReceiver::new(
+            self.from_udp,
+            self.from_udp_mtu,
+            self.encoding_block_size + u64::from(self.repair_block_size),
+            self.from_max_messages,
+        );
 
-        for i in 0..self.config.nb_clients {
+        let sender = self.to_reorder.clone();
+        threads.push(
             thread::Builder::new()
-                .name(format!("client_{i}"))
-                .spawn_scoped(scope, || clients::start(self))?;
-        }
+                .name("lidi_rx_udp".to_owned())
+                .spawn(move || {
+                    ReceiverConfig::udp_read_loop(&sender, udp);
+                })
+                .expect("Cannot spawn udp thread"),
+        );
 
-        thread::Builder::new()
-            .name("dispatch".to_string())
-            .spawn_scoped(scope, || dispatch::start(self))?;
-
-        for i in 0..self.config.nb_decoding_threads {
-            thread::Builder::new()
-                .name(format!("decoding_{i}"))
-                .spawn_scoped(scope, || decoding::start(self))?;
-        }
-
-        thread::Builder::new()
-            .name("reblock".to_string())
-            .spawn_scoped(scope, || reblock::start(self))?;
-
-        thread::Builder::new()
-            .name("udp".to_string())
-            .spawn_scoped(scope, || udp::start(self))?;
+        threads
+            .into_iter()
+            .for_each(|t| t.join().expect("cannot join thread"));
 
         Ok(())
+    }
+
+    fn reorder_decoding_send_loop(
+        object_transmission_info: ObjectTransmissionInformation,
+        repair_block_size: u32,
+        tcp_to: net::SocketAddr, // config.to
+        tcp_buffer_size: usize,  // to buffer size
+        flush_timeout: Duration, // config.flush_timeout
+        session_expiration_delay: usize,
+        for_reorder: Receiver<(Header, Vec<u8>)>,
+    ) {
+        let nb_normal_packets = protocol::nb_encoding_packets(&object_transmission_info);
+        let nb_repair_packets =
+            protocol::nb_repair_packets(&object_transmission_info, repair_block_size);
+
+        let decoding = Decoding::new(object_transmission_info);
+        let mut reorder = Reorder::new(
+            nb_normal_packets as _,
+            nb_repair_packets as _,
+            session_expiration_delay,
+        );
+        let capacity = nb_normal_packets as usize + nb_repair_packets as usize;
+
+        // first block to send after reconnecting
+        let mut first_data_to_send = None;
+
+        loop {
+            log::debug!("tcp: connecting to {tcp_to}");
+            // connect and reconnect on error
+            if let Ok(client) = TcpStream::connect(tcp_to) {
+                log::debug!("tcp: connected to diode-receive");
+                let tcp = Tcp::new(client, tcp_buffer_size);
+
+                // this loop exits on protocol abort or data end
+                first_data_to_send = ReceiverConfig::reorder_decoding_send_loop_inner(
+                    flush_timeout,
+                    &for_reorder,
+                    &mut reorder,
+                    &decoding,
+                    tcp,
+                    capacity,
+                    first_data_to_send,
+                );
+            } else {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        }
+    }
+
+    // if we return from this loop, we close the tcp socket and start a new connection for a new
+    // transfer
+    fn reorder_decoding_send_loop_inner(
+        flush_timeout: Duration,
+        for_reorder: &Receiver<(Header, Vec<u8>)>,
+        reorder: &mut Reorder,
+        decoding: &Decoding,
+        mut tcp: Tcp,
+        capacity: usize,
+        first_data_to_send: Option<(MessageType, u8, u8, Vec<EncodingPacket>)>,
+    ) -> Option<(MessageType, u8, u8, Vec<EncodingPacket>)> {
+        // loop control, when it is possible to pop, try to pop as much as possible
+        let mut test_pop_first = false;
+
+        // what is the current session. if the session changes, we have to reconnect
+        let mut current_session = None;
+
+        // if we should drop all following blocks because we got a fatal error for this session
+        let mut drop_session = false;
+
+        // if we received init - if not, we will initialize reorder with first block received
+        let mut reorder_initialized = false;
+
+        // check first data to send
+        if let Some((flags, _session_id, block_id, encoded_packets)) = first_data_to_send {
+            if !Self::decode_and_send(
+                decoding,
+                &mut tcp,
+                capacity,
+                &mut drop_session,
+                flags,
+                block_id,
+                encoded_packets,
+            ) {
+                return None;
+            }
+        }
+
+        loop {
+            let (flags, session_id, block_id, encoded_packets) = if test_pop_first {
+                // try to get as many finised queues as we can
+                if let Some(ret) = reorder.pop_first() {
+                    test_pop_first = true;
+                    ret
+                } else {
+                    test_pop_first = false;
+                    continue;
+                }
+            } else {
+                match for_reorder.recv_timeout(flush_timeout) {
+                    Ok((header, payload)) => {
+                        // if first packet of a new sender instance: flush everything
+                        if header.message_type().contains(MessageType::Init) {
+                            log::info!("Init message received from diode-send");
+                            reorder_initialized = true;
+                            reorder.clear();
+                        }
+
+                        if payload.is_empty() {
+                            continue;
+                        }
+
+                        if !reorder_initialized {
+                            reorder.init(header);
+                            reorder_initialized = true;
+                        }
+
+                        // fill buffers with new packets
+                        let encoding_packet = EncodingPacket::deserialize(&payload);
+
+                        // reordering / reassemble blocks
+                        match reorder.push(header, encoding_packet) {
+                            None => {
+                                counter!("rx_pop_ok_none").increment(1);
+                                continue;
+                            }
+                            Some(packets) => {
+                                counter!("rx_pop_ok_packets").increment(1);
+                                packets
+                            }
+                        }
+                    }
+
+                    Err(_e) => {
+                        // on timeout, flush oldest block stored
+                        if let Some(ret) = reorder.pop_first() {
+                            counter!("rx_pop_timeout_with_packets").increment(1);
+                            test_pop_first = true;
+                            ret
+                        } else {
+                            counter!("rx_pop_timeout_none").increment(1);
+                            continue;
+                        }
+                    }
+                }
+            };
+
+            match current_session {
+                // initialize with the current session
+                None => current_session = Some(session_id),
+                // disconnect if the session changes
+                Some(id) => {
+                    if session_id != id {
+                        log::warn!("changed session ! {session_id} != {id}");
+                        return Some((flags, session_id, block_id, encoded_packets));
+                    } else if drop_session {
+                        // skip all packets until we change session
+                        counter!("rx_skip_block").increment(1);
+                        continue;
+                    }
+                }
+            }
+
+            if Self::decode_and_send(
+                decoding,
+                &mut tcp,
+                capacity,
+                &mut drop_session,
+                flags,
+                block_id,
+                encoded_packets,
+            ) {
+                continue;
+            } else {
+                return None;
+            }
+        }
+    }
+
+    // return true if we should contine, false if we should stop processing
+    fn decode_and_send(
+        decoding: &Decoding,
+        tcp: &mut Tcp,
+        capacity: usize,
+        drop_session: &mut bool,
+        flags: MessageType,
+        block_id: u8,
+        encoded_packets: Vec<EncodingPacket>,
+    ) -> bool {
+        if encoded_packets.len() == capacity {
+            log::trace!(
+                "reorder: trying to decode block {} with {} packets",
+                block_id,
+                encoded_packets.len()
+            );
+        } else {
+            log::trace!(
+                "reorder: trying to decode block {} with {} packets",
+                block_id,
+                encoded_packets.len()
+            );
+        }
+
+        let block = match decoding.decode(encoded_packets, block_id) {
+            None => {
+                counter!("rx_decoding_blocks_err").increment(1);
+                log::debug!("decode: lost block {block_id}");
+                // drop session
+                return true;
+            }
+            Some(block) => {
+                counter!("rx_decoding_blocks").increment(1);
+                log::debug!(
+                    "decode: block {} decoded with {} bytes!",
+                    block_id,
+                    block.len()
+                );
+                block
+            }
+        };
+
+        log::trace!(
+            "tcp: send: block {} flags {} len {}",
+            block_id,
+            flags,
+            block.len()
+        );
+
+        let payload_len = block.len();
+        match tcp.send(block) {
+            Ok(()) => {
+                counter!("rx_tcp_blocks").increment(1);
+                counter!("rx_tcp_bytes").increment(payload_len as u64);
+            }
+            Err(e) => {
+                log::warn!("tcp: fail to send block: {e}");
+                counter!("rx_tcp_blocks_err").increment(1);
+                counter!("rx_tcp_bytes_err").increment(payload_len as u64);
+                // missing block : we have to trash all following blocks
+                // before reconnecting, so we start on a clean new session
+                *drop_session = true;
+                return true;
+            }
+        }
+
+        if flags.contains(MessageType::End) {
+            if let Err(e) = tcp.flush() {
+                log::warn!("tcp: cant flush final data: {e}");
+            }
+            // last block : quit to reconnect
+            log::debug!("quit to force reconnect");
+            return false;
+        }
+
+        true
+    }
+
+    fn udp_read_loop(output: &Sender<(Header, Vec<u8>)>, mut udp: UdpReceiver) {
+        loop {
+            let mut buf = vec![0; udp.mtu() as _];
+
+            match udp.recv(&mut buf) {
+                Ok(len) => {
+                    counter!("rx_udp_bytes").increment(len as u64);
+                    counter!("rx_udp_pkts").increment(1);
+
+                    // check header
+                    let packet = &buf[..len];
+                    if let Ok(header) = Header::deserialize(packet) {
+                        let payload = &packet[4..];
+
+                        log::trace!(
+                            "udp: received session {} block {} part {} flags {} len {}",
+                            header.session(),
+                            header.block(),
+                            header.seq(),
+                            header.message_type(),
+                            payload.len()
+                        );
+
+                        // XXX TODO remove this to_vec
+                        if let Err(e) = output.send((header, payload.to_vec())) {
+                            log::debug!("udp: Can't send packet to reorder: {e}");
+                            counter!("rx_reorder_err").increment(1);
+                        }
+                    } else {
+                        log::warn!("udp: Can't deserialize header");
+                    }
+                }
+                Err(e) => {
+                    log::debug!("udp: udp : can't read socket: {e}");
+                    counter!("rx_udp_pkts_err").increment(1);
+                }
+            }
+        }
     }
 }

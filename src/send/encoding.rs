@@ -2,11 +2,9 @@
 
 use raptorq::EncodingPacket;
 
-use crate::{
-    protocol::{self, Message},
-    send,
-};
+use crate::protocol;
 
+#[derive(Clone)]
 pub struct Encoding {
     nb_repair_packets: u32,
     object_transmission_info: raptorq::ObjectTransmissionInformation,
@@ -37,15 +35,13 @@ impl Encoding {
         }
     }
 
-    pub fn encode(&self, message: Message, block_id: u8) -> Vec<EncodingPacket> {
-        let data = message.serialized();
-
+    pub fn encode(&self, data: Vec<u8>, block_id: u8) -> Vec<EncodingPacket> {
         log::trace!("encoding a serialized block of {} bytes", data.len());
 
-        let encoder = raptorq::SourceBlockEncoder::with_encoding_plan2(
+        let encoder = raptorq::SourceBlockEncoder::with_encoding_plan(
             block_id,
             &self.object_transmission_info,
-            data,
+            &data,
             &self.sbep,
         );
 
@@ -56,46 +52,5 @@ impl Encoding {
         }
 
         packets
-    }
-}
-
-pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
-    let encoding = Encoding::new(
-        sender.object_transmission_info,
-        sender.config.repair_block_size,
-    );
-
-    loop {
-        let mut block_id_to_encode = sender.block_to_encode.lock().expect("acquire lock");
-        let message = sender.for_encoding.recv()?;
-        let block_id = *block_id_to_encode;
-        *block_id_to_encode = block_id_to_encode.wrapping_add(1);
-        drop(block_id_to_encode);
-
-        let message_type = message.message_type()?;
-        let client_id = message.client_id();
-
-        match message_type {
-            protocol::MessageType::Start => log::debug!(
-                "start of encoding block {block_id} for client {:x}",
-                client_id
-            ),
-            protocol::MessageType::End => log::debug!(
-                "end of encoding block {block_id} for client {:x}",
-                client_id
-            ),
-            _ => (),
-        }
-
-        let packets = encoding.encode(message, block_id);
-
-        loop {
-            let mut to_send = sender.block_to_send.lock().expect("acquire lock");
-            if *to_send == block_id {
-                sender.to_send.send(packets)?;
-                *to_send = to_send.wrapping_add(1);
-                break;
-            }
-        }
     }
 }

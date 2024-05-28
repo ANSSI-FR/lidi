@@ -1,7 +1,7 @@
 .. _Command line parameters:
 
-Command line parameters
-=======================
+Basic command line parameters
+=============================
 
 When running `diode-send` and `diode-receive` with cargo, command line parameters must appear after after double-hyphen separator. For example, to display all available options for the sender part:
 
@@ -14,10 +14,20 @@ Overview
 
 Here is a diagram of the components involved in an example usage of lidi, annotated with command line parameters:
 
+TO BE UPDATED (command line parameters & ports to be updated)
+
 .. image:: schema.svg
 
 .. note::
    Parameters that are displayed in the gray box must be the same of both sides (sender and receiver) of lidi.
+
+Session
+"""""""
+
+A session is a TCP connection opened on sender side, by an application, in order to send data. A session (the TCP connection) can be used to send any type of data, for instance one or multiple files. The application (not lidi) is responsible of managing a specific protocol to send data and metadata (for instance the content of a file and the filename).
+Lidi only manages session's start or end. On the receiver side, lidi diode-receive will open and close TCP sessions to a receiver application (like diode-receive-file), in respect of happened on sender side.
+Due to technical constraints, the sender must close the session when data transfer is done. The sender side cannot keep TCP connections opened without sending any data, for instance to reuse it later. Application must open a TCP connection, send data, then close it. 
+Lidi receiver will automatically close unused session after some time (see the :ref:`Timeouts` chapter for more details on how to configure session's timeout).
 
 Following, we provide some details about each command line options.
 
@@ -29,147 +39,85 @@ As shown in the :ref:`Getting started` chapter, default values work well for tes
 TCP data source
 """""""""""""""
 
-The diode-send side gets data from TCP connections. It is necessary to specify ip address and port in which TCP connections will be accepted with the following parameter:
+The diode-send side gets data from TCP connections (for instance, to receive data from diode-send-file). It is necessary to specify IP address and port in which TCP connections will be accepted with the following parameter:
 
 .. code-block::
 
-   --from_tcp <ip:port>
+   --bind-tcp <ip:port>
 
-Default value is 127.0.0.1:5000.
+Default value is 127.0.0.1:5001.
 
 TCP data destination
 """"""""""""""""""""
 
-On the diode-receive side, data will be sent to TCP connected clients. To specify listening ip and TCP port:
+On the diode-receive side, data will be sent to TCP connected client (for instance, to connect to diode-receive-file). To specify listening IP and TCP port:
 
 .. code-block::
 
-   --to_tcp <ip:port>
+   --to-tcp <ip:port>
 
-Default value is 127.0.0.1:7000.
-
-Unix data source
-""""""""""""""""
-
-The diode-send side gets data from Unix connections. It is necessary to specify ip address and port in which Unix connections will be accepted with the following parameter:
-
-.. code-block::
-
-   --from_unix <path>
-
-Unix data destination
-"""""""""""""""""""""
-
-On the diode-receive side, data will be sent to Unix connected clients. To specify listening Unix socket path:
-
-.. code-block::
-
-   --to_unix <path>
+Default value is 127.0.0.1:5002.
 
 UDP transfer
 """"""""""""
 
-UDP transfer is the core of the diode. Settings ip addresses and port is necessary. On the sender side:
+UDP transfer is used to transfer data from diode-send and diode-receive. Settings IP address and UDP port is necessary. On the sender side:
 
 .. code-block::
 
-   --to_udp <ip:port>
+   --to-udp <ip:port>
 
-describe where to send data and is defaulted to 127.0.0.1:6000, and socket is bound to address and port according to:
-  
+There is no default value for this, it has to be set to IP of the server running diode-receive.
+
 .. code-block::
 
-   --to_bind <ip:port>
+   --bind-udp <ip:port>
 
-which is defaulted to 0.0.0.0:0. This default value should work in many cases.
+Default value is 0.0.0.0:0.
 
 On the receiver side, the option:
 
 .. code-block::
 
-   --from_udp <ip:port>
+   --bind-udp <ip:port>
 
-defines ip and port to listen for incoming UDP packets, and should be set to the same value as `--to-udp`.
+There is no default value for this, it has to be set to the same value than --to-udp (diode-send).
 
-Block and packet sizes
-----------------------
-
-To be transferred through the diode, data is sliced by lidi at different levels:
-
- - into `blocks` at the logical fountain codes level,
- - into `packets` at the UDP transfer level.
-
-One can have effect on the slicing sizes to achieve optimal performances by using several command line options.
-Firstly, MTU can be set on both diodes side, and should be set to the same values:
-
-.. code-block::
-
-   --to_udp_mtu <nb_bytes>
-     on the sender side
-
-.. code-block::
-
-   --from_udp_mtu <nb_bytes>
-     on the receiver side
-
-Default MTU values are set to 1500 and can be increased when network devices allow for higher values.
-
-Then, on the logical level, fountain codes operates on blocks. If blocks reordering produces errors, they can be increased too. Repair blocks represent redundancy and are used by fountain codes to ensure data reconstruction. On both sides, parameters have the same name and must be set to the same values:
-
-.. code-block::
-
-   --encoding_block_size <nb_bytes>
-  
-   --repair_block_size <ratior>
-
-The default value for an encoding block is 60000, and repair block size is defaulted to 10% of this value (6000).
-See the :ref:`Tweaking parameters` chapter for more details on how to choose optimal values for your particular use case and devices.
-
-Multiplexing
-------------
-
-Lidi can handle several transfers in parallel, so that big data transfer doesn't prevent other data chunks to be handled. The number of transfers in parallel is adapted by lidi according to the number of TCP clients that can be connected simultaneously.It can be configured on both sides with the option: 
-
-.. code-block::
-
-   --nb_clients <nb>
-
-which has its default value set to 2.
-
-Although not strictly required nor enforced by lidi, the number of TCP clients on sender side and on receiver side will be equals in mosts use cases for better results.
-
-Multithreading
---------------
-
-To ensure data integrity through the UDP link, Lidi uses RaptorQ fountain codes. This means that logical block of data need to be encoded (sender side) and then decoded (receiver side). Several threads can be spawned to parallelized such computations, with the following options:
-
-.. code-block::
-
-   --nb_encoding_threads <nb>
-     (sender side, default: 2)
-
-   --nb_decoding_threads <nb>
-     (receiver side, default: 1).
+.. _Timeouts:
 
 Timeouts
 --------
 
-Since lidi uses UDP protocol to transfer data, blocks and datagrams can be reordered.
-Fountain codes are used to ensure data integrity despite possible transfer reordering and losses. Also, it can be harder for the receiving part to know that a particular transfer is done, since an EOF-like marker can be received before the end of the data, or simply lost.
-Thus, a configurable timeout is used in lidi to decide when to reset fountain code status:
+Since lidi uses UDP protocol to transfer data, blocks and datagrams have to be reordered at application level.
+Link is unidirectionnal, so there is no way to ask for status or retransmission. Lidi receiver's side has to make choices depending on what it receives. 
+Of course, there are start and end of streams markers, but when packets are missing and arrives in any order, it is difficult to be sure of what happens.
+
+Thus, there are two configurable timers in lidi diode-receive. 
+One is used to decide when to force reassembly of the current block.
+If we miss parts of the current block and no more packet is received during 'flush-timeout' delay, we force decoding the current block with data received (this may fail if too many parts are missing).
 
 .. code-block::
 
-   --flush_timeout <nb_milliseconds>
+   --flush-timeout <nb_milliseconds>
      (receiver side, default: 500)
 
-Heartbeat
----------
+The second is used to decide when to force closing a current session transfer.
+
+.. code-block::
+
+   --session-expiration-delay <seconds>
+     (receiver side, default: 5)
+
+
+Heartbeat (NOT IMPLEMENTED)
+---------------------------
 
 Since the purpose of the diode is to only allow one-way data traffic, the sender cannot be aware if a receiver is set up or not. But heartbeat messages are regularly sent through the diode so that the receiver can be aware of a sender disconnection. Heartbeat times can be set with the following option on both sides:
 
 .. code-block::
 
-   --heartbeat <nb_secs>
+   --heartbeat <nb_milliseconds>
 
-The default values are 5 seconds for the sender (i.e. a heartbeat message is sent every 5 seconds) and 10 seconds for the receiver (i.e. warnings are displayed whenever during 10 seconds no heartbeat message was received). Due to latency, timeouts and network load, the receiver value must always be greater than the sender value.
+The default value is 100 milliseconds for the sender (i.e. a heartbeat message is sent every 5 seconds) and 200 milliseconds for the receiver (i.e. warnings are displayed whenever during 10 seconds no heartbeat message was received). Due to latency, timeouts and network load, the receiver value must always be greater than the sender value.
+
+Further heartbeat implementation could be used to allow application to keep his TCP connection active, even it is not used to send data.
