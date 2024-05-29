@@ -25,6 +25,7 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
         socket,
         usize::from(sender.to_max_messages),
         sender.config.to_udp,
+        sender.config.bandwidth_limit,
     );
 
     loop {
