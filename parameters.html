@@ -1,19 +1,23 @@
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Command line parameters &mdash; Lidi 0.7.0 documentation</title>
-      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
+
+  
   <!--[if lt IE 9]>
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=fe7df9b0"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -89,13 +93,13 @@
            <div itemprop="articleBody">
              
   <section id="command-line-parameters">
-<span id="id1"></span><h1>Command line parameters<a class="headerlink" href="#command-line-parameters" title="Permalink to this heading"></a></h1>
+<span id="id1"></span><h1>Command line parameters<a class="headerlink" href="#command-line-parameters" title="Link to this heading"></a></h1>
 <p>When running <cite>diode-send</cite> and <cite>diode-receive</cite> with cargo, command line parameters must appear after after double-hyphen separator. For example, to display all available options for the sender part:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send -- --help
 </pre></div>
 </div>
 <section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading"></a></h2>
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
 <p>Here is a diagram of the components involved in an example usage of lidi, annotated with command line parameters:</p>
 <img alt="_images/schema.svg" src="_images/schema.svg" /><div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -104,10 +108,10 @@
 <p>Following, we provide some details about each command line options.</p>
 </section>
 <section id="adresses-and-ports">
-<h2>Adresses and ports<a class="headerlink" href="#adresses-and-ports" title="Permalink to this heading"></a></h2>
+<h2>Adresses and ports<a class="headerlink" href="#adresses-and-ports" title="Link to this heading"></a></h2>
 <p>As shown in the <a class="reference internal" href="gstarted.html#getting-started"><span class="std std-ref">Getting started</span></a> chapter, default values work well for testing the diode on a single machine. But for real application, ip addresses and ports must be configured properly. There are three points in the diode chain where those settings should be provided.</p>
 <section id="tcp-data-source">
-<h3>TCP data source<a class="headerlink" href="#tcp-data-source" title="Permalink to this heading"></a></h3>
+<h3>TCP data source<a class="headerlink" href="#tcp-data-source" title="Link to this heading"></a></h3>
 <p>The diode-send side gets data from TCP connections. It is necessary to specify ip address and port in which TCP connections will be accepted with the following parameter:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">from_tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
 </pre></div>
@@ -115,7 +119,7 @@
 <p>Default value is 127.0.0.1:5000.</p>
 </section>
 <section id="tcp-data-destination">
-<h3>TCP data destination<a class="headerlink" href="#tcp-data-destination" title="Permalink to this heading"></a></h3>
+<h3>TCP data destination<a class="headerlink" href="#tcp-data-destination" title="Link to this heading"></a></h3>
 <p>On the diode-receive side, data will be sent to TCP connected clients. To specify listening ip and TCP port:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
 </pre></div>
@@ -123,21 +127,21 @@
 <p>Default value is 127.0.0.1:7000.</p>
 </section>
 <section id="unix-data-source">
-<h3>Unix data source<a class="headerlink" href="#unix-data-source" title="Permalink to this heading"></a></h3>
+<h3>Unix data source<a class="headerlink" href="#unix-data-source" title="Link to this heading"></a></h3>
 <p>The diode-send side gets data from Unix connections. It is necessary to specify ip address and port in which Unix connections will be accepted with the following parameter:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">from_unix</span> <span class="o">&lt;</span><span class="n">path</span><span class="o">&gt;</span>
 </pre></div>
 </div>
 </section>
 <section id="unix-data-destination">
-<h3>Unix data destination<a class="headerlink" href="#unix-data-destination" title="Permalink to this heading"></a></h3>
+<h3>Unix data destination<a class="headerlink" href="#unix-data-destination" title="Link to this heading"></a></h3>
 <p>On the diode-receive side, data will be sent to Unix connected clients. To specify listening Unix socket path:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_unix</span> <span class="o">&lt;</span><span class="n">path</span><span class="o">&gt;</span>
 </pre></div>
 </div>
 </section>
 <section id="udp-transfer">
-<h3>UDP transfer<a class="headerlink" href="#udp-transfer" title="Permalink to this heading"></a></h3>
+<h3>UDP transfer<a class="headerlink" href="#udp-transfer" title="Link to this heading"></a></h3>
 <p>UDP transfer is the core of the diode. Settings ip addresses and port is necessary. On the sender side:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_udp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
 </pre></div>
@@ -155,7 +159,7 @@
 </section>
 </section>
 <section id="block-and-packet-sizes">
-<h2>Block and packet sizes<a class="headerlink" href="#block-and-packet-sizes" title="Permalink to this heading"></a></h2>
+<h2>Block and packet sizes<a class="headerlink" href="#block-and-packet-sizes" title="Link to this heading"></a></h2>
 <p>To be transferred through the diode, data is sliced by lidi at different levels:</p>
 <blockquote>
 <div><ul class="simple">
@@ -184,7 +188,7 @@ Firstly, MTU can be set on both diodes side, and should be set to the same value
 See the <a class="reference internal" href="tweaking.html#tweaking-parameters"><span class="std std-ref">Tweaking parameters</span></a> chapter for more details on how to choose optimal values for your particular use case and devices.</p>
 </section>
 <section id="multiplexing">
-<h2>Multiplexing<a class="headerlink" href="#multiplexing" title="Permalink to this heading"></a></h2>
+<h2>Multiplexing<a class="headerlink" href="#multiplexing" title="Link to this heading"></a></h2>
 <p>Lidi can handle several transfers in parallel, so that big data transfer doesn’t prevent other data chunks to be handled. The number of transfers in parallel is adapted by lidi according to the number of TCP clients that can be connected simultaneously.It can be configured on both sides with the option:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">nb_clients</span> <span class="o">&lt;</span><span class="n">nb</span><span class="o">&gt;</span>
 </pre></div>
@@ -193,7 +197,7 @@ See the <a class="reference internal" href="tweaking.html#tweaking-parameters"><
 <p>Although not strictly required nor enforced by lidi, the number of TCP clients on sender side and on receiver side will be equals in mosts use cases for better results.</p>
 </section>
 <section id="multithreading">
-<h2>Multithreading<a class="headerlink" href="#multithreading" title="Permalink to this heading"></a></h2>
+<h2>Multithreading<a class="headerlink" href="#multithreading" title="Link to this heading"></a></h2>
 <p>To ensure data integrity through the UDP link, Lidi uses RaptorQ fountain codes. This means that logical block of data need to be encoded (sender side) and then decoded (receiver side). Several threads can be spawned to parallelized such computations, with the following options:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">nb_encoding_threads</span> <span class="o">&lt;</span><span class="n">nb</span><span class="o">&gt;</span>
   <span class="p">(</span><span class="n">sender</span> <span class="n">side</span><span class="p">,</span> <span class="n">default</span><span class="p">:</span> <span class="mi">2</span><span class="p">)</span>
@@ -204,7 +208,7 @@ See the <a class="reference internal" href="tweaking.html#tweaking-parameters"><
 </div>
 </section>
 <section id="timeouts">
-<h2>Timeouts<a class="headerlink" href="#timeouts" title="Permalink to this heading"></a></h2>
+<h2>Timeouts<a class="headerlink" href="#timeouts" title="Link to this heading"></a></h2>
 <p>Since lidi uses UDP protocol to transfer data, blocks and datagrams can be reordered.
 Fountain codes are used to ensure data integrity despite possible transfer reordering and losses. Also, it can be harder for the receiving part to know that a particular transfer is done, since an EOF-like marker can be received before the end of the data, or simply lost.
 Thus, a configurable timeout is used in lidi to decide when to reset fountain code status:</p>
@@ -214,7 +218,7 @@ Thus, a configurable timeout is used in lidi to decide when to reset fountain co
 </div>
 </section>
 <section id="heartbeat">
-<h2>Heartbeat<a class="headerlink" href="#heartbeat" title="Permalink to this heading"></a></h2>
+<h2>Heartbeat<a class="headerlink" href="#heartbeat" title="Link to this heading"></a></h2>
 <p>Since the purpose of the diode is to only allow one-way data traffic, the sender cannot be aware if a receiver is set up or not. But heartbeat messages are regularly sent through the diode so that the receiver can be aware of a sender disconnection. Heartbeat times can be set with the following option on both sides:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">heartbeat</span> <span class="o">&lt;</span><span class="n">nb_secs</span><span class="o">&gt;</span>
 </pre></div>
