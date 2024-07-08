@@ -54,7 +54,12 @@ impl<D> UdpMessages<D> {
                     sin_port: addr4.port().to_be(),
                     ..unsafe { mem::zeroed() }
                 });
-                unsafe { mem::transmute(sockaddr_in) }
+                unsafe {
+                    mem::transmute::<
+                        std::boxed::Box<libc::sockaddr_in>,
+                        std::boxed::Box<libc::sockaddr>,
+                    >(sockaddr_in)
+                }
             }
             net::SocketAddr::V6(addr6) => {
                 let sockaddr_in6 = Box::new(libc::sockaddr_in6 {
@@ -66,7 +71,12 @@ impl<D> UdpMessages<D> {
                     },
                     sin6_scope_id: addr6.scope_id(),
                 });
-                unsafe { mem::transmute(sockaddr_in6) }
+                unsafe {
+                    mem::transmute::<
+                        std::boxed::Box<libc::sockaddr_in6>,
+                        std::boxed::Box<libc::sockaddr>,
+                    >(sockaddr_in6)
+                }
             }
         });
 
@@ -169,7 +179,7 @@ impl UdpMessages<UdpSend> {
 
                     thread::sleep(sleep_duration);
                 }
-            }else {
+            } else {
                 let to_send = bufchunk.len();
 
                 for (i, buf) in bufchunk.iter_mut().enumerate() {
@@ -177,7 +187,7 @@ impl UdpMessages<UdpSend> {
                     self.iovecs[i].iov_base = buf.as_mut_ptr().cast::<libc::c_void>();
                     self.iovecs[i].iov_len = buf.len();
                 }
-    
+
                 let nb_msg;
                 unsafe {
                     nb_msg = libc::sendmmsg(
