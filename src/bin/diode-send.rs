@@ -23,6 +23,7 @@ struct Config {
     to_udp: net::SocketAddr,
     to_udp_mtu: u16,
     heartbeat: Option<time::Duration>,
+    bandwidth_limit: f64,
 }
 
 fn command_args() -> Config {
@@ -120,6 +121,14 @@ fn command_args() -> Config {
                 .value_parser(clap::value_parser!(u16))
                 .help("Duration between two emitted heartbeat messages, 0 to disable"),
         )
+        .arg(
+            Arg::new("bandwidth_limit")
+                .long("bandwidth_limit")
+                .value_name("bandwidth_limit_mbit")
+                .default_value("0")
+                .value_parser(clap::value_parser!(f64))
+                .help("Set the bandwidth limit for transfer speed between pitcher and catcher in Mbit/s. Use 0 to disable the limit."),
+        )
         .get_matches();
 
     let from_tcp = net::SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
@@ -148,6 +157,11 @@ fn command_args() -> Config {
         (hb != 0).then(|| time::Duration::from_secs(hb))
     };
 
+    let bandwidth_limit = { 
+        let target_bandwidth_mbps = *args.get_one::<f64>("bandwidth_limit").expect("default");// Target bandwidth in Mbps
+        target_bandwidth_mbps * 1_000_000.0 / 8.0 // Convert Mbps to bytes per second
+    };
+
     Config {
         from_tcp,
         from_unix,
@@ -161,6 +175,7 @@ fn command_args() -> Config {
         to_udp,
         to_udp_mtu,
         heartbeat,
+        bandwidth_limit,
     }
 }
 
@@ -248,6 +263,7 @@ fn main() {
         to_bind: config.to_bind,
         to_udp: config.to_udp,
         to_mtu: config.to_udp_mtu,
+        bandwidth_limit: config.bandwidth_limit,
     });
 
     thread::scope(|scope| {

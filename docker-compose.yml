@@ -24,6 +24,8 @@ services:
       - "172.16.0.2:5000"
       - "--to_udp"
       - "172.16.0.3:6000"
+      - "--bandwidth_limit"
+      - "10"
 
   receive:
     image: diode:receive
