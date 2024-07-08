@@ -13,7 +13,7 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             packets.len()
         );
 
-        let mut decoder = raptorq::SourceBlockDecoder::new2(
+        let mut decoder = raptorq::SourceBlockDecoder::new(
             block_id,
             &receiver.object_transmission_info,
             encoding_block_size,

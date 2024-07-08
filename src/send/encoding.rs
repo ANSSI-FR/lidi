@@ -43,7 +43,7 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
 
         log::trace!("encoding a serialized block of {} bytes", data.len());
 
-        let encoder = raptorq::SourceBlockEncoder::with_encoding_plan2(
+        let encoder = raptorq::SourceBlockEncoder::with_encoding_plan(
             block_id,
             &sender.object_transmission_info,
             data,
