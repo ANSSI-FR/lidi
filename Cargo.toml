@@ -12,8 +12,8 @@ fasthash = "0.4"
 libc = "0.2"
 log = "0.4"
 rand = "0.8"
-raptorq = "1.8"
-simple_logger = "4"
+raptorq = "2"
+simple_logger = "5"
 
 [profile.release]
 lto = true
