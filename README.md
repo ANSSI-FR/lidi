@@ -21,7 +21,7 @@ $ make html
 $ xdg-open _build/html/index.html
 ```
 
-The *developper* documentation can be built and opened by running:
+The *developer* documentation can be built and opened by running:
 
 ```
 $ cargo doc --document-private-items --no-deps --lib --open
