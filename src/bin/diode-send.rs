@@ -157,8 +157,8 @@ fn command_args() -> Config {
         (hb != 0).then(|| time::Duration::from_secs(hb))
     };
 
-    let bandwidth_limit = { 
-        let target_bandwidth_mbps = *args.get_one::<f64>("bandwidth_limit").expect("default");// Target bandwidth in Mbps
+    let bandwidth_limit = {
+        let target_bandwidth_mbps = *args.get_one::<f64>("bandwidth_limit").expect("default"); // Target bandwidth in Mbps
         target_bandwidth_mbps * 1_000_000.0 / 8.0 // Convert Mbps to bytes per second
     };
 
