@@ -9,7 +9,7 @@
 project = 'Lidi'
 copyright = '2023, ANSSI-FR'
 author = 'ANSSI-FR'
-release = '0.7.0'
+release = '1.3.2'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
