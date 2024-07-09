@@ -145,7 +145,6 @@ impl UdpMessages<UdpSend> {
         bandwidth_limit: f64,
     ) -> UdpMessages<UdpSend> {
         log::info!("UDP configured to send {vlen} messages (datagrams) at a time");
-        //std::println!("{}",udpdelay.unwrap().as_micros());
         Self::new(socket, vlen, None, Some(dest), bandwidth_limit)
     }
 
