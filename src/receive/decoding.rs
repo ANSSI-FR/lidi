@@ -2,8 +2,6 @@
 
 use std::{cmp::Ordering, thread::yield_now};
 
-use log::warn;
-
 use crate::{protocol, receive};
 
 pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
@@ -30,6 +28,8 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             }
             Some(block) => {
                 log::trace!("block {} decoded with {} bytes!", block_id, block.len());
+            
+            let mut retry_cnt = 0;
 
                 loop {
                     let mut to_receive = receiver.block_to_receive.lock().expect("acquire lock");
@@ -41,13 +41,19 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
                             *to_receive = to_receive.wrapping_add(1);
                             break;
                         }
-                        Ordering::Less => {
+                        Ordering::Greater => {
                             // Thread is too late, drop the packet and kill the current job
-                            warn!("Dropping the packet {block_id}");
+                            log::warn!("Dropping the packet {block_id}");
                             break;
                         }
-                        Ordering::Greater => {
-                            yield_now();
+                        Ordering::Less => {
+                            if retry_cnt < 10 {
+                                retry_cnt +=1;
+                                yield_now();
+                            } else {
+                                break;
+                            }
+                            
                         }
                     }
                 }
