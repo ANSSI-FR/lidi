@@ -132,13 +132,6 @@ Then, on the logical level, fountain codes operates on blocks. If blocks reorder
 The default value for an encoding block is 60000, and repair block size is defaulted to 10% of this value (6000).
 See the :ref:`Tweaking parameters` chapter for more details on how to choose optimal values for your particular use case and devices.
 
-Because of how UDP works, blocks may sometimes be received in a wildly different order: you may start receiving block number 12 before you finished receiving all packets for block number 10. Because of that, lidi will keep track of a given amount of blocks before considering them lost (up to 8 by default).
-
-.. code-block::
-
-   --reblock_retention_window <nb_blocks>
-     on the receiver side
-
 Multiplexing
 ------------
 
