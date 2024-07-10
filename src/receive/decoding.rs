@@ -28,8 +28,8 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             }
             Some(block) => {
                 log::trace!("block {} decoded with {} bytes!", block_id, block.len());
-            
-            let mut retry_cnt = 0;
+
+                let mut retry_cnt = 0;
 
                 loop {
                     let mut to_receive = receiver.block_to_receive.lock().expect("acquire lock");
@@ -48,12 +48,11 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
                         }
                         Ordering::Less => {
                             if retry_cnt < 10 {
-                                retry_cnt +=1;
+                                retry_cnt += 1;
                                 yield_now();
                             } else {
                                 break;
                             }
-                            
                         }
                     }
                 }
