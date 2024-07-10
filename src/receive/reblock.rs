@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_is_in_wrapped_interval() {
-        for (value, lower_bound, upper_bound, expected_result) in vec![
+        for (value, lower_bound, upper_bound, expected_result) in [
             (0, 0, 0, true),
             (0, 0, 255, true),
             // continuous interval
