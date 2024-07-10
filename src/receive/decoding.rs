@@ -1,5 +1,9 @@
 //! Worker that decodes RaptorQ packets into protocol messages
 
+use std::{cmp::Ordering, thread::yield_now};
+
+use log::warn;
+
 use crate::{protocol, receive};
 
 pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
@@ -29,12 +33,22 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
 
                 loop {
                     let mut to_receive = receiver.block_to_receive.lock().expect("acquire lock");
-                    if *to_receive == block_id {
-                        receiver
-                            .to_dispatch
-                            .send(protocol::Message::deserialize(block))?;
-                        *to_receive = to_receive.wrapping_add(1);
-                        break;
+                    match block_id.cmp(&to_receive) {
+                        Ordering::Equal => {
+                            receiver
+                                .to_dispatch
+                                .send(protocol::Message::deserialize(block))?;
+                            *to_receive = to_receive.wrapping_add(1);
+                            break;
+                        }
+                        Ordering::Less => {
+                            // Thread is too late, drop the packet and kill the current job
+                            warn!("Dropping the packet {block_id}");
+                            break;
+                        }
+                        Ordering::Greater => {
+                            yield_now();
+                        }
                     }
                 }
             }
