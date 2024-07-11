@@ -62,7 +62,7 @@ pub enum Error {
     Io(io::Error),
     SendPackets(crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>),
     SendBlockPackets(crossbeam_channel::SendError<(u8, Vec<raptorq::EncodingPacket>)>),
-    SendMessage(crossbeam_channel::SendError<protocol::Message>),
+    SendMessage(crossbeam_channel::SendError<Option<protocol::Message>>),
     SendClients(
         crossbeam_channel::SendError<(
             protocol::ClientId,
@@ -107,9 +107,9 @@ impl From<crossbeam_channel::SendError<(u8, Vec<raptorq::EncodingPacket>)>> for 
     }
 }
 
-impl From<crossbeam_channel::SendError<protocol::Message>> for Error {
-    fn from(e: crossbeam_channel::SendError<protocol::Message>) -> Self {
-        Self::SendMessage(e)
+impl From<crossbeam_channel::SendError<Option<protocol::Message>>> for Error {
+    fn from(oe: crossbeam_channel::SendError<Option<protocol::Message>>) -> Self {
+        Self::SendMessage(oe)
     }
 }
 
@@ -162,8 +162,8 @@ pub struct Receiver<F> {
     pub(crate) for_reblock: crossbeam_channel::Receiver<Vec<raptorq::EncodingPacket>>,
     pub(crate) to_decoding: crossbeam_channel::Sender<(u8, Vec<raptorq::EncodingPacket>)>,
     pub(crate) for_decoding: crossbeam_channel::Receiver<(u8, Vec<raptorq::EncodingPacket>)>,
-    pub(crate) to_dispatch: crossbeam_channel::Sender<protocol::Message>,
-    pub(crate) for_dispatch: crossbeam_channel::Receiver<protocol::Message>,
+    pub(crate) to_dispatch: crossbeam_channel::Sender<Option<protocol::Message>>,
+    pub(crate) for_dispatch: crossbeam_channel::Receiver<Option<protocol::Message>>,
     pub(crate) to_clients: crossbeam_channel::Sender<(
         protocol::ClientId,
         crossbeam_channel::Receiver<protocol::Message>,
@@ -204,7 +204,8 @@ where
             crossbeam_channel::unbounded::<Vec<raptorq::EncodingPacket>>();
         let (to_decoding, for_decoding) =
             crossbeam_channel::unbounded::<(u8, Vec<raptorq::EncodingPacket>)>();
-        let (to_dispatch, for_dispatch) = crossbeam_channel::unbounded::<protocol::Message>();
+        let (to_dispatch, for_dispatch) =
+            crossbeam_channel::unbounded::<Option<protocol::Message>>();
 
         let (to_clients, for_clients) = crossbeam_channel::bounded::<(
             protocol::ClientId,
@@ -275,7 +276,9 @@ where
         for i in 0..self.config.nb_decoding_threads {
             thread::Builder::new()
                 .name(format!("decoding_{i}"))
-                .spawn_scoped(scope, || decoding::start(self))?;
+                .spawn_scoped(scope, || {
+                    decoding::start(self, self.config.nb_decoding_threads)
+                })?;
         }
 
         thread::Builder::new()

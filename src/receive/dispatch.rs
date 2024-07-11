@@ -38,6 +38,31 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             receiver.for_dispatch.recv()?
         };
 
+        let message = match message {
+            Some(m) => m,
+            None => {
+                // Synchonization has been lost
+                // Marking all active transfers as failed
+                for (client_id, client_sendq) in active_transfers {
+                    let message = protocol::Message::new(
+                        protocol::MessageType::Abort,
+                        receiver.to_buffer_size as u32,
+                        client_id,
+                        None,
+                    );
+
+                    if let Err(e) = client_sendq.send(message) {
+                        log::error!("failed to send payload to client {client_id:x}: {e}");
+                    }
+
+                    failed_transfers.insert(client_id);
+                    ended_transfers.insert(client_id, client_sendq);
+                }
+                active_transfers = BTreeMap::new();
+                continue;
+            }
+        };
+
         log::trace!("received {message}");
 
         let client_id = message.client_id();
@@ -46,7 +71,14 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             continue;
         }
 
-        let message_type = message.message_type()?;
+        let message_type =
+            match message.message_type() {
+                Err(e) => {
+                    log::error!("message of UNKNOWN type received ({e}), dropping it");
+                    continue;
+                }
+                Ok(mt) => mt,
+            };
 
         let mut will_end = false;
 
