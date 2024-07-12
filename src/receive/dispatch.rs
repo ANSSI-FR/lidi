@@ -71,14 +71,13 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             continue;
         }
 
-        let message_type =
-            match message.message_type() {
-                Err(e) => {
-                    log::error!("message of UNKNOWN type received ({e}), dropping it");
-                    continue;
-                }
-                Ok(mt) => mt,
-            };
+        let message_type = match message.message_type() {
+            Err(e) => {
+                log::error!("message of UNKNOWN type received ({e}), dropping it");
+                continue;
+            }
+            Ok(mt) => mt,
+        };
 
         let mut will_end = false;
 

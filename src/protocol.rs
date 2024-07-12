@@ -183,11 +183,10 @@ impl Message {
 
 impl fmt::Display for Message {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        let msg_type =
-            match self.message_type() {
-                Err(e) => format!("UNKNOWN {e}"),
-                Ok(t) => t.to_string(),
-            };
+        let msg_type = match self.message_type() {
+            Err(e) => format!("UNKNOWN {e}"),
+            Ok(t) => t.to_string(),
+        };
         write!(
             fmt,
             "client {:x} message = {} data = {} byte(s)",

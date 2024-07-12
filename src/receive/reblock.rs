@@ -27,13 +27,14 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
                     // no more traffic but ongoing block, trying to decode
                     if nb_normal_packets as usize <= qlen {
                         log::debug!("flushing block {block_id} with {qlen} packets");
-                        receiver.to_decoding.send((block_id, queue))?;
+                        receiver.to_decoding.send((block_id, Some(queue)))?;
                         block_id = block_id.wrapping_add(1);
                     } else {
                         log::debug!(
                             "not enough packets ({qlen} packets) to decode block {block_id}"
                         );
                         log::warn!("lost block {block_id}");
+                        receiver.to_decoding.send((block_id, None))?;
                         desynchro = true;
                     }
                     queue = Vec::with_capacity(capacity);
@@ -54,7 +55,7 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
 
             if desynchro {
                 block_id = message_block_id;
-                *receiver.block_to_receive.lock().expect("acquire lock") = block_id;
+                receiver.resync_needed_block_id.store((true, block_id));
                 desynchro = false;
             }
 
@@ -70,7 +71,9 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
                     pqueue.push(packet);
                     if nb_normal_packets as usize <= pqueue.len() {
                         //now there is enough packets to decode it
-                        receiver.to_decoding.send((message_block_id, pqueue))?;
+                        receiver
+                            .to_decoding
+                            .send((message_block_id, Some(pqueue)))?;
                         prev_queue = None;
                     } else {
                         prev_queue = Some(pqueue);
@@ -88,7 +91,7 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
 
             if nb_normal_packets as usize <= queue.len() {
                 //enough packets in the current block to decode it
-                receiver.to_decoding.send((block_id, queue))?;
+                receiver.to_decoding.send((block_id, Some(queue)))?;
                 if prev_queue.is_some() {
                     log::warn!("lost block {}", block_id.wrapping_sub(1));
                 }
