@@ -1,6 +1,6 @@
 use fasthash::HasherExt;
 
-use crate::file::{self, protocol};
+use crate::aux::{self, file};
 use std::{
     fs,
     hash::Hash,
@@ -11,7 +11,7 @@ use std::{
 };
 
 pub fn receive_files(
-    config: &file::Config<file::DiodeReceive>,
+    config: &file::Config<aux::DiodeReceive>,
     output_dir: &path::Path,
 ) -> Result<(), file::Error> {
     if !output_dir.is_dir() {
@@ -47,7 +47,7 @@ pub fn receive_files(
 }
 
 fn receive_tcp_loop<'a>(
-    config: &'a file::Config<file::DiodeReceive>,
+    config: &'a file::Config<aux::DiodeReceive>,
     output_dir: &'a path::Path,
     scope: &'a thread::Scope<'a, '_>,
     server: net::TcpListener,
@@ -63,7 +63,7 @@ fn receive_tcp_loop<'a>(
 }
 
 fn receive_unix_loop<'a>(
-    config: &'a file::Config<file::DiodeReceive>,
+    config: &'a file::Config<aux::DiodeReceive>,
     output_dir: &'a path::Path,
     scope: &'a thread::Scope<'a, '_>,
     server: unix::net::UnixListener,
@@ -84,7 +84,7 @@ fn receive_unix_loop<'a>(
 }
 
 fn receive_file<D>(
-    config: &file::Config<file::DiodeReceive>,
+    config: &file::Config<aux::DiodeReceive>,
     mut diode: D,
     output_dir: &path::Path,
 ) -> Result<usize, file::Error>
@@ -151,7 +151,7 @@ where
                 if remaining != 0 {
                     log::debug!("expected file size = {}", header.file_length);
                     log::debug!("received file size = {received}");
-                    return Err(file::Error::Diode(protocol::Error::InvalidFileSize(
+                    return Err(file::Error::Diode(file::protocol::Error::InvalidFileSize(
                         header.file_length as usize,
                         received,
                     )));
@@ -162,7 +162,7 @@ where
                     log::debug!("expected hash = {}", footer.hash);
                     log::debug!("computed hash = {hash}");
                     if footer.hash != hash {
-                        return Err(file::Error::Diode(protocol::Error::InvalidHash(
+                        return Err(file::Error::Diode(file::protocol::Error::InvalidHash(
                             hash,
                             footer.hash,
                         )));

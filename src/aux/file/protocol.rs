@@ -34,14 +34,14 @@ impl From<FromUtf8Error> for Error {
     }
 }
 
-pub struct Header {
-    pub file_name: String,
-    pub mode: u32,
-    pub file_length: u64,
+pub(crate) struct Header {
+    pub(crate) file_name: String,
+    pub(crate) mode: u32,
+    pub(crate) file_length: u64,
 }
 
 impl Header {
-    pub fn serialize_to<W: Write>(&self, w: &mut W) -> Result<(), Error> {
+    pub(crate) fn serialize_to<W: Write>(&self, w: &mut W) -> Result<(), Error> {
         w.write_all(&self.file_name.len().to_le_bytes())?;
         w.write_all(self.file_name.as_bytes())?;
         w.write_all(&self.mode.to_le_bytes())?;
@@ -49,7 +49,7 @@ impl Header {
         Ok(())
     }
 
-    pub fn deserialize_from<R: Read>(r: &mut R) -> Result<Self, Error> {
+    pub(crate) fn deserialize_from<R: Read>(r: &mut R) -> Result<Self, Error> {
         let mut file_name_len = [0u8; 8];
         r.read_exact(&mut file_name_len)?;
         let file_name_len = usize::from_le_bytes(file_name_len);
@@ -74,8 +74,8 @@ impl Header {
     }
 }
 
-pub struct Footer {
-    pub hash: u128,
+pub(crate) struct Footer {
+    pub(crate) hash: u128,
 }
 
 impl Footer {
