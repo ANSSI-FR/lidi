@@ -1,6 +1,6 @@
 use fasthash::HasherExt;
 
-use crate::file;
+use crate::aux::{self, file};
 use std::{
     fs,
     hash::Hash,
@@ -11,7 +11,7 @@ use std::{
 };
 
 pub fn send_files(
-    config: &file::Config<file::DiodeSend>,
+    config: &file::Config<aux::DiodeSend>,
     files: &[String],
 ) -> Result<(), file::Error> {
     for file in files {
@@ -22,17 +22,17 @@ pub fn send_files(
 }
 
 pub fn send_file(
-    config: &file::Config<file::DiodeSend>,
+    config: &file::Config<aux::DiodeSend>,
     file_path: &String,
 ) -> Result<usize, file::Error> {
     log::debug!("connecting to {}", config.diode);
 
     match &config.diode {
-        file::DiodeSend::Tcp(socket_addr) => {
+        aux::DiodeSend::Tcp(socket_addr) => {
             let diode = net::TcpStream::connect(socket_addr)?;
             send_file_aux(config, diode, file_path)
         }
-        file::DiodeSend::Unix(path) => {
+        aux::DiodeSend::Unix(path) => {
             let diode = unix::net::UnixStream::connect(path)?;
             send_file_aux(config, diode, file_path)
         }
@@ -40,7 +40,7 @@ pub fn send_file(
 }
 
 fn send_file_aux<D>(
-    config: &file::Config<file::DiodeSend>,
+    config: &file::Config<aux::DiodeSend>,
     mut diode: D,
     file_path: &String,
 ) -> Result<usize, file::Error>

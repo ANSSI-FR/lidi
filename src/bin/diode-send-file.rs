@@ -1,5 +1,5 @@
 use clap::{Arg, ArgAction, ArgGroup, Command};
-use diode::file;
+use diode::aux::{self, file};
 use std::{env, net, path, str::FromStr};
 
 fn main() {
@@ -61,9 +61,9 @@ fn main() {
         .collect::<Vec<_>>();
 
     let diode = if let Some(to_tcp) = to_tcp {
-        file::DiodeSend::Tcp(to_tcp)
+        aux::DiodeSend::Tcp(to_tcp)
     } else {
-        file::DiodeSend::Unix(to_unix.expect("to_tcp and to_unix are mutually exclusive"))
+        aux::DiodeSend::Unix(to_unix.expect("to_tcp and to_unix are mutually exclusive"))
     };
 
     let config = file::Config {
