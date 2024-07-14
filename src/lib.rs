@@ -1,4 +1,4 @@
-pub mod file;
+pub mod aux;
 pub mod protocol;
 pub mod receive;
 pub mod semaphore;

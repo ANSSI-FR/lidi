@@ -1,5 +1,5 @@
 use clap::{Arg, ArgAction, Command};
-use diode::file;
+use diode::aux::{self, file};
 use std::{env, net, path, str::FromStr};
 
 fn main() {
@@ -53,7 +53,7 @@ fn main() {
     let output_directory =
         path::PathBuf::from(args.get_one::<String>("output_directory").expect("default"));
 
-    let diode = file::DiodeReceive {
+    let diode = aux::DiodeReceive {
         from_tcp,
         from_unix,
     };
