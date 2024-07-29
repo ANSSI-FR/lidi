@@ -11,16 +11,16 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: taiki-e/create-gh-release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
   upload:
     runs-on: ubuntu-latest 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
-          bin: diode-send,diode-receive,diode-send-file,diode-receive-file
+          bin: diode-send,diode-receive,diode-send-file,diode-receive-file,diode-send-udp,diode-receive-udp
           archive: lidi-$tag
           token: ${{ secrets.GITHUB_TOKEN }}
