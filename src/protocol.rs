@@ -3,13 +3,14 @@
 //! The Lidi protocol is rather simple: since the communications are unidirectional, it is defined
 //! by the messages structure. There are 5 message types:
 //! - `MessageType::Heartbeat` lets know the receiver that transfer can happen,
-//! - `MessageType::Start` informs the receiver that the sent data chunk represents the beginning of a new transfer,
+//! - `MessageType::Start` informs the receiver that the sent data chunk represents the beginning of
+//!   a new transfer,
 //! - `MessageType::Data` is used to send a data chunk that is not the beginning nor the ending of
-//! a transfer,
+//!   a transfer,
 //! - `MessageType::Abort` informs the receiver that the current transfer has been aborted on the
-//! sender side,
+//!   sender side,
 //! - `MessageType::End` informs the receiver that the current transfer is completed (i.e. all
-//! data have been sent).
+//!   data have been sent).
 //!
 //! A message is stored in a `Vec` of `u8`s, with the following representation:
 //!
@@ -108,7 +109,7 @@ impl Message {
     ///
     /// Some (unchecked) constraints on arguments must be respected:
     /// - if `message` is `MessageType::Heartbeat`, `MessageType::Abort` or `MessageType::End`
-    /// then no data should be provided,
+    ///   then no data should be provided,
     /// - if `message` is `MessageType::Heartbeat` then `client_id` should be equal to 0,
     /// - if there is some `data`, its length must be greater than `message_length`.
     pub(crate) fn new(

@@ -12,7 +12,7 @@
 //!
 //! Notes:
 //! - heartbeat does not need a dedicated worker on the receiver side, heartbeat messages are
-//! handled by the dispatch worker,
+//!   handled by the dispatch worker,
 //! - there are `nb_clients` clients workers running in parallel,
 //! - there are `nb_decoding_threads` decoding workers running in parallel.
 
