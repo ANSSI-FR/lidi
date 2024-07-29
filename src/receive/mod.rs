@@ -22,7 +22,7 @@ use std::{
     io::{self, Write},
     net,
     os::fd::AsRawFd,
-    sync, thread, time,
+    thread, time,
 };
 
 mod client;
@@ -30,6 +30,7 @@ mod clients;
 mod decoding;
 mod dispatch;
 mod reblock;
+mod reordering;
 mod udp;
 
 pub struct Config {
@@ -39,7 +40,6 @@ pub struct Config {
     pub encoding_block_size: u64,
     pub repair_block_size: u32,
     pub udp_buffer_size: u32,
-    pub reblock_retention_window: u8,
     pub flush_timeout: time::Duration,
     pub nb_decoding_threads: u8,
     pub heartbeat_interval: Option<time::Duration>,
@@ -62,8 +62,9 @@ impl Config {
 pub enum Error {
     Io(io::Error),
     SendPackets(crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>),
-    SendBlockPackets(crossbeam_channel::SendError<(u8, Vec<raptorq::EncodingPacket>)>),
-    SendMessage(crossbeam_channel::SendError<protocol::Message>),
+    SendBlockPackets(crossbeam_channel::SendError<(u8, Option<Vec<raptorq::EncodingPacket>>)>),
+    SendBlockMessage(crossbeam_channel::SendError<(u8, Option<protocol::Message>)>),
+    SendMessage(crossbeam_channel::SendError<Option<protocol::Message>>),
     SendClients(
         crossbeam_channel::SendError<(
             protocol::ClientId,
@@ -81,6 +82,7 @@ impl fmt::Display for Error {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::SendPackets(e) => write!(fmt, "crossbeam send packets error: {e}"),
             Self::SendBlockPackets(e) => write!(fmt, "crossbeam send block packets error: {e}"),
+            Self::SendBlockMessage(e) => write!(fmt, "crossbeam send block/message error: {e}"),
             Self::SendMessage(e) => write!(fmt, "crossbeam send message error: {e}"),
             Self::SendClients(e) => write!(fmt, "crossbeam send client error: {e}"),
             Self::Receive(e) => write!(fmt, "crossbeam receive error: {e}"),
@@ -102,15 +104,21 @@ impl From<crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>> for Error 
     }
 }
 
-impl From<crossbeam_channel::SendError<(u8, Vec<raptorq::EncodingPacket>)>> for Error {
-    fn from(e: crossbeam_channel::SendError<(u8, Vec<raptorq::EncodingPacket>)>) -> Self {
+impl From<crossbeam_channel::SendError<(u8, Option<Vec<raptorq::EncodingPacket>>)>> for Error {
+    fn from(e: crossbeam_channel::SendError<(u8, Option<Vec<raptorq::EncodingPacket>>)>) -> Self {
         Self::SendBlockPackets(e)
     }
 }
 
-impl From<crossbeam_channel::SendError<protocol::Message>> for Error {
-    fn from(e: crossbeam_channel::SendError<protocol::Message>) -> Self {
-        Self::SendMessage(e)
+impl From<crossbeam_channel::SendError<(u8, Option<protocol::Message>)>> for Error {
+    fn from(oe: crossbeam_channel::SendError<(u8, Option<protocol::Message>)>) -> Self {
+        Self::SendBlockMessage(oe)
+    }
+}
+
+impl From<crossbeam_channel::SendError<Option<protocol::Message>>> for Error {
+    fn from(oe: crossbeam_channel::SendError<Option<protocol::Message>>) -> Self {
+        Self::SendMessage(oe)
     }
 }
 
@@ -158,13 +166,16 @@ pub struct Receiver<F> {
     pub(crate) to_buffer_size: usize,
     pub(crate) from_max_messages: u16,
     pub(crate) multiplex_control: semaphore::Semaphore,
-    pub(crate) block_to_receive: sync::Mutex<u8>,
+    pub(crate) resync_needed_block_id: crossbeam_utils::atomic::AtomicCell<(bool, u8)>,
     pub(crate) to_reblock: crossbeam_channel::Sender<Vec<raptorq::EncodingPacket>>,
     pub(crate) for_reblock: crossbeam_channel::Receiver<Vec<raptorq::EncodingPacket>>,
-    pub(crate) to_decoding: crossbeam_channel::Sender<(u8, Vec<raptorq::EncodingPacket>)>,
-    pub(crate) for_decoding: crossbeam_channel::Receiver<(u8, Vec<raptorq::EncodingPacket>)>,
-    pub(crate) to_dispatch: crossbeam_channel::Sender<protocol::Message>,
-    pub(crate) for_dispatch: crossbeam_channel::Receiver<protocol::Message>,
+    pub(crate) to_decoding: crossbeam_channel::Sender<(u8, Option<Vec<raptorq::EncodingPacket>>)>,
+    pub(crate) for_decoding:
+        crossbeam_channel::Receiver<(u8, Option<Vec<raptorq::EncodingPacket>>)>,
+    pub(crate) to_reordering: crossbeam_channel::Sender<(u8, Option<protocol::Message>)>,
+    pub(crate) for_reordering: crossbeam_channel::Receiver<(u8, Option<protocol::Message>)>,
+    pub(crate) to_dispatch: crossbeam_channel::Sender<Option<protocol::Message>>,
+    pub(crate) for_dispatch: crossbeam_channel::Receiver<Option<protocol::Message>>,
     pub(crate) to_clients: crossbeam_channel::Sender<(
         protocol::ClientId,
         crossbeam_channel::Receiver<protocol::Message>,
@@ -199,13 +210,16 @@ where
 
         let multiplex_control = semaphore::Semaphore::new(config.nb_clients as usize);
 
-        let block_to_receive = sync::Mutex::new(0);
+        let resync_needed_block_id = crossbeam_utils::atomic::AtomicCell::default();
 
         let (to_reblock, for_reblock) =
             crossbeam_channel::unbounded::<Vec<raptorq::EncodingPacket>>();
         let (to_decoding, for_decoding) =
-            crossbeam_channel::unbounded::<(u8, Vec<raptorq::EncodingPacket>)>();
-        let (to_dispatch, for_dispatch) = crossbeam_channel::unbounded::<protocol::Message>();
+            crossbeam_channel::unbounded::<(u8, Option<Vec<raptorq::EncodingPacket>>)>();
+        let (to_reordering, for_reordering) =
+            crossbeam_channel::unbounded::<(u8, Option<protocol::Message>)>();
+        let (to_dispatch, for_dispatch) =
+            crossbeam_channel::unbounded::<Option<protocol::Message>>();
 
         let (to_clients, for_clients) = crossbeam_channel::bounded::<(
             protocol::ClientId,
@@ -218,11 +232,13 @@ where
             to_buffer_size,
             from_max_messages,
             multiplex_control,
-            block_to_receive,
+            resync_needed_block_id,
             to_reblock,
             for_reblock,
             to_decoding,
             for_decoding,
+            to_reordering,
+            for_reordering,
             to_dispatch,
             for_dispatch,
             to_clients,
@@ -272,6 +288,10 @@ where
         thread::Builder::new()
             .name("dispatch".to_string())
             .spawn_scoped(scope, || dispatch::start(self))?;
+
+        thread::Builder::new()
+            .name("reordering".to_string())
+            .spawn_scoped(scope, || reordering::start(self))?;
 
         for i in 0..self.config.nb_decoding_threads {
             thread::Builder::new()

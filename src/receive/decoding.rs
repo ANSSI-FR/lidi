@@ -8,6 +8,16 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
     loop {
         let (block_id, packets) = receiver.for_decoding.recv()?;
 
+        let packets = match packets {
+            None => {
+                log::warn!("synchronization lost received, propagating");
+                // Sending lost synchronization signal to reorder thread
+                receiver.to_reordering.send((block_id, None))?;
+                continue;
+            }
+            Some(packets) => packets,
+        };
+
         log::trace!(
             "trying to decode block {block_id} with {} packets",
             packets.len()
@@ -21,22 +31,15 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
 
         match decoder.decode(packets) {
             None => {
-                log::warn!("lost block {block_id}");
-                continue;
+                log::error!("lost block {block_id}, synchronization lost");
+                // Sending lost synchronization signal to reorder thread
+                receiver.to_reordering.send((block_id, None))?;
             }
             Some(block) => {
-                log::trace!("block {} decoded with {} bytes!", block_id, block.len());
-
-                loop {
-                    let mut to_receive = receiver.block_to_receive.lock().expect("acquire lock");
-                    if *to_receive == block_id {
-                        receiver
-                            .to_dispatch
-                            .send(protocol::Message::deserialize(block))?;
-                        *to_receive = to_receive.wrapping_add(1);
-                        break;
-                    }
-                }
+                log::trace!("block {block_id} decoded with {} bytes!", block.len());
+                receiver
+                    .to_reordering
+                    .send((block_id, Some(protocol::Message::deserialize(block))))?;
             }
         }
     }

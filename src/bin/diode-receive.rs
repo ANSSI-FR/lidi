@@ -18,7 +18,6 @@ struct Config {
     encoding_block_size: u64,
     repair_block_size: u32,
     udp_buffer_size: u32,
-    reblock_retention_window: u8,
     flush_timeout: time::Duration,
     nb_decoding_threads: u8,
     to: ClientConfig,
@@ -98,14 +97,6 @@ fn command_args() -> Config {
                 .help("Size of UDP socket recv buffer"),
         )
         .arg(
-            Arg::new("reblock_retention_window")
-                .long("reblock_retention_window")
-                .value_name("reblock_retention_window")
-                .default_value("8")
-                .value_parser(clap::value_parser!(u8).range(1..128))
-                .help("Higher value increases resilience to blocks getting mixed up"),
-        )
-        .arg(
             Arg::new("flush_timeout")
                 .long("flush_timeout")
                 .value_name("nb_milliseconds")
@@ -147,9 +138,6 @@ fn command_args() -> Config {
     let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
     let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
     let udp_buffer_size = *args.get_one::<u32>("udp_buffer_size").expect("default");
-    let reblock_retention_window = *args
-        .get_one::<u8>("reblock_retention_window")
-        .expect("default");
     let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
     let flush_timeout = time::Duration::from_millis(
         args.get_one::<NonZeroU64>("flush_timeout")
@@ -182,7 +170,6 @@ fn command_args() -> Config {
         encoding_block_size,
         repair_block_size,
         udp_buffer_size,
-        reblock_retention_window,
         flush_timeout,
         to,
         heartbeat,
@@ -251,7 +238,6 @@ fn main() {
             encoding_block_size: config.encoding_block_size,
             repair_block_size: config.repair_block_size,
             udp_buffer_size: config.udp_buffer_size,
-            reblock_retention_window: config.reblock_retention_window,
             flush_timeout: config.flush_timeout,
             nb_decoding_threads: config.nb_decoding_threads,
             heartbeat_interval: config.heartbeat,
