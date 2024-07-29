@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Command line parameters &mdash; Lidi 0.7.0 documentation</title>
+  <title>Command line parameters &mdash; Lidi 1.3.2 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
 
@@ -15,7 +15,7 @@
   
         <script src="_static/jquery.js?v=5d32c60e"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script src="_static/documentation_options.js?v=fe7df9b0"></script>
+        <script src="_static/documentation_options.js?v=8ca9e7a0"></script>
         <script src="_static/doctools.js?v=9a2dae69"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
@@ -101,7 +101,8 @@
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
 <p>Here is a diagram of the components involved in an example usage of lidi, annotated with command line parameters:</p>
-<img alt="_images/schema.svg" src="_images/schema.svg" /><div class="admonition note">
+<img alt="_images/schema.svg" src="_images/schema.svg" />
+<div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Parameters that are displayed in the gray box must be the same of both sides (sender and receiver) of lidi.</p>
 </div>
@@ -124,7 +125,6 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">to_tcp</span> <span class="o">&lt;</span><span class="n">ip</span><span class="p">:</span><span class="n">port</span><span class="o">&gt;</span>
 </pre></div>
 </div>
-<p>Default value is 127.0.0.1:7000.</p>
 </section>
 <section id="unix-data-source">
 <h3>Unix data source<a class="headerlink" href="#unix-data-source" title="Link to this heading"></a></h3>
@@ -156,6 +156,12 @@
 </pre></div>
 </div>
 <p>defines ip and port to listen for incoming UDP packets, and should be set to the same value as <cite>–to-udp</cite>.</p>
+<p>Optionally, you can set the size of the UDP socket buffers with following option:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="o">--</span><span class="n">udp_buffer_size</span> <span class="o">&lt;</span><span class="n">nb_bytes</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>This option is available on both sides. Default value is 1073741824 which is the highest possible value.
+The specified size is then doubled by the kernel (see <a class="reference external" href="https://man7.org/linux/man-pages/man7/socket.7.html">https://man7.org/linux/man-pages/man7/socket.7.html</a>).</p>
 </section>
 </section>
 <section id="block-and-packet-sizes">

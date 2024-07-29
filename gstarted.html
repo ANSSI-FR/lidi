@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Getting started &mdash; Lidi 0.7.0 documentation</title>
+  <title>Getting started &mdash; Lidi 1.3.2 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=19f00094" />
 
@@ -15,7 +15,7 @@
   
         <script src="_static/jquery.js?v=5d32c60e"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-        <script src="_static/documentation_options.js?v=fe7df9b0"></script>
+        <script src="_static/documentation_options.js?v=8ca9e7a0"></script>
         <script src="_static/doctools.js?v=9a2dae69"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
@@ -111,7 +111,7 @@ Once <cite>rustup</cite> is available, you can simply run:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo build --release
 </pre></div>
 </div>
-<p>This step provides you with the two main binaries for lidi: the sender and the receiver part, in addition to other utilitary binaries, such as file sending/receiving ones.</p>
+<p>This step provides you with the two main binaries for lidi: the sender and the receiver part, in addition to other utility binaries, such as file sending/receiving ones.</p>
 </section>
 </section>
 </section>
@@ -123,8 +123,8 @@ Once <cite>rustup</cite> is available, you can simply run:</p>
 </pre></div>
 </div>
 <p>Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5000 and that the traffic will go through the diode on UDP port 6000.</p>
-<p>Next, we run the receiving part of lidi, with default parameters too:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-receive
+<p>Next, we run the receiving part of lidi:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-receive -- --to_tcp 127.0.0.1:7000
 </pre></div>
 </div>
 <p>This time, logging will indicate that traffic will come up on UDP port 6000 and that transferred content will be served on TCP port 7000.</p>
@@ -135,7 +135,7 @@ If it is the case, double check that the sender part is still running and that i
 </div>
 <p>The diode is now waiting for TCP connections to send and receive data.
 We run a first netcat instance waiting for connection on port 7000 with the following command:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc -lvp 7000
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc -lv 127.0.0.1 7000
 </pre></div>
 </div>
 <p>Finally, we should be able to connect and send raw data through the diode in a fourth terminal:</p>
@@ -144,7 +144,7 @@ Hello Lidi!
 &lt;Ctrl-D&gt;
 </pre></div>
 </div>
-<p>The message should have been transfered with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!</p>
+<p>The message should have been transferred with only forwarding UDP traffic, to finally show up in the first waiting netcat terminal window!</p>
 <p>Next steps is to review <a class="reference internal" href="parameters.html#command-line-parameters"><span class="std std-ref">Command line parameters</span></a> to adapt them to your use case, and eventually <a class="reference internal" href="tweaking.html#tweaking-parameters"><span class="std std-ref">Tweaking parameters</span></a> to achieve optimal transfer performances.</p>
 </section>
 </section>
