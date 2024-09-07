@@ -281,7 +281,7 @@ where
 
         for i in 0..self.config.nb_clients {
             thread::Builder::new()
-                .name(format!("client_{i}"))
+                .name(format!("receive_thread_{i}"))
                 .spawn_scoped(scope, || clients::start(self))?;
         }
 

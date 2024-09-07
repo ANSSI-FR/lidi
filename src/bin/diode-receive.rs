@@ -226,7 +226,7 @@ impl TryFrom<&ClientConfig> for Client {
 fn main() {
     let config = command_args();
 
-    init_logger();
+    diode::init_logger();
 
     log::info!("sending traffic to {}", config.to);
 
@@ -250,13 +250,4 @@ fn main() {
             log::error!("failed to start diode receiver: {e}");
         }
     });
-}
-
-fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env()
-    } else {
-        simple_logger::init_with_level(log::Level::Info)
-    }
-    .expect("logger initialization")
 }

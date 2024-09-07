@@ -251,7 +251,7 @@ fn tcp_listener_loop(
 fn main() {
     let config = command_args();
 
-    init_logger();
+    diode::init_logger();
 
     let sender = send::Sender::new(send::Config {
         nb_clients: config.nb_clients,
@@ -313,13 +313,4 @@ fn main() {
                 .expect("thread spawn");
         }
     });
-}
-
-fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env()
-    } else {
-        simple_logger::init_with_level(log::Level::Info)
-    }
-    .expect("logger initialization")
 }
