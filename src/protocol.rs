@@ -33,7 +33,7 @@
 //! is of type `Heartbeat`, `Abort` or `End`. Then the `data_length` will be set to 0 by the
 //! message constructor and the data chunk will be fully padded with zeros.
 
-use std::{fmt, io};
+use std::{fmt, io, sync};
 
 pub enum Error {
     Io(io::Error),
@@ -95,8 +95,10 @@ const ID_END: u8 = 0x04;
 
 pub(crate) type ClientId = u32;
 
+static CLIENT_ID_COUNTER: sync::atomic::AtomicU32 = sync::atomic::AtomicU32::new(0);
+
 pub(crate) fn new_client_id() -> ClientId {
-    rand::random::<ClientId>()
+    CLIENT_ID_COUNTER.fetch_add(1, sync::atomic::Ordering::Relaxed)
 }
 
 pub struct Message(Vec<u8>);
