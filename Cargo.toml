@@ -13,7 +13,7 @@ libc = "0"
 log = "0"
 rand = "0"
 raptorq = "2"
-simple_logger = "5"
+simplelog = "0"
 
 [profile.release]
 opt-level = "z"

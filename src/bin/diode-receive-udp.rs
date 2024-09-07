@@ -59,18 +59,9 @@ fn main() {
         buffer_size: u16::MAX as usize,
     };
 
-    init_logger();
+    diode::init_logger();
 
     if let Err(e) = udp::receive::receive(&config, to_udp_bind, to_udp) {
         log::error!("{e}");
     }
-}
-
-fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env()
-    } else {
-        simple_logger::init_with_level(log::Level::Info)
-    }
-    .expect("logger initialization")
 }

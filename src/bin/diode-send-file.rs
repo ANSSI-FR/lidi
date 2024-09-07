@@ -72,18 +72,9 @@ fn main() {
         hash,
     };
 
-    init_logger();
+    diode::init_logger();
 
     if let Err(e) = file::send::send_files(&config, &files) {
         log::error!("{e}");
     }
-}
-
-fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env()
-    } else {
-        simple_logger::init_with_level(log::Level::Info)
-    }
-    .expect("logger initialization")
 }

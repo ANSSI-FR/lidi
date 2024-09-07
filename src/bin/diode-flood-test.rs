@@ -40,7 +40,7 @@ fn main() {
         .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
     let buffer_size = *args.get_one::<usize>("buffer_size").expect("default");
 
-    init_logger();
+    diode::init_logger();
 
     if let Some(to_tcp) = to_tcp {
         log::debug!("TCP connect to {}", to_tcp);
@@ -70,13 +70,4 @@ where
         log::debug!("sending buffer of {buffer_size} bytes");
         diode.write_all(&buffer).expect("write");
     }
-}
-
-fn init_logger() {
-    if env::var("RUST_LOG").is_ok() {
-        simple_logger::init_with_env()
-    } else {
-        simple_logger::init_with_level(log::Level::Info)
-    }
-    .expect("logger initialization")
 }
