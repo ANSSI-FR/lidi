@@ -16,9 +16,11 @@ raptorq = "2"
 simple_logger = "5"
 
 [profile.release]
+opt-level = "z"
 lto = true
-opt-level = 3
 debug = false
+strip = true
+panic = "abort"
 
 [workspace]
 members = [".", "diode-file-bindings"]
