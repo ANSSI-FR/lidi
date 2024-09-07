@@ -6,12 +6,12 @@ license = "GPL-3.0"
 
 [dependencies]
 clap = "4"
-crossbeam-channel = "0.5"
-crossbeam-utils = "0.8"
-fasthash = "0.4"
-libc = "0.2"
-log = "0.4"
-rand = "0.8"
+crossbeam-channel = "0"
+crossbeam-utils = "0"
+fasthash = "0"
+libc = "0"
+log = "0"
+rand = "0"
 raptorq = "2"
 simple_logger = "5"
 
