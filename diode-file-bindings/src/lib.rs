@@ -1,6 +1,6 @@
 #![allow(unsafe_code)]
 
-use diode::aux::{self,file};
+use diode::aux::{self, file};
 use std::{
     ffi::{c_char, CStr},
     net::SocketAddr,
