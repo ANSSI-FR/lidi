@@ -45,7 +45,7 @@ jobs:
         id: docker_meta
         with:
           # images: docker.io/anssi/lidi-${{ matrix.lidi_service }}
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.lidi_service }}
+          images: ghcr.io/${{ github.repository }}-${{ matrix.lidi_service }}
           tags: |
               type=semver,pattern={{version}}
               type=semver,pattern={{major}}.{{minor}}
