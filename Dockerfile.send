@@ -1,0 +1,8 @@
+FROM rust:latest AS builder
+WORKDIR /usr/src/lidi
+COPY . .
+RUN cargo install --path .
+
+FROM debian:buster-slim
+COPY --from=builder /usr/local/cargo/bin/diode-send /usr/local/bin
+ENTRYPOINT ["diode-send"]
