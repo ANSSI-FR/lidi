@@ -13,8 +13,7 @@ services:
     image: diode:send
     build:
       context: .
-      dockerfile: Dockerfile
-      target: send
+      dockerfile: Dockerfile.send
     networks:
       diode_net:
         ipv4_address: 172.16.0.2
@@ -32,8 +31,7 @@ services:
     image: diode:receive
     build:
       context: .
-      dockerfile: Dockerfile
-      target: receive
+      dockerfile: Dockerfile.receive
     networks:
       diode_net:
         ipv4_address: 172.16.0.3
