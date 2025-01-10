@@ -1,5 +1,5 @@
 use clap::{Arg, ArgGroup, Command};
-use rand::Rng;
+use rand::RngCore;
 use std::{env, io::Write, net, os::unix, path, str::FromStr};
 
 fn main() {
