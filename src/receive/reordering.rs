@@ -20,7 +20,8 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
         let (resync_needed, resync_block_id) = receiver.resync_needed_block_id.take();
 
         if resync_needed {
-            log::debug!("forced resynchronization");
+            log::debug!("forced resynchronization, propagating it");
+            receiver.to_dispatch.send(None)?;
             if pending_messages.iter().any(Option::is_some) {
                 log::warn!("forced resynchronization with pending messages, dropping everything");
                 pending_messages.fill_with(|| None);
