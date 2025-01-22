@@ -56,7 +56,6 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
                     }
 
                     failed_transfers.insert(client_id);
-                    ended_transfers.insert(client_id, client_sendq);
                 }
                 active_transfers = BTreeMap::new();
                 continue;
