@@ -58,7 +58,7 @@ fn start<D>(mut diode: D, buffer_size: usize)
 where
     D: Write,
 {
-    let mut thread_rng = rand::thread_rng();
+    let mut thread_rng = rand::rng();
     let mut buffer = vec![0u8; buffer_size];
     thread_rng.fill_bytes(&mut buffer);
 
