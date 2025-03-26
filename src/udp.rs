@@ -125,7 +125,7 @@ impl UdpMessages<UdpRecv> {
         };
 
         if nb_msg == -1 {
-            Err(io::Error::new(io::ErrorKind::Other, "libc::recvmmsg"))
+            Err(io::Error::other("libc::recvmmsg"))
         } else {
             Ok(self
                 .buffers
@@ -163,7 +163,7 @@ impl UdpMessages<UdpSend> {
                     }
 
                     if nb_msg == -1 {
-                        return Err(io::Error::new(io::ErrorKind::Other, "libc::sendmmsg"));
+                        return Err(io::Error::other("libc::sendmmsg"));
                     }
 
                     let send_duration = start_time.elapsed().as_secs_f64();
@@ -197,7 +197,7 @@ impl UdpMessages<UdpSend> {
                     );
                 }
                 if nb_msg == -1 {
-                    return Err(io::Error::new(io::ErrorKind::Other, "libc::sendmmsg"));
+                    return Err(io::Error::other("libc::sendmmsg"));
                 }
                 if nb_msg as usize != to_send {
                     log::warn!("nb prepared messages doesn't match with nb sent messages");
