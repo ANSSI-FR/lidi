@@ -9,7 +9,7 @@ use std::{
     str::FromStr,
 };
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn diode_new_config(
     ptr_addr: *const c_char,
@@ -30,7 +30,7 @@ pub unsafe extern "C" fn diode_new_config(
     Box::into_raw(config)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn diode_free_config(ptr: *mut file::Config<aux::DiodeSend>) {
     if ptr.is_null() {
@@ -41,7 +41,7 @@ pub unsafe extern "C" fn diode_free_config(ptr: *mut file::Config<aux::DiodeSend
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn diode_send_file(
     ptr: *mut file::Config<aux::DiodeSend>,
@@ -61,7 +61,7 @@ pub unsafe extern "C" fn diode_send_file(
     file::send::send_file(config, &rust_filepath).unwrap_or(0) as u32
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn diode_receive_files(
     ptr: *mut file::Config<aux::DiodeSend>,
