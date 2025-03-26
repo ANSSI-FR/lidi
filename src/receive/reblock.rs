@@ -83,7 +83,9 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             }
 
             if message_block_id != block_id.wrapping_add(1) {
-                log::warn!("discarding packet with block_id {message_block_id} (current block_id is {block_id})");
+                log::warn!(
+                    "discarding packet with block_id {message_block_id} (current block_id is {block_id})"
+                );
                 continue;
             }
 
