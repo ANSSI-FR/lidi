@@ -55,7 +55,9 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
             .replace(message)
             .is_some()
         {
-            log::error!("received a new block {block_id} but existing one was not sent to dispatch, synchronization lost, dropping everything");
+            log::error!(
+                "received a new block {block_id} but existing one was not sent to dispatch, synchronization lost, dropping everything"
+            );
             pending_messages.fill_with(|| None);
             receiver.to_dispatch.send(None)?;
         }
