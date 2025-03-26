@@ -61,7 +61,9 @@ where
                         return Ok(());
                     }
                     protocol::MessageType::End => {
-                        log::info!("client {client_id:x}: finished transfer, {transmitted} bytes transmitted");
+                        log::info!(
+                            "client {client_id:x}: finished transfer, {transmitted} bytes transmitted"
+                        );
                         client.flush()?;
                         return Ok(());
                     }
