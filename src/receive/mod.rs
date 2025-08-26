@@ -25,7 +25,7 @@
 use core_affinity::CoreId;
 use crossbeam_channel::{Receiver, Sender};
 use log::debug;
-use metrics::counter;
+use metrics::{counter, histogram};
 use packet::Packet;
 
 use crate::config::DiodeConfig;
@@ -623,7 +623,8 @@ impl ReceiverConfig {
         session_id: u8,
         encoded_packets: Vec<EncodingPacket>,
     ) -> ReceiverBlock {
-        if encoded_packets.len() == decoding.capacity() {
+        let missing_packets = decoding.capacity() - encoded_packets.len();
+        if missing_packets == 0 {
             log::trace!(
                 "reorder: session {} trying to decode block {} with all {} packets (flags {})",
                 session_id,
@@ -640,18 +641,22 @@ impl ReceiverConfig {
                 decoding.capacity(),
                 flags
             );
+
+            counter!("rx_udp_pkts_missing").increment(missing_packets as u64);
+            histogram!("rx_udp_pkts_missing_histogram", "pkts_missing" => missing_packets.to_string())
+                .record(1);
         }
 
         let block = match decoding.decode(encoded_packets, block_id) {
             None => {
                 counter!("rx_decoding_blocks_err").increment(1);
-                log::debug!("decode: lost block {block_id}");
+                log::info!("decode: session {session_id} lost block {block_id} ({missing_packets} packets missing)");
                 None
             }
             Some(block) => {
                 counter!("rx_decoding_blocks").increment(1);
                 log::debug!(
-                    "decode: block {} decoded with {} bytes!",
+                    "decode: session {session_id} block {} decoded with {} bytes!",
                     block_id,
                     block.len()
                 );

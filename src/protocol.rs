@@ -270,6 +270,10 @@ impl LidiParameters {
         self.heartbeat
     }
 
+    pub fn packets(&self) -> usize {
+        self.encoding_block_size as usize + self.repair_block_size as usize
+    }
+
     pub fn serialize(&self) -> [u8; 19] {
         let mut payload = [0; 19];
 

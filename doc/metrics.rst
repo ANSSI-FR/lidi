@@ -53,6 +53,7 @@ All stats of diode-receive starts with `rx`.
 * rx_udp_deserialize_header_err : total number of lost UDP packets due to corrupted header
 * rx_udp_recv_pkts_err          : total number of read socket failure
 * rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase "udp_packets_queue_size" receiver config value or reduce throughput with rate limiter or try to optimize RX performance receiver :ref:`multithreading`.
+* rx_udp_pkts_missing           : total number of missing UDP packets when trying to decode blocks (packet drops, header error or queue full...).
 * rx_tcp_blocks                 : total number of blocks sent on TCP session
 * rx_tcp_blocks_err             : total number of lost blocks, not sent on TCP session (socket error)
 * rx_tcp_bytes                  : total number of bytes sent on TCP session
@@ -63,3 +64,27 @@ All stats of diode-receive starts with `rx`.
 * rx_pop_timeout_none           : a timeout happens when there was no waiting packet for the current block.
 * rx_send_block_err             : total number of lost blocks because it was impossible to push it to the TCP sender queue (most probably because it is full). Try to increase "tcp_blocks_queue_size" receiver config value or adjust sender/receiver TCP throughput.
 * rx_skip_block                 : number of completed blocks dropped because the session is broken (we lost a previous block).
+
+Summary of data loss metrics (diode-receive side)
+-------------------------------------------------
+
+Packet loss metrics
+"""""""""""""""""""
+
+If too many packets are lost, we will see block decoding error.
+
+ * rx_udp_deserialize_header_err
+ * rx_udp_send_reorder_err
+ * rx_udp_pkts_missing
+ * rx_udp_recv_pkts_err (maybe ? not sure of possible error case)
+
+
+Block loss metrics
+""""""""""""""""""
+
+If a block is lost, the whole session is lost.
+
+ * rx_decoding_blocks_err
+ * rx_send_block_err
+ * rx_tcp_blocks_err
+
