@@ -49,6 +49,10 @@ pub struct DiodeReceiverConfig {
     pub core_affinity: Option<Vec<usize>>,
     /// prometheus port (receiver)
     pub metrics: Option<String>,
+    /// Size of the queue between UDP receiver and block reorder/decoder. Default is 10k packets.
+    pub udp_packets_queue_size: Option<usize>,
+    /// Size of the queue between block reorder/decoder and TCP sender. Default is 1k blocks.
+    pub tcp_blocks_queue_size: Option<usize>,
 }
 
 pub const MAX_MTU: usize = 9000;

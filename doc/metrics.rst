@@ -47,12 +47,12 @@ All stats of diode-receive starts with `rx`.
 
 * rx_sessions                   : total number of completed TCP sessions
 * rx_decoding_blocks            : total number of blocks successfully decoded
-* rx_decoding_blocks_err        : total number of blocks lost due to decoding error
+* rx_decoding_blocks_err        : total number of blocks lost due to decoding error: too many packets missing or corrupted at the time of decoding.
 * rx_udp_pkts                   : total number of UDP packets successfully received 
 * rx_udp_bytes                  : total number of bytes successfully received from UDP packets
 * rx_udp_deserialize_header_err : total number of lost UDP packets due to corrupted header
 * rx_udp_recv_pkts_err          : total number of read socket failure
-* rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue
+* rx_udp_send_reorder_err       : total number of lost UDP packets because it was impossible to push it to the reorder/decode queue.  Try to increase "udp_packets_queue_size" receiver config value or reduce throughput with rate limiter or try to optimize RX performance receiver :ref:`multithreading`.
 * rx_tcp_blocks                 : total number of blocks sent on TCP session
 * rx_tcp_blocks_err             : total number of lost blocks, not sent on TCP session (socket error)
 * rx_tcp_bytes                  : total number of bytes sent on TCP session
@@ -61,4 +61,5 @@ All stats of diode-receive starts with `rx`.
 * rx_pop_ok_none                : total number of packets sent to reordering module, without finishing a block. Reordering module kept this packet and returned nothing, waiting for other packets to finish a block
 * rx_pop_timeout_with_packets   : the current block did not receive the needed packets to complete it before a timeout occurs. We will try to decode the block and maybe succeed if we received enough data.
 * rx_pop_timeout_none           : a timeout happens when there was no waiting packet for the current block.
+* rx_send_block_err             : total number of lost blocks because it was impossible to push it to the TCP sender queue (most probably because it is full). Try to increase "tcp_blocks_queue_size" receiver config value or adjust sender/receiver TCP throughput.
 * rx_skip_block                 : number of completed blocks dropped because the session is broken (we lost a previous block).

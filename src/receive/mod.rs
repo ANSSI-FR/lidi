@@ -24,6 +24,7 @@
 
 use core_affinity::CoreId;
 use crossbeam_channel::{Receiver, Sender};
+use log::debug;
 use metrics::counter;
 use packet::Packet;
 
@@ -99,11 +100,6 @@ impl TryFrom<DiodeConfig> for ReceiverConfig {
             + protocol::nb_repair_packets(&object_transmission_info, config.repair_block_size)
                 as u16;
 
-        // Set a maximum channel size to 1.000 packets. Since one packet is between 1500 and 9000 bytes and there is around 30 to 100 packets per block, this queue can consume up to 1 GB.
-        let (to_reorder, for_reorder) = crossbeam_channel::bounded::<Packet>(10_000);
-        // With the actual algorithm, this can grow up when reconnecting tcp connection to diode-receive-file / if there is some issue to connect to diode-receive-file
-        let (to_send, for_send) = crossbeam_channel::bounded::<ReceiverBlock>(1_000);
-
         match config.receiver {
             None => Err(Error::new(
                 ErrorKind::InvalidData,
@@ -111,45 +107,62 @@ impl TryFrom<DiodeConfig> for ReceiverConfig {
             )),
 
             Some(config_receiver) => {
-                Ok(Self {
-                    // from command line
-                    encoding_block_size: config.encoding_block_size,
-                    repair_block_size: config.repair_block_size,
-                    // allow 2 times the sender interval
-                    heartbeat_interval: Duration::from_millis(config.heartbeat as u64),
-                    from_udp: IpAddr::from_str(&config.udp_addr).map_err(|e| {
-                        Error::new(
-                            ErrorKind::InvalidData,
-                            format!("cannot parse udp_addr address: {e}"),
-                        )
-                    })?,
-                    from_udp_mtu: config.udp_mtu,
-                    udp_port_list: config.udp_port,
-                    to_tcp: SocketAddr::from_str(&config_receiver.to_tcp).map_err(|e| {
-                        Error::new(
-                            ErrorKind::InvalidData,
-                            format!("cannot parse to_tcp address: {e}"),
-                        )
-                    })?,
-                    block_expiration_timeout: Duration::from_millis(
-                        config_receiver
-                            .block_expiration_timeout
-                            .unwrap_or(config.heartbeat) as _,
-                    ),
-                    core_affinity: config_receiver.core_affinity,
-                    // computed
-                    object_transmission_info,
-                    to_buffer_size,
-                    from_max_messages,
-                    to_reorder,
-                    for_reorder,
-                    for_send,
-                    to_send,
-                    session_expiration_timeout: Duration::from_millis(
-                        config_receiver
-                            .session_expiration_timeout
-                            .unwrap_or(config.heartbeat * 5) as _,
-                    ),
+                Ok({
+                    let udp_packets_queue_size =
+                        config_receiver.udp_packets_queue_size.unwrap_or(10_000);
+                    debug!("Using udp packet queue size of size {udp_packets_queue_size}");
+                    // Set a maximum channel size to 1.000 packets. Since one packet is between 1500 and 9000 bytes and there is around 30 to 100 packets per block, this queue can consume up to 1 GB.
+                    let (to_reorder, for_reorder) =
+                        crossbeam_channel::bounded::<Packet>(udp_packets_queue_size);
+
+                    let tcp_blocks_queue_size =
+                        config_receiver.tcp_blocks_queue_size.unwrap_or(1_000);
+                    debug!("Using tcp block queue size of size {tcp_blocks_queue_size}");
+
+                    // With the actual algorithm, this can grow up when reconnecting tcp connection to diode-receive-file / if there is some issue to connect to diode-receive-file
+                    let (to_send, for_send) =
+                        crossbeam_channel::bounded::<ReceiverBlock>(tcp_blocks_queue_size);
+
+                    Self {
+                        // from command line
+                        encoding_block_size: config.encoding_block_size,
+                        repair_block_size: config.repair_block_size,
+                        // allow 2 times the sender interval
+                        heartbeat_interval: Duration::from_millis(config.heartbeat as u64),
+                        from_udp: IpAddr::from_str(&config.udp_addr).map_err(|e| {
+                            Error::new(
+                                ErrorKind::InvalidData,
+                                format!("cannot parse udp_addr address: {e}"),
+                            )
+                        })?,
+                        from_udp_mtu: config.udp_mtu,
+                        udp_port_list: config.udp_port,
+                        to_tcp: SocketAddr::from_str(&config_receiver.to_tcp).map_err(|e| {
+                            Error::new(
+                                ErrorKind::InvalidData,
+                                format!("cannot parse to_tcp address: {e}"),
+                            )
+                        })?,
+                        block_expiration_timeout: Duration::from_millis(
+                            config_receiver
+                                .block_expiration_timeout
+                                .unwrap_or(config.heartbeat) as _,
+                        ),
+                        core_affinity: config_receiver.core_affinity,
+                        // computed
+                        object_transmission_info,
+                        to_buffer_size,
+                        from_max_messages,
+                        to_reorder,
+                        for_reorder,
+                        for_send,
+                        to_send,
+                        session_expiration_timeout: Duration::from_millis(
+                            config_receiver
+                                .session_expiration_timeout
+                                .unwrap_or(config.heartbeat * 5) as _,
+                        ),
+                    }
                 })
             }
         }
@@ -587,8 +600,16 @@ impl ReceiverConfig {
             };
 
             let block = Self::decode(&decoding, flags, block_id, session_id, encoded_packets);
-            if let Err(e) = to_send.send(block) {
-                log::warn!("can't send block to tcp: {e}");
+            if let Err(e) = to_send.try_send(block) {
+                counter!("rx_send_block_err").increment(1);
+                match e {
+                    crossbeam_channel::TrySendError::Disconnected(_) => {
+                        log::warn!("can't send block to tcp: queue disconnected");
+                    }
+                    crossbeam_channel::TrySendError::Full(_) => {
+                        log::debug!("can't send block to tcp: queue full");
+                    }
+                }
             }
         }
     }
@@ -655,9 +676,18 @@ impl ReceiverConfig {
                 Ok(len) => {
                     if let Ok(header) = Header::deserialize(&buf) {
                         let pkt = Packet::new(buf, len, header);
-                        if let Err(e) = output.send(pkt) {
-                            log::warn!("udp: Can't send packet to reorder: {e}");
+                        if let Err(e) = output.try_send(pkt) {
                             counter!("rx_udp_send_reorder_err").increment(1);
+                            match e {
+                                crossbeam_channel::TrySendError::Disconnected(_) => {
+                                    log::warn!(
+                                        "udp: Can't send packet to reorder: queue disconnected"
+                                    )
+                                }
+                                crossbeam_channel::TrySendError::Full(_) => {
+                                    log::debug!("udp: Can't send packet to reorder: queue full")
+                                }
+                            }
                         }
                     } else {
                         log::warn!("udp: Can't deserialize header");

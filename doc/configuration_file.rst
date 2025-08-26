@@ -78,6 +78,12 @@ Here is a sample of the configuration file :
    
    # core_affinity = [ 1 ]
 
+   # Size of the queue between UDP receiver and block reorder/decoder. Default is 10k packets.
+   # udp_packets_queue_size = 10000
+   
+   # Size of the queue between block reorder/decoder and TCP sender. Default is 1k blocks.
+   # tcp_blocks_queue_size = 1000
+
 Options are detailed in the following chapters:
 
 * Mandatory network options
