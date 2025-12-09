@@ -44,6 +44,13 @@ fn main() {
                 .allow_hyphen_values(true)
                 .required(true),
         )
+        .arg(
+            Arg::new("log_file_path")
+                .long("log_file_path")
+                .value_name("path")
+                .default_value(None)
+                .help("Path to the log file"),
+        )
         .get_matches();
 
     let to_tcp = args
@@ -59,6 +66,9 @@ fn main() {
         .expect("required")
         .cloned()
         .collect::<Vec<_>>();
+    let log_file_path = args
+        .get_one::<String>("log_file_path")
+        .map(|s| path::PathBuf::from_str(s).expect("log_file_path must point to a valid path"));
 
     let diode = if let Some(to_tcp) = to_tcp {
         aux::DiodeSend::Tcp(to_tcp)
@@ -72,7 +82,7 @@ fn main() {
         hash,
     };
 
-    diode::init_logger();
+    let _ = diode::init_logger(log_file_path);
 
     if let Err(e) = file::send::send_files(&config, &files) {
         log::error!("{e}");

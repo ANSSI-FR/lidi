@@ -1,5 +1,6 @@
 use clap::{Arg, ArgAction, Command};
 use diode::send;
+use std::path::PathBuf;
 use std::{
     env,
     io::Read,
@@ -24,6 +25,7 @@ struct Config {
     to_udp_mtu: u16,
     heartbeat: Option<time::Duration>,
     bandwidth_limit: f64,
+    log_file_path: Option<PathBuf>,
 }
 
 fn command_args() -> Config {
@@ -129,6 +131,13 @@ fn command_args() -> Config {
                 .value_parser(clap::value_parser!(f64))
                 .help("Set the bandwidth limit for transfer speed between pitcher and catcher in Mbit/s. Use 0 to disable the limit."),
         )
+        .arg(
+            Arg::new("log_file_path")
+                .long("log_file_path")
+                .value_name("path")
+                .default_value(None)
+                .help("Path to the log file"),
+        )
         .get_matches();
 
     let from_tcp = net::SocketAddr::from_str(args.get_one::<String>("from_tcp").expect("default"))
@@ -156,6 +165,9 @@ fn command_args() -> Config {
         let hb = *args.get_one::<u16>("heartbeat").expect("default") as u64;
         (hb != 0).then(|| time::Duration::from_secs(hb))
     };
+    let log_file_path = args
+        .get_one::<String>("log_file_path")
+        .map(|s| path::PathBuf::from_str(s).expect("log_file_path must point to a valid path"));
 
     let bandwidth_limit = {
         let target_bandwidth_mbps = *args.get_one::<f64>("bandwidth_limit").expect("default"); // Target bandwidth in Mbps
@@ -176,6 +188,7 @@ fn command_args() -> Config {
         to_udp_mtu,
         heartbeat,
         bandwidth_limit,
+        log_file_path,
     }
 }
 
@@ -251,7 +264,7 @@ fn tcp_listener_loop(
 fn main() {
     let config = command_args();
 
-    diode::init_logger();
+    let _ = diode::init_logger(config.log_file_path);
 
     let sender = send::Sender::new(send::Config {
         nb_clients: config.nb_clients,

@@ -40,6 +40,13 @@ fn main() {
                 .default_value(".")
                 .help("Output directory"),
         )
+        .arg(
+            Arg::new("log_file_path")
+                .long("log_file_path")
+                .value_name("path")
+                .default_value(None)
+                .help("Path to the log file"),
+        )
         .get_matches();
 
     let from_tcp = args
@@ -53,6 +60,10 @@ fn main() {
     let output_directory =
         path::PathBuf::from(args.get_one::<String>("output_directory").expect("default"));
 
+    let log_file_path = args
+        .get_one::<String>("log_file_path")
+        .map(|s| path::PathBuf::from_str(s).expect("log_file_path must point to a valid path"));
+
     let diode = aux::DiodeReceive {
         from_tcp,
         from_unix,
@@ -64,7 +75,7 @@ fn main() {
         hash,
     };
 
-    diode::init_logger();
+    let _ = diode::init_logger(log_file_path);
 
     if let Err(e) = file::receive::receive_files(&config, &output_directory) {
         log::error!("{e}");

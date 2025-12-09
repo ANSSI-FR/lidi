@@ -1,4 +1,10 @@
-use std::str::FromStr;
+use simplelog::{
+    ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode, WriteLogger,
+};
+use std::fs::File;
+use std::path::Path;
+
+use std::path::PathBuf;
 
 pub mod aux;
 pub mod protocol;
@@ -15,25 +21,41 @@ pub mod sock_utils;
 #[allow(unsafe_code)]
 pub mod udp;
 
-pub fn init_logger() {
+pub fn init_logger(log_path: Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
     let level_filter = std::env::var("RUST_LOG")
-        .map_err(|_| ())
-        .and_then(|rust_log| simplelog::LevelFilter::from_str(&rust_log).map_err(|_| ()))
-        .unwrap_or(simplelog::LevelFilter::Info);
+        .ok()
+        .and_then(|rust_log| rust_log.parse::<LevelFilter>().ok())
+        .unwrap_or(LevelFilter::Info);
 
-    let config = simplelog::ConfigBuilder::new()
+    let config = ConfigBuilder::new()
         .set_level_padding(simplelog::LevelPadding::Right)
-        .set_target_level(simplelog::LevelFilter::Off)
-        .set_thread_level(simplelog::LevelFilter::Info)
+        .set_target_level(LevelFilter::Off)
+        .set_thread_level(LevelFilter::Info)
         .set_thread_mode(simplelog::ThreadLogMode::Names)
         .set_time_format_rfc2822()
         .build();
 
-    simplelog::TermLogger::init(
+    let mut loggers: Vec<Box<dyn simplelog::SharedLogger>> = Vec::new();
+
+    loggers.push(TermLogger::new(
         level_filter,
-        config,
-        simplelog::TerminalMode::Mixed,
-        simplelog::ColorChoice::Auto,
-    )
-    .expect("failed to initialize termlogger");
+        config.clone(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    ));
+
+    if let Some(ref path) = log_path {
+        match File::create(Path::new(&path)) {
+            Ok(file) => {
+                loggers.push(WriteLogger::new(level_filter, config, file));
+                CombinedLogger::init(loggers)?;
+            }
+            Err(e) => {
+                CombinedLogger::init(loggers)?;
+                log::error!("Failed to create file at {:?}: {:?}", log_path, e);
+            }
+        }
+    }
+
+    Ok(())
 }

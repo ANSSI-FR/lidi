@@ -1,5 +1,6 @@
 use clap::{Arg, ArgGroup, Command};
 use diode::receive;
+use std::path::PathBuf;
 use std::{
     env, fmt,
     io::{self, Write},
@@ -22,6 +23,7 @@ struct Config {
     nb_decoding_threads: u8,
     to: ClientConfig,
     heartbeat: Option<time::Duration>,
+    log_file_path: Option<PathBuf>,
 }
 
 enum ClientConfig {
@@ -129,6 +131,13 @@ fn command_args() -> Config {
                 .value_parser(clap::value_parser!(u16))
                 .help("Maximum duration expected between heartbeat messages, 0 to disable"),
         )
+        .arg(
+            Arg::new("log_file_path")
+                .long("log_file_path")
+                .value_name("path")
+                .default_value(None)
+                .help("Path to the log file"),
+        )
         .get_matches();
 
     let from_udp = net::SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
@@ -144,6 +153,10 @@ fn command_args() -> Config {
             .expect("default")
             .get(),
     );
+    let log_file_path = args
+        .get_one::<String>("log_file_path")
+        .map(|s| path::PathBuf::from_str(s).expect("log_file_path must point to a valid path"));
+
     let to_tcp = args
         .get_one::<String>("to_tcp")
         .map(|s| net::SocketAddr::from_str(s).expect("to_tcp must be of the form ip:port"));
@@ -173,6 +186,7 @@ fn command_args() -> Config {
         flush_timeout,
         to,
         heartbeat,
+        log_file_path,
     }
 }
 
@@ -226,7 +240,7 @@ impl TryFrom<&ClientConfig> for Client {
 fn main() {
     let config = command_args();
 
-    diode::init_logger();
+    let _ = diode::init_logger(config.log_file_path);
 
     log::info!("sending traffic to {}", config.to);
 

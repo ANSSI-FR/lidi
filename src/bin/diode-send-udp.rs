@@ -29,6 +29,13 @@ fn main() {
                 .required(true)
                 .help("IP address and port to receive UDP packets"),
         )
+        .arg(
+            Arg::new("log_file_path")
+                .long("log_file_path")
+                .value_name("path")
+                .default_value(None)
+                .help("Path to the log file"),
+        )
         .get_matches();
 
     let to_tcp = args
@@ -41,7 +48,9 @@ fn main() {
         .get_one::<String>("from_udp")
         .map(|s| net::SocketAddr::from_str(s).expect("from_udp must be of the form ip:port"))
         .expect("from_udp parameter is required");
-
+    let log_file_path = args
+        .get_one::<String>("log_file_path")
+        .map(|s| path::PathBuf::from_str(s).expect("log_file_path must point to a valid path"));
     let diode = if let Some(to_tcp) = to_tcp {
         aux::DiodeSend::Tcp(to_tcp)
     } else {
@@ -53,7 +62,7 @@ fn main() {
         buffer_size: u16::MAX as usize,
     };
 
-    diode::init_logger();
+    let _ = diode::init_logger(log_file_path);
 
     if let Err(e) = udp::send::send(&config, from_udp) {
         log::error!("{e}");
