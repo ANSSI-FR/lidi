@@ -1,18 +1,29 @@
-//! Optional worker that periodically inserts [crate::protocol] heartbeat message in the encoding queue
+//! Optional worker that periodically inserts [`crate::protocol`] heartbeat block in the encoding queue
 
 use crate::{protocol, send};
+use std::thread;
 
 pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
-    let alarm =
-        crossbeam_channel::tick(sender.config.heartbeat_interval.expect("heartbeat enabled"));
+    let Some(duration) = sender.config.heartbeat_interval else {
+        return Err(send::Error::Other(
+            "no heartbeat duration but heartbeat enabled".into(),
+        ));
+    };
 
     loop {
-        sender.to_encoding.send(protocol::Message::new(
-            protocol::MessageType::Heartbeat,
-            sender.from_buffer_size,
+        if sender.broken_pipeline.load() {
+            return Ok(());
+        }
+
+        log::debug!("send heartbeat");
+
+        sender.to_encoding.send(protocol::Block::new(
+            protocol::BlockType::Heartbeat,
+            &sender.raptorq,
             0,
             None,
-        ))?;
-        let _ = alarm.recv()?;
+        )?)?;
+
+        thread::sleep(duration);
     }
 }

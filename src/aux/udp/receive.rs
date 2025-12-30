@@ -40,7 +40,7 @@ fn receive_unix_loop(
     config: &udp::Config<aux::DiodeReceive>,
     to_udp_bind: net::SocketAddr,
     to_udp: net::SocketAddr,
-    server: unix::net::UnixListener,
+    server: &unix::net::UnixListener,
 ) -> Result<(), udp::Error> {
     loop {
         let (client, client_addr) = server.accept()?;
@@ -61,7 +61,7 @@ fn receive_tcp_loop(
     config: &udp::Config<aux::DiodeReceive>,
     to_udp_bind: net::SocketAddr,
     to_udp: net::SocketAddr,
-    server: net::TcpListener,
+    server: &net::TcpListener,
 ) -> Result<(), udp::Error> {
     loop {
         let (client, client_addr) = server.accept()?;
@@ -87,12 +87,12 @@ pub fn receive(
         }
 
         let server = unix::net::UnixListener::bind(from_unix)?;
-        receive_unix_loop(config, to_udp_bind, to_udp, server)?;
+        receive_unix_loop(config, to_udp_bind, to_udp, &server)?;
     }
 
     if let Some(from_tcp) = &config.diode.from_tcp {
         let server = net::TcpListener::bind(from_tcp)?;
-        receive_tcp_loop(config, to_udp_bind, to_udp, server)?;
+        receive_tcp_loop(config, to_udp_bind, to_udp, &server)?;
     }
 
     Ok(())

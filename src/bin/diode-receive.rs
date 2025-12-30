@@ -1,179 +1,118 @@
-use clap::{Arg, ArgGroup, Command};
-use diode::receive;
+use clap::Parser;
+use diode::{protocol, receive};
 use std::{
-    env, fmt,
     io::{self, Write},
     net,
-    num::NonZeroU64,
     os::{fd::AsRawFd, unix},
     path,
     str::FromStr,
     thread, time,
 };
 
-struct Config {
-    from_udp: net::SocketAddr,
-    from_udp_mtu: u16,
-    nb_clients: u16,
-    encoding_block_size: u64,
-    repair_block_size: u32,
-    udp_buffer_size: u32,
-    flush_timeout: time::Duration,
-    nb_decoding_threads: u8,
-    to: ClientConfig,
+fn parse_duration_seconds(input: &str) -> Result<time::Duration, <u64 as FromStr>::Err> {
+    let input = input.parse()?;
+    Ok(time::Duration::from_secs(input))
+}
+
+#[derive(clap::Args)]
+#[group(required = true, multiple = false)]
+struct Clients {
+    #[clap(
+        value_name = "ip:port",
+        long,
+        help = "IP address and port to connect to TCP server"
+    )]
+    to_tcp: Option<net::SocketAddr>,
+    #[clap(
+        value_name = "path",
+        long,
+        help = "Path of socket to connect to Unix server"
+    )]
+    to_unix: Option<path::PathBuf>,
+}
+
+#[derive(Parser)]
+struct Args {
+    #[clap(
+        default_value = "Info",
+        value_name = "Error|Warn|Info|Debug|Trace",
+        long,
+        help = "Log level"
+    )]
+    log_level: log::LevelFilter,
+    #[clap(
+        value_name = "ip:port",
+        long,
+        help = "IP address and port where to receive UDP packets from diode-send"
+    )]
+    from: net::SocketAddr,
+    #[clap(
+        default_value = "1500",
+        value_name = "nb_bytes",
+        long,
+        help = "MTU of the input UDP link"
+    )]
+    from_mtu: u16,
+    #[clap(
+        value_name = "2..1024",
+        long,
+        help = "Use recvmmsg to receive from 2 to 1024 UDP datagrams at once"
+    )]
+    batch: Option<u32>,
+    #[clap(
+        default_value = "2",
+        value_name = "seconds",
+        value_parser = parse_duration_seconds,
+        long,
+        help = "Reset diode if no data are received after duration")]
+    reset_timeout: time::Duration,
+    #[clap(
+        default_value = "1",
+        value_name = "0..255",
+        long,
+        help = "Number of parallel RaptorQ decode threads"
+    )]
+    decode_threads: u8,
+    #[clap(
+        default_value = "2",
+        value_name = "clients",
+        long,
+        help = "Max number of simultaneous clients/transfers"
+    )]
+    max_clients: protocol::ClientId,
+    #[clap(long, help = "Flush immediately data to clients")]
+    flush: bool,
+    #[clap(
+        value_name = "seconds",
+        value_parser = parse_duration_seconds,
+        long,
+        help = "Abort connections if no data received after duration (0 = no abort)")]
+    abort_timeout: Option<time::Duration>,
+    #[clap(flatten)]
+    to: Clients,
+    #[clap(
+        default_value = "734928",
+        value_name = "nb_bytes",
+        long,
+        help = "Size of RaptorQ block in bytes"
+    )]
+    block: u32,
+    #[clap(
+        default_value = "2",
+        value_name = "percentage",
+        long,
+        help = "Percentage of RaptorQ repair data"
+    )]
+    repair: u32,
+    #[clap(
+        default_value = "10",
+        value_name = "nb_seconds",
+        value_parser = parse_duration_seconds,
+        long,
+        help = "Maximum duration expected between heartbeat messages, 0 to disable")]
     heartbeat: Option<time::Duration>,
-}
-
-enum ClientConfig {
-    Tcp(net::SocketAddr),
-    Unix(path::PathBuf),
-}
-
-impl fmt::Display for ClientConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            Self::Tcp(s) => write!(f, "TCP {s}"),
-            Self::Unix(p) => write!(f, "Unix {}", p.display()),
-        }
-    }
-}
-
-fn command_args() -> Config {
-    let args = Command::new(env!("CARGO_BIN_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("from_udp")
-                .long("from_udp")
-                .value_name("ip:port")
-                .default_value("127.0.0.1:6000")
-                .help("IP address and port where to receive UDP packets from diode-send"),
-        )
-        .arg(
-            Arg::new("from_udp_mtu")
-                .long("from_udp_mtu")
-                .value_name("nb_bytes")
-                .default_value("1500") // mtu
-                .value_parser(clap::value_parser!(u16))
-                .help("MTU of the input UDP link"),
-        )
-        .arg(
-            Arg::new("nb_clients")
-                .long("nb_clients")
-                .value_name("nb")
-                .default_value("2")
-                .value_parser(clap::value_parser!(u16))
-                .help("Number of simultaneous transfers"),
-        )
-        .arg(
-            Arg::new("nb_decoding_threads")
-                .long("nb_decoding_threads")
-                .value_name("nb")
-                .default_value("1")
-                .value_parser(clap::value_parser!(u8))
-                .help("Number of parallel RaptorQ decoding threads"),
-        )
-        .arg(
-            Arg::new("encoding_block_size")
-                .long("encoding_block_size")
-                .value_name("nb_bytes")
-                .default_value("60000") // (mtu * 40), optimal parameter -- to align with other size !
-                .value_parser(clap::value_parser!(u64))
-                .help("Size of RaptorQ block"),
-        )
-        .arg(
-            Arg::new("repair_block_size")
-                .long("repair_block_size")
-                .value_name("ratior")
-                .default_value("6000") // mtu * 4
-                .value_parser(clap::value_parser!(u32))
-                .help("Size of repair data in bytes"),
-        )
-        .arg(
-            Arg::new("udp_buffer_size")
-                .long("udp_buffer_size")
-                .value_name("nb_bytes")
-                .default_value("1073741823") // i32::MAX / 2
-                .value_parser(clap::value_parser!(u32).range(..1073741824))
-                .help("Size of UDP socket recv buffer"),
-        )
-        .arg(
-            Arg::new("flush_timeout")
-                .long("flush_timeout")
-                .value_name("nb_milliseconds")
-                .default_value("1000")
-                .value_parser(clap::value_parser!(NonZeroU64))
-                .help("Flush pending data after duration"),
-        )
-        .arg(
-            Arg::new("to_tcp")
-                .long("to_tcp")
-                .value_name("ip:port")
-                .help("IP address and port to connect to TCP server"),
-        )
-        .arg(
-            Arg::new("to_unix")
-                .long("to_unix")
-                .value_name("path")
-                .help("Path of socket to connect to Unix server"),
-        )
-        .group(
-            ArgGroup::new("to")
-                .required(true)
-                .args(["to_tcp", "to_unix"]),
-        )
-        .arg(
-            Arg::new("heartbeat")
-                .long("heartbeat")
-                .value_name("nb_seconds")
-                .default_value("10")
-                .value_parser(clap::value_parser!(u16))
-                .help("Maximum duration expected between heartbeat messages, 0 to disable"),
-        )
-        .get_matches();
-
-    let from_udp = net::SocketAddr::from_str(args.get_one::<String>("from_udp").expect("default"))
-        .expect("invalid from_udp parameter");
-    let from_udp_mtu = *args.get_one::<u16>("from_udp_mtu").expect("default");
-    let nb_clients = *args.get_one::<u16>("nb_clients").expect("default");
-    let nb_decoding_threads = *args.get_one::<u8>("nb_decoding_threads").expect("default");
-    let encoding_block_size = *args.get_one::<u64>("encoding_block_size").expect("default");
-    let udp_buffer_size = *args.get_one::<u32>("udp_buffer_size").expect("default");
-    let repair_block_size = *args.get_one::<u32>("repair_block_size").expect("default");
-    let flush_timeout = time::Duration::from_millis(
-        args.get_one::<NonZeroU64>("flush_timeout")
-            .expect("default")
-            .get(),
-    );
-    let to_tcp = args
-        .get_one::<String>("to_tcp")
-        .map(|s| net::SocketAddr::from_str(s).expect("to_tcp must be of the form ip:port"));
-    let to_unix = args
-        .get_one::<String>("to_unix")
-        .map(|s| path::PathBuf::from_str(s).expect("to_unix must point to a valid path"));
-
-    let heartbeat = {
-        let hb = *args.get_one::<u16>("heartbeat").expect("default") as u64;
-        (hb != 0).then(|| time::Duration::from_secs(hb))
-    };
-
-    let to = if let Some(to_tcp) = to_tcp {
-        ClientConfig::Tcp(to_tcp)
-    } else {
-        ClientConfig::Unix(to_unix.expect("to_tcp and to_unix are mutually exclusive"))
-    };
-
-    Config {
-        from_udp,
-        from_udp_mtu,
-        nb_clients,
-        nb_decoding_threads,
-        encoding_block_size,
-        repair_block_size,
-        udp_buffer_size,
-        flush_timeout,
-        to,
-        heartbeat,
-    }
+    #[clap(long, help = "Set CPU afinity for threads")]
+    cpu_affinity: bool,
 }
 
 enum Client {
@@ -206,44 +145,63 @@ impl AsRawFd for Client {
     }
 }
 
-impl TryFrom<&ClientConfig> for Client {
+impl TryFrom<&Clients> for Client {
     type Error = io::Error;
 
-    fn try_from(config: &ClientConfig) -> Result<Self, Self::Error> {
-        match config {
-            ClientConfig::Tcp(s) => {
-                let client = net::TcpStream::connect(s)?;
-                Ok(Self::Tcp(client))
-            }
-            ClientConfig::Unix(p) => {
-                let client = unix::net::UnixStream::connect(p)?;
-                Ok(Self::Unix(client))
-            }
+    fn try_from(clients: &Clients) -> Result<Self, Self::Error> {
+        if let Some(to_tcp) = clients.to_tcp.as_ref() {
+            let client = net::TcpStream::connect(to_tcp)?;
+            Ok(Self::Tcp(client))
+        } else if let Some(to_unix) = clients.to_unix.as_ref() {
+            let client = unix::net::UnixStream::connect(to_unix)?;
+            Ok(Self::Unix(client))
+        } else {
+            unreachable!()
         }
     }
 }
 
 fn main() {
-    let config = command_args();
+    let args = Args::parse();
 
-    diode::init_logger();
+    diode::init_logger(args.log_level);
 
-    log::info!("sending traffic to {}", config.to);
-
-    let receiver = receive::Receiver::new(
-        receive::Config {
-            from_udp: config.from_udp,
-            from_udp_mtu: config.from_udp_mtu,
-            nb_clients: config.nb_clients,
-            encoding_block_size: config.encoding_block_size,
-            repair_block_size: config.repair_block_size,
-            udp_buffer_size: config.udp_buffer_size,
-            flush_timeout: config.flush_timeout,
-            nb_decoding_threads: config.nb_decoding_threads,
-            heartbeat_interval: config.heartbeat,
-        },
-        || Client::try_from(&config.to),
+    log::info!(
+        "{} version {}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
     );
+
+    let raptorq = match protocol::RaptorQ::new(args.from_mtu, args.block, args.repair) {
+        Ok(raptorq) => raptorq,
+        Err(e) => {
+            log::error!("{e}");
+            return;
+        }
+    };
+
+    let receiver = match receive::Receiver::new(
+        receive::Config {
+            from: args.from,
+            from_mtu: args.from_mtu,
+            max_clients: args.max_clients,
+            flush: args.flush,
+            reset_timeout: args.reset_timeout,
+            nb_decode_threads: args.decode_threads,
+            abort_timeout: args.abort_timeout,
+            heartbeat_interval: args.heartbeat,
+            batch_receive: args.batch,
+            cpu_affinity: args.cpu_affinity,
+        },
+        raptorq,
+        || Client::try_from(&args.to),
+    ) {
+        Ok(receiver) => receiver,
+        Err(e) => {
+            log::error!("{e}");
+            return;
+        }
+    };
 
     thread::scope(|scope| {
         if let Err(e) = receiver.start(scope) {

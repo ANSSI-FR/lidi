@@ -47,7 +47,7 @@ fn send_file_aux<D>(
 where
     D: Read + Write,
 {
-    log::debug!("opening file \"{}\"", file_path);
+    log::debug!("opening file {file_path:?}");
 
     let file_path = path::PathBuf::from(file_path);
 
@@ -68,7 +68,7 @@ where
         .into_string()
         .map_err(|_| file::Error::Other("conversion from OsString to String failed".to_string()))?;
 
-    log::debug!("file name is \"{file_name}\"");
+    log::debug!("file name is {file_name:?}");
 
     let metadata = file.metadata()?;
     let permissions = metadata.permissions();

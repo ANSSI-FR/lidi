@@ -30,15 +30,15 @@ pub fn receive_files(
             }
 
             let server = unix::net::UnixListener::bind(from_unix)?;
-            thread::Builder::new().spawn_scoped(scope, || {
-                receive_unix_loop(config, output_dir, scope, server)
+            thread::Builder::new().spawn_scoped(scope, move || {
+                receive_unix_loop(config, output_dir, scope, &server)
             })?;
         }
 
         if let Some(from_tcp) = &config.diode.from_tcp {
             let server = net::TcpListener::bind(from_tcp)?;
-            thread::Builder::new().spawn_scoped(scope, || {
-                receive_tcp_loop(config, output_dir, scope, server)
+            thread::Builder::new().spawn_scoped(scope, move || {
+                receive_tcp_loop(config, output_dir, scope, &server)
             })?;
         }
 
@@ -50,11 +50,11 @@ fn receive_tcp_loop<'a>(
     config: &'a file::Config<aux::DiodeReceive>,
     output_dir: &'a path::Path,
     scope: &'a thread::Scope<'a, '_>,
-    server: net::TcpListener,
+    server: &net::TcpListener,
 ) -> Result<(), file::Error> {
     loop {
         let (client, client_addr) = server.accept()?;
-        log::info!("new Unix client ({client_addr}) connected");
+        log::info!("new TCP client ({client_addr}) connected");
         scope.spawn(|| match receive_file(config, client, output_dir) {
             Ok(total) => log::info!("file received, {total} bytes received"),
             Err(e) => log::error!("failed to receive file: {e}"),
@@ -66,7 +66,7 @@ fn receive_unix_loop<'a>(
     config: &'a file::Config<aux::DiodeReceive>,
     output_dir: &'a path::Path,
     scope: &'a thread::Scope<'a, '_>,
-    server: unix::net::UnixListener,
+    server: &unix::net::UnixListener,
 ) -> Result<(), file::Error> {
     loop {
         let (client, client_addr) = server.accept()?;
@@ -123,7 +123,7 @@ where
 
     let mut buffer = vec![0; config.buffer_size];
     let mut cursor = 0;
-    let mut remaining = header.file_length as usize;
+    let mut remaining = usize::try_from(header.file_length)?;
 
     let mut hasher = fasthash::Murmur3HasherExt::default();
 
@@ -144,7 +144,7 @@ where
 
                 file.flush()?;
 
-                let received = header.file_length as usize - remaining;
+                let received = usize::try_from(header.file_length)? - remaining;
 
                 let footer = file::protocol::Footer::deserialize_from(&mut diode)?;
 
@@ -152,7 +152,7 @@ where
                     log::debug!("expected file size = {}", header.file_length);
                     log::debug!("received file size = {received}");
                     return Err(file::Error::Diode(file::protocol::Error::InvalidFileSize(
-                        header.file_length as usize,
+                        usize::try_from(header.file_length)?,
                         received,
                     )));
                 }

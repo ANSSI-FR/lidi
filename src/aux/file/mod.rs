@@ -3,7 +3,7 @@ pub mod protocol;
 pub mod receive;
 pub mod send;
 
-use std::{fmt, io};
+use std::{fmt, io, num};
 
 pub struct Config<D> {
     pub diode: D,
@@ -22,7 +22,7 @@ impl fmt::Display for Error {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::Diode(e) => write!(fmt, "diode error: {e}"),
-            Self::Other(e) => write!(fmt, "error: {e}"),
+            Self::Other(e) => write!(fmt, "{e}"),
         }
     }
 }
@@ -36,5 +36,11 @@ impl From<io::Error> for Error {
 impl From<protocol::Error> for Error {
     fn from(e: protocol::Error) -> Self {
         Self::Diode(e)
+    }
+}
+
+impl From<num::TryFromIntError> for Error {
+    fn from(e: num::TryFromIntError) -> Self {
+        Self::Other(e.to_string())
     }
 }

@@ -1,39 +1,32 @@
-use std::str::FromStr;
-
 pub mod aux;
 pub mod protocol;
 pub mod receive;
-pub mod semaphore;
 pub mod send;
-
 // Allow unsafe code to call libc function setsockopt.
 #[allow(unsafe_code)]
-pub mod sock_utils;
-
+mod sock_utils;
 // Allow unsafe code to initialize C structs and call
 // libc functions recv_mmsg and send_mmsg.
 #[allow(unsafe_code)]
-pub mod udp;
+mod udp;
 
-pub fn init_logger() {
-    let level_filter = std::env::var("RUST_LOG")
-        .map_err(|_| ())
-        .and_then(|rust_log| simplelog::LevelFilter::from_str(&rust_log).map_err(|_| ()))
-        .unwrap_or(simplelog::LevelFilter::Info);
-
+pub fn init_logger(level_filter: log::LevelFilter) {
     let config = simplelog::ConfigBuilder::new()
         .set_level_padding(simplelog::LevelPadding::Right)
         .set_target_level(simplelog::LevelFilter::Off)
-        .set_thread_level(simplelog::LevelFilter::Info)
+        .set_thread_level(level_filter)
         .set_thread_mode(simplelog::ThreadLogMode::Names)
         .set_time_format_rfc2822()
+        .set_time_offset_to_local()
+        .unwrap_or_else(|e| e)
         .build();
 
-    simplelog::TermLogger::init(
+    if let Err(e) = simplelog::TermLogger::init(
         level_filter,
         config,
         simplelog::TerminalMode::Mixed,
         simplelog::ColorChoice::Auto,
-    )
-    .expect("failed to initialize termlogger");
+    ) {
+        eprintln!("failed to initialize logger: {e}");
+    }
 }

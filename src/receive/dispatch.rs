@@ -1,134 +1,120 @@
-//! Worker that manages active transfers queue and dispatch incoming [crate::protocol]
-//! messages to clients
+//! Worker that manages active transfers queue and dispatch incoming [`crate::protocol`]
+//! blocks to clients
 
 use crate::{protocol, receive};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    time,
-};
+use std::{collections::HashMap, thread, time};
 
 pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
-    let mut active_transfers: BTreeMap<
+    let mut active_transfers: HashMap<
         protocol::ClientId,
-        crossbeam_channel::Sender<protocol::Message>,
-    > = BTreeMap::new();
-    let mut ended_transfers: BTreeMap<
+        crossbeam_channel::Sender<protocol::Block>,
+    > = HashMap::new();
+    let mut ended_transfers: HashMap<
         protocol::ClientId,
-        crossbeam_channel::Sender<protocol::Message>,
-    > = BTreeMap::new();
-    let mut failed_transfers: BTreeSet<protocol::ClientId> = BTreeSet::new();
+        crossbeam_channel::Sender<protocol::Block>,
+    > = HashMap::new();
 
     let mut last_heartbeat = time::Instant::now();
 
     loop {
-        let message = if let Some(hb_interval) = receiver.config.heartbeat_interval {
-            match receiver.for_dispatch.recv_timeout(hb_interval) {
+        if receiver.broken_pipeline.load() {
+            return Ok(());
+        }
+
+        let block = match receiver.config.heartbeat_interval.as_ref() {
+            None => receiver.for_dispatch.recv()?,
+            Some(hb_interval) => match receiver.for_dispatch.recv_timeout(*hb_interval) {
                 Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                    if last_heartbeat.elapsed() > hb_interval {
+                    if last_heartbeat.elapsed() > *hb_interval {
                         log::warn!(
-                            "no heartbeat message received during the last {} second(s)",
+                            "no heartbeat block received for {} second(s)",
                             hb_interval.as_secs()
                         );
                     }
                     continue;
                 }
                 other => other?,
-            }
-        } else {
-            receiver.for_dispatch.recv()?
+            },
         };
 
-        let message = match message {
-            Some(m) => m,
-            None => {
-                // Synchonization has been lost
-                // Marking all active transfers as failed
-                for (client_id, client_sendq) in active_transfers {
-                    let message = protocol::Message::new(
-                        protocol::MessageType::Abort,
-                        receiver.to_buffer_size as u32,
-                        client_id,
-                        None,
-                    );
+        let Some(block) = block else {
+            // Synchonization has been lost
+            // Marking all active transfers as failed
+            for (client_id, client_sendq) in active_transfers {
+                let block = protocol::Block::new(
+                    protocol::BlockType::Abort,
+                    &receiver.raptorq,
+                    client_id,
+                    None,
+                )?;
 
-                    if let Err(e) = client_sendq.send(message) {
-                        log::error!("failed to send payload to client {client_id:x}: {e}");
-                    }
-
-                    failed_transfers.insert(client_id);
+                if let Err(e) = client_sendq.send(block) {
+                    log::error!("failed to send payload to client {client_id:x}: {e}");
                 }
-                active_transfers = BTreeMap::new();
-                continue;
             }
+            active_transfers = HashMap::new();
+            continue;
         };
 
-        log::trace!("received {message}");
+        log::trace!("received {block}");
 
-        let client_id = message.client_id();
-
-        if failed_transfers.contains(&client_id) {
-            continue;
-        }
-
-        let message_type = match message.message_type() {
+        let block_type = match block.block_type() {
             Err(e) => {
-                log::error!("message of UNKNOWN type received ({e}), dropping it");
+                log::error!("block of UNKNOWN type received ({e}), dropping it");
                 continue;
             }
             Ok(mt) => mt,
         };
 
+        let client_id = block.client_id();
+
         let mut will_end = false;
 
-        match message_type {
-            protocol::MessageType::Heartbeat => {
+        match block_type {
+            protocol::BlockType::Heartbeat => {
+                log::debug!("heartbeat received");
                 last_heartbeat = time::Instant::now();
                 continue;
             }
-
-            protocol::MessageType::Start => {
+            protocol::BlockType::Start => {
                 let (client_sendq, client_recvq) =
-                    crossbeam_channel::unbounded::<protocol::Message>();
-
+                    crossbeam_channel::unbounded::<protocol::Block>();
                 active_transfers.insert(client_id, client_sendq);
-
                 receiver.to_clients.send((client_id, client_recvq))?;
             }
-
-            protocol::MessageType::Abort | protocol::MessageType::End => will_end = true,
-
-            protocol::MessageType::Data => (),
+            protocol::BlockType::Abort | protocol::BlockType::End => will_end = true,
+            protocol::BlockType::Data => (),
         }
 
-        match active_transfers.get(&client_id) {
-            None => {
-                log::error!("receive data for inactive transfer {client_id:x}");
-                failed_transfers.insert(client_id);
-            }
-            Some(client_sendq) => {
-                if let Err(e) = client_sendq.send(message) {
-                    log::error!("failed to send payload to client {client_id:x}: {e}");
-                    active_transfers.remove(&client_id);
-                    failed_transfers.insert(client_id);
-                    continue;
-                }
+        let Some(client_sendq) = active_transfers.get(&client_id) else {
+            log::error!("receive data for inactive transfer {client_id:x}");
+            continue;
+        };
 
-                if will_end {
-                    let client_sendq = active_transfers
-                        .remove(&client_id)
-                        .expect("active transfer");
-
-                    ended_transfers.retain(|client_id, client_sendq| {
-                        let retain = !client_sendq.is_empty();
-                        if !retain {
-                            log::debug!("purging ended transfer of client {client_id:x}");
-                        }
-                        retain
-                    });
-
-                    ended_transfers.insert(client_id, client_sendq);
-                }
-            }
+        if let Err(e) = client_sendq.send(block) {
+            log::error!("failed to send block to client {client_id:x}: {e}");
+            active_transfers.remove(&client_id);
+            continue;
         }
+
+        if will_end {
+            let client_sendq = active_transfers
+                .remove(&client_id)
+                .ok_or(receive::Error::Other(format!(
+                    "transfer {client_id} is not active"
+                )))?;
+
+            ended_transfers.retain(|client_id, client_sendq| {
+                let retain = !client_sendq.is_empty();
+                if !retain {
+                    log::debug!("purging ended transfer of client {client_id:x}");
+                }
+                retain
+            });
+
+            ended_transfers.insert(client_id, client_sendq);
+        }
+
+        thread::yield_now();
     }
 }

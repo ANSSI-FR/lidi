@@ -1,115 +1,127 @@
 //! Worker for grouping packets according to their block numbers to handle potential UDP packets
 //! reordering
 
-use crate::{protocol, receive};
+use crate::{receive, udp};
+use std::{mem, thread};
+
+pub(crate) const WINDOW_WIDTH: u8 = u8::MAX / 2;
 
 pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
-    let nb_normal_packets = protocol::nb_encoding_packets(&receiver.object_transmission_info);
-    let nb_repair_packets = protocol::nb_repair_packets(
-        &receiver.object_transmission_info,
-        receiver.config.repair_block_size,
-    );
+    let min_nb_packets = usize::from(receiver.raptorq.min_nb_packets());
+    let nb_packets = usize::try_from(receiver.raptorq.nb_packets())
+        .map_err(|e| receive::Error::Other(format!("nb_packets: {e}")))?;
 
-    let mut desynchro = true;
-    let capacity = nb_normal_packets as usize + nb_repair_packets as usize;
-    let mut prev_queue: Option<Vec<raptorq::EncodingPacket>> = None;
-    let mut queue = Vec::with_capacity(capacity);
-    let mut block_id = 0;
+    let mut blocks_data = vec![Vec::with_capacity(nb_packets); usize::from(u8::MAX) + 1];
+    let mut blocks_ignore = vec![true; usize::from(u8::MAX) + 1];
+
+    let mut cur_id: u8 = 0;
+
+    let mut reset = true;
 
     loop {
-        let packets = match receiver
+        if receiver.broken_pipeline.load() {
+            return Ok(());
+        }
+
+        let datagrams = match receiver
             .for_reblock
-            .recv_timeout(receiver.config.flush_timeout)
+            .recv_timeout(receiver.config.reset_timeout)
         {
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                let qlen = queue.len();
-                if 0 < qlen {
-                    // no more traffic but ongoing block, trying to decode
-                    if nb_normal_packets as usize <= qlen {
-                        log::debug!("flushing block {block_id} with {qlen} packets");
-                        receiver.to_decoding.send((block_id, Some(queue)))?;
-                        block_id = block_id.wrapping_add(1);
-                    } else {
-                        log::debug!(
-                            "not enough packets ({qlen} packets) to decode block {block_id}"
-                        );
-                        log::warn!("lost block {block_id}");
-                        receiver.to_decoding.send((block_id, None))?;
-                        desynchro = true;
+                reset = true;
+
+                let mut damaged = false;
+
+                for id in 0..=u8::MAX as usize {
+                    if blocks_ignore[id] && !blocks_data[id].is_empty() {
+                        damaged = true;
                     }
-                    queue = Vec::with_capacity(capacity);
-                    prev_queue = None;
-                } else {
-                    // without data for some time we reset the current block_id
-                    desynchro = true;
                 }
+
+                if damaged {
+                    log::error!("non empty block after timeout");
+                    receiver.to_decode.send(super::Reassembled::Error)?;
+                }
+
                 continue;
             }
             Err(e) => return Err(receive::Error::from(e)),
-            Ok(packet) => packet,
+            Ok(datagrams) => datagrams,
         };
 
-        for packet in packets {
-            let payload_id = packet.payload_id();
-            let message_block_id = payload_id.source_block_number();
+        if reset {
+            reset = false;
 
-            if desynchro {
-                block_id = message_block_id;
-                receiver.resync_needed_block_id.store((true, block_id));
-                desynchro = false;
+            for block in &mut blocks_data {
+                block.clear();
             }
+            blocks_ignore.fill(true);
 
-            if message_block_id == block_id {
-                log::trace!("queueing in block {block_id}");
-                queue.push(packet);
-                continue;
+            let first_datagram = match &datagrams {
+                udp::Datagrams::Single(datagram) => datagram,
+                udp::Datagrams::Multiple(datagrams) => &datagrams[0],
+            };
+
+            let packet = raptorq::EncodingPacket::deserialize(first_datagram);
+            cur_id = packet.payload_id().source_block_number();
+
+            let mut id = cur_id;
+            let last = id.wrapping_add(WINDOW_WIDTH);
+            while id != last {
+                blocks_ignore[usize::from(id)] = false;
+                id = id.wrapping_add(1);
             }
-
-            if message_block_id.wrapping_add(1) == block_id {
-                //packet is from previous block; is this block parked ?
-                if let Some(mut pqueue) = prev_queue {
-                    pqueue.push(packet);
-                    if nb_normal_packets as usize <= pqueue.len() {
-                        //now there is enough packets to decode it
-                        receiver
-                            .to_decoding
-                            .send((message_block_id, Some(pqueue)))?;
-                        prev_queue = None;
-                    } else {
-                        prev_queue = Some(pqueue);
-                    }
-                }
-                continue;
-            }
-
-            if message_block_id != block_id.wrapping_add(1) {
-                log::warn!(
-                    "discarding packet with block_id {message_block_id} (current block_id is {block_id})"
-                );
-                continue;
-            }
-
-            //this is the first packet of the next block
-
-            if nb_normal_packets as usize <= queue.len() {
-                //enough packets in the current block to decode it
-                receiver.to_decoding.send((block_id, Some(queue)))?;
-                if prev_queue.is_some() {
-                    log::warn!("lost block {}", block_id.wrapping_sub(1));
-                }
-                prev_queue = None;
-            } else {
-                //not enough packet, parking the current block
-                prev_queue = Some(queue);
-            }
-
-            //starting the next block
-
-            block_id = message_block_id;
-
-            log::trace!("queueing in block {block_id}");
-            queue = Vec::with_capacity(capacity);
-            queue.push(packet);
         }
+
+        match datagrams {
+            udp::Datagrams::Single(datagram) => {
+                let packet = raptorq::EncodingPacket::deserialize(&datagram);
+                let id = usize::from(packet.payload_id().source_block_number());
+                if !blocks_ignore[id] {
+                    blocks_data[id].push(packet);
+                }
+            }
+            udp::Datagrams::Multiple(datagrams) => {
+                datagrams
+                    .into_iter()
+                    .map(|datagram| {
+                        let packet = raptorq::EncodingPacket::deserialize(&datagram);
+                        let id = usize::from(packet.payload_id().source_block_number());
+                        (id, packet)
+                    })
+                    .filter(|(id, _)| !blocks_ignore[*id])
+                    .for_each(|(id, packet)| blocks_data[id].push(packet));
+            }
+        }
+
+        while blocks_data[usize::from(cur_id)].len() >= min_nb_packets {
+            let packets = mem::replace(
+                &mut blocks_data[usize::from(cur_id)],
+                Vec::with_capacity(nb_packets),
+            );
+
+            log::trace!("reassembled block {cur_id}");
+
+            receiver.to_decode.send(super::Reassembled::Block {
+                id: cur_id,
+                packets,
+            })?;
+
+            blocks_ignore[usize::from(cur_id)] = true;
+
+            let opposite = usize::from(cur_id.wrapping_add(WINDOW_WIDTH));
+            blocks_ignore[opposite] = false;
+
+            if !blocks_data[opposite].is_empty() {
+                log::error!("lost block {opposite} (too far)");
+                receiver.to_decode.send(super::Reassembled::Error)?;
+                reset = true;
+                break;
+            }
+
+            cur_id = cur_id.wrapping_add(1);
+        }
+
+        thread::yield_now();
     }
 }
