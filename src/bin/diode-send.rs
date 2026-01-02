@@ -107,7 +107,7 @@ struct Args {
         help = "Percentage of RaptorQ repair data"
     )]
     repair: u32,
-    #[clap(long, help = "Set CPU afinity for threads")]
+    #[clap(long, help = "Set CPU affinity for threads")]
     cpu_affinity: bool,
 }
 

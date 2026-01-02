@@ -111,7 +111,7 @@ struct Args {
         long,
         help = "Maximum duration expected between heartbeat messages, 0 to disable")]
     heartbeat: Option<time::Duration>,
-    #[clap(long, help = "Set CPU afinity for threads")]
+    #[clap(long, help = "Set CPU affinity for threads")]
     cpu_affinity: bool,
 }
 
