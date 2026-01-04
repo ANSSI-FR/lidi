@@ -11,7 +11,8 @@ pub(crate) struct ReceiveMsg {
     socket: i32,
     udp_packet_size: u16,
     msghdr: libc::msghdr,
-    iovec: pin::Pin<Box<libc::iovec>>,
+    _iovec: pin::Pin<Box<libc::iovec>>,
+    buffer: pin::Pin<Vec<u8>>,
 }
 
 impl ReceiveMsg {
@@ -23,20 +24,21 @@ impl ReceiveMsg {
         msghdr.msg_iov = &raw mut *iovec;
         msghdr.msg_iovlen = 1;
 
+        let mut buffer = pin::Pin::new(vec![0u8; udp_packet_size as usize]);
+
+        iovec.iov_base = buffer.as_mut_ptr().cast::<libc::c_void>();
+        iovec.iov_len = udp_packet_size as usize;
+
         Self {
             socket,
             udp_packet_size,
             msghdr,
-            iovec,
+            _iovec: iovec,
+            buffer,
         }
     }
 
     fn recv(&mut self) -> Result<Datagrams, io::Error> {
-        let mut buffer = vec![0u8; self.udp_packet_size as usize];
-
-        self.iovec.iov_base = buffer.as_mut_ptr().cast::<libc::c_void>();
-        self.iovec.iov_len = self.udp_packet_size as usize;
-
         let recv = unsafe { libc::recvmsg(self.socket, &raw mut self.msghdr, 0) };
 
         if recv < 0 {
@@ -49,17 +51,16 @@ impl ReceiveMsg {
 
         let recv = usize::try_from(recv)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("recv: {e}")))?;
-        buffer.truncate(recv);
 
-        Ok(Datagrams::Single(buffer))
+        Ok(Datagrams::Single(self.buffer[0..recv].to_vec()))
     }
 }
 
 pub(crate) struct ReceiveMmsg {
     socket: i32,
-    udp_packet_size: u16,
     mmsghdr: Vec<libc::mmsghdr>,
-    iovecs: pin::Pin<Vec<libc::iovec>>,
+    _iovecs: pin::Pin<Vec<libc::iovec>>,
+    buffers: Vec<pin::Pin<Vec<u8>>>,
     batch_size: u32,
 }
 
@@ -74,23 +75,24 @@ impl ReceiveMmsg {
             mmsghdr[i].msg_hdr.msg_iovlen = 1;
         }
 
+        let mut buffers =
+            vec![pin::Pin::new(vec![0u8; udp_packet_size as usize]); batch_size as usize];
+
+        for (i, buffer) in buffers.iter_mut().enumerate() {
+            iovecs[i].iov_base = buffer.as_mut_ptr().cast::<libc::c_void>();
+            iovecs[i].iov_len = udp_packet_size as usize;
+        }
+
         Self {
             socket,
-            udp_packet_size,
             mmsghdr,
-            iovecs,
+            _iovecs: iovecs,
+            buffers,
             batch_size,
         }
     }
 
     fn recv(&mut self) -> Result<Datagrams, io::Error> {
-        let mut buffers = vec![vec![0u8; self.udp_packet_size as usize]; self.batch_size as usize];
-
-        for (i, buffer) in buffers.iter_mut().enumerate() {
-            self.iovecs[i].iov_base = buffer.as_mut_ptr().cast::<libc::c_void>();
-            self.iovecs[i].iov_len = self.udp_packet_size as usize;
-        }
-
         let nb_msg = unsafe {
             libc::recvmmsg(
                 self.socket,
@@ -107,14 +109,17 @@ impl ReceiveMmsg {
         } else {
             let nb_msg = usize::try_from(nb_msg)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("nb_msg: {e}")))?;
-            buffers.truncate(nb_msg);
 
-            for (i, buffer) in buffers.iter_mut().enumerate() {
-                let msg_len = usize::try_from(self.mmsghdr[i].msg_len).map_err(|e| {
-                    io::Error::new(io::ErrorKind::InvalidData, format!("msg_len: {e}"))
-                })?;
-                buffer.truncate(msg_len);
-            }
+            let buffers = self.buffers[0..nb_msg].iter().enumerate().try_fold(
+                Vec::with_capacity(nb_msg),
+                |mut res, (i, buffer)| {
+                    let msg_len = usize::try_from(self.mmsghdr[i].msg_len).map_err(|e| {
+                        io::Error::new(io::ErrorKind::InvalidData, format!("msg_len: {e}"))
+                    })?;
+                    res.push(buffer[0..msg_len].to_vec());
+                    Ok::<_, io::Error>(res)
+                },
+            )?;
 
             Ok(Datagrams::Multiple(buffers))
         }
