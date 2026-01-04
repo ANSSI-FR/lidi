@@ -40,15 +40,16 @@ impl ReceiveMsg {
         let recv = unsafe { libc::recvmsg(self.socket, &raw mut self.msghdr, 0) };
 
         if recv < 0 {
+            let errno = unsafe { *libc::__errno_location() };
             return Err(io::Error::other(format!(
-                "libc::recvmsg {recv} != {}",
+                "libc::recvmsg {recv} != {}, (errno == {errno})",
                 self.udp_packet_size
             )));
         }
 
         let recv = usize::try_from(recv)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("recv: {e}")))?;
-        buffer.resize(recv, 0u8);
+        buffer.truncate(recv);
 
         Ok(Datagrams::Single(buffer))
     }
@@ -101,17 +102,18 @@ impl ReceiveMmsg {
         };
 
         if nb_msg == -1 {
-            Err(io::Error::other("libc::recvmmsg"))
+            let errno = unsafe { *libc::__errno_location() };
+            Err(io::Error::other(format!("libc::recvmmsg, errno = {errno}")))
         } else {
             let nb_msg = usize::try_from(nb_msg)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("nb_msg: {e}")))?;
-            buffers.resize(nb_msg, vec![]);
+            buffers.truncate(nb_msg);
 
             for (i, buffer) in buffers.iter_mut().enumerate() {
                 let msg_len = usize::try_from(self.mmsghdr[i].msg_len).map_err(|e| {
                     io::Error::new(io::ErrorKind::InvalidData, format!("msg_len: {e}"))
                 })?;
-                buffer.resize(msg_len, 0u8);
+                buffer.truncate(msg_len);
             }
 
             Ok(Datagrams::Multiple(buffers))
