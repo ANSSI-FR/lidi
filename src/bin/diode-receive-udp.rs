@@ -20,10 +20,11 @@ struct Listeners {
 }
 
 #[derive(Parser)]
+#[clap(about = "Receive UDP packets sent by diode-send-udp.")]
 struct Args {
     #[clap(
         default_value = "Info",
-        value_name = "Error|Warn|Info|Debug|Trace",
+        value_name = "Off|Error|Warn|Info|Debug|Trace",
         long,
         help = "Log level"
     )]
@@ -47,7 +48,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level);
+    diode::init_logger(args.log_level, false);
 
     log::info!(
         "{} version {}",

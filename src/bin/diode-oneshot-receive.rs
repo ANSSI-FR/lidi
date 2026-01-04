@@ -1,38 +1,16 @@
 use clap::Parser;
 use diode::{protocol, receive};
-use std::{
-    io::{self, Write},
-    net,
-    os::{fd::AsRawFd, unix},
-    path,
-    str::FromStr,
-    thread, time,
-};
+use std::{io, net, process, str::FromStr, thread, time};
 
 fn parse_duration_seconds(input: &str) -> Result<time::Duration, <u64 as FromStr>::Err> {
     let input = input.parse()?;
     Ok(time::Duration::from_secs(input))
 }
 
-#[derive(clap::Args)]
-#[group(required = true, multiple = false)]
-struct Clients {
-    #[clap(
-        value_name = "ip:port",
-        long,
-        help = "IP address and port to connect to TCP server"
-    )]
-    to_tcp: Option<net::SocketAddr>,
-    #[clap(
-        value_name = "path",
-        long,
-        help = "Path of socket to connect to Unix server"
-    )]
-    to_unix: Option<path::PathBuf>,
-}
-
 #[derive(Parser)]
-#[clap(about = "Receiver part of lidi.")]
+#[clap(
+    about = "Receive data from diode-oneshot-send and write them to stdout (no need for diode-send nor diode-receive)."
+)]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -74,13 +52,6 @@ struct Args {
         help = "Number of parallel RaptorQ decode threads"
     )]
     decode_threads: u8,
-    #[clap(
-        default_value = "2",
-        value_name = "clients",
-        long,
-        help = "Max number of simultaneous clients/transfers"
-    )]
-    max_clients: protocol::ClientId,
     #[clap(long, help = "Flush immediately data to clients")]
     flush: bool,
     #[clap(
@@ -89,8 +60,6 @@ struct Args {
         long,
         help = "Abort connections if no data received after duration (0 = no abort)")]
     abort_timeout: Option<time::Duration>,
-    #[clap(flatten)]
-    to: Clients,
     #[clap(
         default_value = "734928",
         value_name = "nb_bytes",
@@ -105,67 +74,14 @@ struct Args {
         help = "Percentage of RaptorQ repair data"
     )]
     repair: u32,
-    #[clap(
-        default_value = "10",
-        value_name = "nb_seconds",
-        value_parser = parse_duration_seconds,
-        long,
-        help = "Maximum duration expected between heartbeat messages, 0 to disable")]
-    heartbeat: Option<time::Duration>,
     #[clap(long, help = "Set CPU affinity for threads")]
     cpu_affinity: bool,
-}
-
-enum Client {
-    Tcp(net::TcpStream),
-    Unix(unix::net::UnixStream),
-}
-
-impl Write for Client {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-        match self {
-            Self::Tcp(socket) => socket.write(buf),
-            Self::Unix(socket) => socket.write(buf),
-        }
-    }
-
-    fn flush(&mut self) -> Result<(), std::io::Error> {
-        match self {
-            Self::Tcp(socket) => socket.flush(),
-            Self::Unix(socket) => socket.flush(),
-        }
-    }
-}
-
-impl AsRawFd for Client {
-    fn as_raw_fd(&self) -> i32 {
-        match self {
-            Self::Tcp(socket) => socket.as_raw_fd(),
-            Self::Unix(socket) => socket.as_raw_fd(),
-        }
-    }
-}
-
-impl TryFrom<&Clients> for Client {
-    type Error = io::Error;
-
-    fn try_from(clients: &Clients) -> Result<Self, Self::Error> {
-        if let Some(to_tcp) = clients.to_tcp.as_ref() {
-            let client = net::TcpStream::connect(to_tcp)?;
-            Ok(Self::Tcp(client))
-        } else if let Some(to_unix) = clients.to_unix.as_ref() {
-            let client = unix::net::UnixStream::connect(to_unix)?;
-            Ok(Self::Unix(client))
-        } else {
-            unreachable!()
-        }
-    }
 }
 
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level, false);
+    diode::init_logger(args.log_level, true);
 
     log::info!(
         "{} version {}",
@@ -185,18 +101,24 @@ fn main() {
         receive::Config {
             from: args.from,
             from_mtu: args.from_mtu,
-            max_clients: args.max_clients,
+            max_clients: 1,
             flush: args.flush,
             reset_timeout: args.reset_timeout,
             nb_decode_threads: args.decode_threads,
             abort_timeout: args.abort_timeout,
-            heartbeat_interval: args.heartbeat,
+            heartbeat_interval: None,
             batch_receive: args.batch,
             cpu_affinity: args.cpu_affinity,
         },
         raptorq,
-        |_| Client::try_from(&args.to),
-        |_, _| (),
+        |_| Ok::<_, io::Error>(io::stdout()),
+        |_, ok| {
+            if ok {
+                process::exit(0);
+            } else {
+                process::exit(1);
+            }
+        },
     ) {
         Ok(receiver) => receiver,
         Err(e) => {

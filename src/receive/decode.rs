@@ -3,14 +3,11 @@
 use crate::{protocol, receive};
 use std::thread;
 
-pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
+pub(crate) fn start<ClientNew, ClientEnd>(
+    receiver: &receive::Receiver<ClientNew, ClientEnd>,
+) -> Result<(), receive::Error> {
     loop {
         match receiver.for_decode.recv()? {
-            super::Reassembled::Error => {
-                log::warn!("synchronization lost received, propagating");
-                receiver.to_dispatch.send(None)?;
-                continue;
-            }
             super::Reassembled::Block { id, packets } => {
                 match receiver.raptorq.decode(id, packets) {
                     None => {
@@ -24,6 +21,11 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
                             .send(Some(protocol::Block::deserialize(block)))?;
                     }
                 }
+            }
+            super::Reassembled::Error => {
+                log::warn!("synchronization lost received, propagating");
+                receiver.to_dispatch.send(None)?;
+                continue;
             }
         }
 

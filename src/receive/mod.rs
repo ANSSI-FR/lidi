@@ -143,7 +143,7 @@ enum Reassembled {
 
 /// An instance of this data structure is shared by workers to synchronize them and to access
 /// communication channels
-pub struct Receiver<F> {
+pub struct Receiver<ClientNew, ClientEnd> {
     config: Config,
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
@@ -161,16 +161,23 @@ pub struct Receiver<F> {
         protocol::ClientId,
         crossbeam_channel::Receiver<protocol::Block>,
     )>,
-    new_client: F,
+    client_new: ClientNew,
+    client_end: ClientEnd,
 }
 
-impl<C, F, E> Receiver<F>
+impl<C, ClientNew, ClientEnd, E> Receiver<ClientNew, ClientEnd>
 where
     C: Write + AsRawFd,
-    F: Send + Sync + Fn() -> Result<C, E>,
+    ClientNew: Send + Sync + Fn(protocol::ClientId) -> Result<C, E>,
+    ClientEnd: Send + Sync + Fn(C, bool),
     E: Into<Error>,
 {
-    pub fn new(config: Config, raptorq: protocol::RaptorQ, new_client: F) -> Result<Self, Error> {
+    pub fn new(
+        config: Config,
+        raptorq: protocol::RaptorQ,
+        client_new: ClientNew,
+        client_end: ClientEnd,
+    ) -> Result<Self, Error> {
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
@@ -191,7 +198,8 @@ where
             for_dispatch,
             to_clients,
             for_clients,
-            new_client,
+            client_new,
+            client_end,
         })
     }
 

@@ -3,13 +3,15 @@ Sending files with Lidi
 
 .. code-block:: none
 
+  Send a file to diode-receive-file through lidi.
+
   Usage: diode-send-file [OPTIONS] <--to-tcp <ip:port>|--to-unix <path>> [FILES]...
 
   Arguments:
     [FILES]...  Files to send
 
   Options:
-        --log-level <Error|Warn|Info|Debug|Trace>
+        --log-level <Off|Error|Warn|Info|Debug|Trace>
             Log level [default: Info]
         --to-tcp <ip:port>
             TCP address and port to connect to diode-send
@@ -24,13 +26,15 @@ Sending files with Lidi
 
 .. code-block:: none
 
+   Receive file(s) sent by diode-send-file through lidi.
+
    Usage: diode-receive-file [OPTIONS] <--from-tcp <ip:port>|--from-unix <path>> [OUTPUT_DIRECTORY]
 
    Arguments:
      [OUTPUT_DIRECTORY]  Output directory [default: .]
 
    Options:
-         --log-level <Error|Warn|Info|Debug|Trace>
+         --log-level <Off|Error|Warn|Info|Debug|Trace>
              Log level [default: Info]
          --from-tcp <ip:port>
              IP address and port to accept TCP connections from diode-receive

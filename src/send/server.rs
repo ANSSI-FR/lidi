@@ -8,7 +8,12 @@ where
     C: Read + AsRawFd + Send,
 {
     loop {
-        let client = sender.for_server.recv()?;
+        let Some(client) = sender.for_server.recv()? else {
+            for _ in 0..sender.config.nb_encode_threads {
+                sender.to_encoding.send(None)?;
+            }
+            return Ok(());
+        };
 
         sender.multiplex_control.wait();
 
@@ -21,12 +26,12 @@ where
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: error: {e}");
 
-            if let Err(e) = sender.to_encoding.send(protocol::Block::new(
+            if let Err(e) = sender.to_encoding.send(Some(protocol::Block::new(
                 protocol::BlockType::Abort,
                 &sender.raptorq,
                 client_id,
                 None,
-            )?) {
+            )?)) {
                 log::error!("client {client_id:x}: failed to abort : {e}");
             }
         }

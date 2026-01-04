@@ -1,12 +1,15 @@
 //! Worker that acquires multiplex access and then becomes a `crate::receive::client` worker
 
-use crate::{receive, receive::client};
+use crate::{protocol, receive, receive::client};
 use std::{io::Write, os::fd::AsRawFd, thread};
 
-pub(crate) fn start<C, F, E>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error>
+pub(crate) fn start<C, ClientNew, ClientEnd, E>(
+    receiver: &receive::Receiver<ClientNew, ClientEnd>,
+) -> Result<(), receive::Error>
 where
     C: Write + AsRawFd,
-    F: Send + Sync + Fn() -> Result<C, E>,
+    ClientNew: Send + Sync + Fn(protocol::ClientId) -> Result<C, E>,
+    ClientEnd: Send + Sync + Fn(C, bool),
     E: Into<receive::Error>,
 {
     loop {

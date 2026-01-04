@@ -35,7 +35,9 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     )?;
 
     loop {
-        let packets = sender.for_send.recv()?;
+        let Some(packets) = sender.for_send.recv()? else {
+            return Ok(());
+        };
 
         udp.send(packets)?;
 

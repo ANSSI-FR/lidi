@@ -4,7 +4,9 @@
 use crate::{protocol, receive};
 use std::{collections::HashMap, thread, time};
 
-pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
+pub(crate) fn start<ClientNew, ClientEnd>(
+    receiver: &receive::Receiver<ClientNew, ClientEnd>,
+) -> Result<(), receive::Error> {
     let mut active_transfers: HashMap<
         protocol::ClientId,
         crossbeam_channel::Sender<protocol::Block>,

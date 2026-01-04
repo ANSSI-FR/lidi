@@ -20,10 +20,11 @@ struct Clients {
 }
 
 #[derive(Parser)]
+#[clap(about = "Send random data to diode-send or diode-oneshot-send.")]
 struct Args {
     #[clap(
         default_value = "Info",
-        value_name = "Error|Warn|Info|Debug|Trace",
+        value_name = "Off|Error|Warn|Info|Debug|Trace",
         long,
         help = "Log level"
     )]
@@ -42,7 +43,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level);
+    diode::init_logger(args.log_level, false);
 
     log::info!(
         "{} version {}",

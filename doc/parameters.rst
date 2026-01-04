@@ -170,3 +170,4 @@ Since the purpose of the diode is to only allow one-way data traffic, the sender
    --heartbeat <nb_secs>
 
 The default values are 5 seconds for the sender (i.e. a heartbeat message is sent every 5 seconds) and 10 seconds for the receiver (i.e. warnings are displayed whenever during 10 seconds no heartbeat message was received). Due to latency, timeouts and network load, the receiver value must always be greater than the sender value.
+

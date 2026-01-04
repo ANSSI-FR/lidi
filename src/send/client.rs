@@ -13,12 +13,12 @@ where
 {
     log::info!("client {client_id:x}: connected");
 
-    sender.to_encoding.send(protocol::Block::new(
+    sender.to_encoding.send(Some(protocol::Block::new(
         protocol::BlockType::Start,
         &sender.raptorq,
         client_id,
         None,
-    )?)?;
+    )?))?;
 
     let mut buffer = vec![0; protocol::Block::max_data_len(&sender.raptorq)];
     let mut cursor = 0;
@@ -46,12 +46,12 @@ where
 
         log::trace!("client {client_id:x}: send {cursor} bytes");
 
-        sender.to_encoding.send(protocol::Block::new(
+        sender.to_encoding.send(Some(protocol::Block::new(
             block_type,
             &sender.raptorq,
             client_id,
             Some(&buffer[..cursor]),
-        )?)?;
+        )?))?;
 
         transmitted += cursor;
         cursor = 0;

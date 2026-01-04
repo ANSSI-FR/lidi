@@ -3,11 +3,11 @@ use diode::protocol;
 use rand::Rng;
 
 #[derive(clap::Parser)]
-#[clap(long_about = None)]
+#[clap(about = "Test diode config parameters.")]
 struct Args {
     #[clap(
         default_value = "Info",
-        value_name = "Error|Warn|Info|Debug|Trace",
+        value_name = "Off|Error|Warn|Info|Debug|Trace",
         long,
         help = "Log level"
     )]
@@ -44,7 +44,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level);
+    diode::init_logger(args.log_level, false);
 
     log::info!(
         "{} version {}",

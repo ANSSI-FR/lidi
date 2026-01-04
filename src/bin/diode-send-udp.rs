@@ -5,17 +5,26 @@ use std::{net, path};
 #[derive(clap::Args)]
 #[group(required = true, multiple = false)]
 struct Clients {
-    #[clap(value_name = "ip:port", long, help = "")]
+    #[clap(
+        value_name = "ip:port",
+        long,
+        help = "TCP address and port to connect to diode-send"
+    )]
     to_tcp: Option<net::SocketAddr>,
-    #[clap(value_name = "path", long, help = "")]
+    #[clap(
+        value_name = "path",
+        long,
+        help = "Path to Unix socket to connect to diode-send"
+    )]
     to_unix: Option<path::PathBuf>,
 }
 
 #[derive(Parser)]
+#[clap(about = "Send UDP datagrams to diode-receive-udp.")]
 struct Args {
     #[clap(
         default_value = "Info",
-        value_name = "Error|Warn|Info|Debug|Trace",
+        value_name = "Off|Error|Warn|Info|Debug|Trace",
         long,
         help = "Log level"
     )]
@@ -33,7 +42,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level);
+    diode::init_logger(args.log_level, false);
 
     log::info!(
         "{} version {}",

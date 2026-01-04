@@ -76,14 +76,14 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<crossbeam_channel::SendError<protocol::Block>> for Error {
-    fn from(_: crossbeam_channel::SendError<protocol::Block>) -> Self {
+impl From<crossbeam_channel::SendError<Option<protocol::Block>>> for Error {
+    fn from(_: crossbeam_channel::SendError<Option<protocol::Block>>) -> Self {
         Self::SendBlock
     }
 }
 
-impl From<crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>> for Error {
-    fn from(_: crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>) -> Self {
+impl From<crossbeam_channel::SendError<Option<Vec<raptorq::EncodingPacket>>>> for Error {
+    fn from(_: crossbeam_channel::SendError<Option<Vec<raptorq::EncodingPacket>>>) -> Self {
         Self::SendUdp
     }
 }
@@ -111,12 +111,12 @@ pub struct Sender<C> {
     multiplex_control: semka::Sem,
     block_to_encode: sync::Mutex<u8>,
     block_to_send: sync::Mutex<u8>,
-    to_server: crossbeam_channel::Sender<C>,
-    for_server: crossbeam_channel::Receiver<C>,
-    to_encoding: crossbeam_channel::Sender<protocol::Block>,
-    for_encoding: crossbeam_channel::Receiver<protocol::Block>,
-    to_send: crossbeam_channel::Sender<Vec<raptorq::EncodingPacket>>,
-    for_send: crossbeam_channel::Receiver<Vec<raptorq::EncodingPacket>>,
+    to_server: crossbeam_channel::Sender<Option<C>>,
+    for_server: crossbeam_channel::Receiver<Option<C>>,
+    to_encoding: crossbeam_channel::Sender<Option<protocol::Block>>,
+    for_encoding: crossbeam_channel::Receiver<Option<protocol::Block>>,
+    to_send: crossbeam_channel::Sender<Option<Vec<raptorq::EncodingPacket>>>,
+    for_send: crossbeam_channel::Receiver<Option<Vec<raptorq::EncodingPacket>>>,
 }
 
 impl<C> Sender<C>
@@ -248,8 +248,15 @@ where
     }
 
     pub fn new_client(&self, client: C) -> Result<(), Error> {
-        if let Err(e) = self.to_server.send(client) {
+        if let Err(e) = self.to_server.send(Some(client)) {
             return Err(Error::Diode(format!("failed to enqueue client: {e}")));
+        }
+        Ok(())
+    }
+
+    pub fn stop(&self) -> Result<(), Error> {
+        if let Err(e) = self.to_server.send(None) {
+            return Err(Error::Diode(format!("failed to stop: {e}")));
         }
         Ok(())
     }

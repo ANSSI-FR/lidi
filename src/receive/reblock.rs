@@ -6,7 +6,9 @@ use std::{mem, thread};
 
 pub(crate) const WINDOW_WIDTH: u8 = u8::MAX / 2;
 
-pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
+pub(crate) fn start<ClientNew, ClientEnd>(
+    receiver: &receive::Receiver<ClientNew, ClientEnd>,
+) -> Result<(), receive::Error> {
     let min_nb_packets = usize::from(receiver.raptorq.min_nb_packets());
     let nb_packets = usize::try_from(receiver.raptorq.nb_packets())
         .map_err(|e| receive::Error::Other(format!("nb_packets: {e}")))?;

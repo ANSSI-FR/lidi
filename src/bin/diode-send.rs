@@ -32,11 +32,11 @@ struct Listeners {
 }
 
 #[derive(clap::Parser)]
-#[clap(long_about = None)]
+#[clap(about = "Sender part of lidi.")]
 struct Args {
     #[clap(
         default_value = "Info",
-        value_name = "Error|Warn|Info|Debug|Trace",
+        value_name = "Off|Error|Warn|Info|Debug|Trace",
         long,
         help = "Log level"
     )]
@@ -169,7 +169,7 @@ fn tcp_listener_loop(listener: &net::TcpListener, sender: &send::Sender<Client>)
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level);
+    diode::init_logger(args.log_level, false);
 
     log::info!(
         "{} version {}",

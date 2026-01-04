@@ -9,7 +9,11 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
             .block_to_encode
             .lock()
             .map_err(|e| send::Error::Other(format!("failed to acquire lock: {e}")))?;
-        let block = sender.for_encoding.recv()?;
+        let Some(block) = sender.for_encoding.recv()? else {
+            sender.to_send.send(None)?;
+            return Ok(());
+        };
+
         let block_id = *block_id_to_encode;
         *block_id_to_encode = block_id_to_encode.wrapping_add(1);
 
@@ -30,7 +34,7 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
 
             if *to_send == block_id {
                 log::trace!("send block {block_id}");
-                sender.to_send.send(packets)?;
+                sender.to_send.send(Some(packets))?;
                 *to_send = to_send.wrapping_add(1);
                 break;
             }

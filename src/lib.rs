@@ -10,7 +10,13 @@ mod sock_utils;
 #[allow(unsafe_code)]
 mod udp;
 
-pub fn init_logger(level_filter: log::LevelFilter) {
+pub fn init_logger(level_filter: log::LevelFilter, stderr_only: bool) {
+    let terminal_mode = if stderr_only {
+        simplelog::TerminalMode::Stderr
+    } else {
+        simplelog::TerminalMode::Mixed
+    };
+
     let config = simplelog::ConfigBuilder::new()
         .set_level_padding(simplelog::LevelPadding::Right)
         .set_target_level(simplelog::LevelFilter::Off)
@@ -24,7 +30,7 @@ pub fn init_logger(level_filter: log::LevelFilter) {
     if let Err(e) = simplelog::TermLogger::init(
         level_filter,
         config,
-        simplelog::TerminalMode::Mixed,
+        terminal_mode,
         simplelog::ColorChoice::Auto,
     ) {
         eprintln!("failed to initialize logger: {e}");

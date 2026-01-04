@@ -13,12 +13,12 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     loop {
         log::debug!("send heartbeat");
 
-        sender.to_encoding.send(protocol::Block::new(
+        sender.to_encoding.send(Some(protocol::Block::new(
             protocol::BlockType::Heartbeat,
             &sender.raptorq,
             0,
             None,
-        )?)?;
+        )?))?;
 
         thread::sleep(duration);
     }
