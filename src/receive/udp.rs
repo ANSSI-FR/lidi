@@ -35,10 +35,6 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
     );
 
     loop {
-        if receiver.broken_pipeline.load() {
-            return Ok(());
-        }
-
         let datagrams = udp.recv()?;
         receiver.to_reblock.send(datagrams)?;
     }

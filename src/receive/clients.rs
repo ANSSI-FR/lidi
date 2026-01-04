@@ -10,10 +10,6 @@ where
     E: Into<receive::Error>,
 {
     loop {
-        if receiver.broken_pipeline.load() {
-            return Ok(());
-        }
-
         let (client_id, recvq) = receiver.for_clients.recv()?;
 
         log::debug!("try to acquire multiplex access..");

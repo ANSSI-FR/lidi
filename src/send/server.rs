@@ -8,10 +8,6 @@ where
     C: Read + AsRawFd + Send,
 {
     loop {
-        if sender.broken_pipeline.load() {
-            return Ok(());
-        }
-
         let client = sender.for_server.recv()?;
 
         sender.multiplex_control.wait();

@@ -17,10 +17,6 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
     let mut last_heartbeat = time::Instant::now();
 
     loop {
-        if receiver.broken_pipeline.load() {
-            return Ok(());
-        }
-
         let block = match receiver.config.heartbeat_interval.as_ref() {
             None => receiver.for_dispatch.recv()?,
             Some(hb_interval) => match receiver.for_dispatch.recv_timeout(*hb_interval) {
@@ -87,7 +83,7 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
         }
 
         let Some(client_sendq) = active_transfers.get(&client_id) else {
-            log::error!("receive data for inactive transfer {client_id:x}");
+            log::debug!("receive data for inactive transfer {client_id:x}");
             continue;
         };
 

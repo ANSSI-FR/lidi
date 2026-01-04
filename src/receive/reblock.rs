@@ -19,10 +19,6 @@ pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::E
     let mut reset = true;
 
     loop {
-        if receiver.broken_pipeline.load() {
-            return Ok(());
-        }
-
         let datagrams = match receiver
             .for_reblock
             .recv_timeout(receiver.config.reset_timeout)

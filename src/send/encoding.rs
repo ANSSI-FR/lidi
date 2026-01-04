@@ -5,10 +5,6 @@ use std::thread;
 
 pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     loop {
-        if sender.broken_pipeline.load() {
-            return Ok(());
-        }
-
         let mut block_id_to_encode = sender
             .block_to_encode
             .lock()

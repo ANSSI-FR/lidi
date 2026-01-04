@@ -11,10 +11,6 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     };
 
     loop {
-        if sender.broken_pipeline.load() {
-            return Ok(());
-        }
-
         log::debug!("send heartbeat");
 
         sender.to_encoding.send(protocol::Block::new(

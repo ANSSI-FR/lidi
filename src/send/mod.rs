@@ -20,7 +20,6 @@
 //! - there are `nb_encode_threads` encoding workers running in parallel.
 
 use crate::protocol;
-use crossbeam_utils::atomic;
 use std::{
     fmt,
     io::{self, Read},
@@ -109,7 +108,6 @@ impl From<protocol::Error> for Error {
 pub struct Sender<C> {
     config: Config,
     raptorq: protocol::RaptorQ,
-    broken_pipeline: atomic::AtomicCell<bool>,
     multiplex_control: semka::Sem,
     block_to_encode: sync::Mutex<u8>,
     block_to_send: sync::Mutex<u8>,
@@ -126,8 +124,6 @@ where
     C: Read + AsRawFd + Send,
 {
     pub fn new(config: Config, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
-        let broken_pipeline = atomic::AtomicCell::new(false);
-
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
@@ -143,7 +139,6 @@ where
         Ok(Self {
             config,
             raptorq,
-            broken_pipeline,
             multiplex_control,
             block_to_encode,
             block_to_send,
@@ -186,9 +181,8 @@ where
                     core_affinity::set_for_current(cpu_id);
                 }
                 if let Err(e) = udp::start(self) {
-                    log::error!("udp error: {e}");
+                    log::error!("fatal udp error: {e}");
                 }
-                self.broken_pipeline.store(true);
             })?;
 
         for i in 0..self.config.nb_encode_threads {
@@ -201,9 +195,8 @@ where
                         core_affinity::set_for_current(cpu_id);
                     }
                     if let Err(e) = encoding::start(self) {
-                        log::error!("encoding_{i} error: {e}");
+                        log::error!("fatal encoding_{i} error: {e}");
                     }
-                    self.broken_pipeline.store(true);
                 })?;
         }
 
@@ -221,9 +214,8 @@ where
                         core_affinity::set_for_current(cpu_id);
                     }
                     if let Err(e) = heartbeat::start(self) {
-                        log::error!("heartbeat error; {e}");
+                        log::error!("fatal heartbeat error; {e}");
                     }
-                    self.broken_pipeline.store(true);
                 })?;
         } else {
             log::info!("heartbeat is disabled");
@@ -239,9 +231,8 @@ where
                         core_affinity::set_for_current(cpu_id);
                     }
                     if let Err(e) = server::start(self) {
-                        log::error!("client_{i} error: {e}");
+                        log::error!("fatal client_{i} error: {e}");
                     }
-                    self.broken_pipeline.store(true);
                 })?;
         }
 

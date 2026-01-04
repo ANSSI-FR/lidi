@@ -17,7 +17,6 @@
 //! - there are `nb_decode_threads` decode workers running in parallel.
 
 use crate::protocol;
-use crossbeam_utils::atomic;
 use std::{
     fmt,
     io::{self, Write},
@@ -147,7 +146,6 @@ enum Reassembled {
 pub struct Receiver<F> {
     config: Config,
     raptorq: protocol::RaptorQ,
-    broken_pipeline: atomic::AtomicCell<bool>,
     multiplex_control: semka::Sem,
     to_reblock: crossbeam_channel::Sender<crate::udp::Datagrams>,
     for_reblock: crossbeam_channel::Receiver<crate::udp::Datagrams>,
@@ -173,20 +171,17 @@ where
     E: Into<Error>,
 {
     pub fn new(config: Config, raptorq: protocol::RaptorQ, new_client: F) -> Result<Self, Error> {
-        let broken_pipeline = atomic::AtomicCell::new(false);
-
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
         let (to_reblock, for_reblock) = crossbeam_channel::unbounded();
         let (to_decode, for_decode) = crossbeam_channel::unbounded();
         let (to_dispatch, for_dispatch) = crossbeam_channel::unbounded();
-        let (to_clients, for_clients) = crossbeam_channel::bounded(1);
+        let (to_clients, for_clients) = crossbeam_channel::unbounded();
 
         Ok(Self {
             config,
             raptorq,
-            broken_pipeline,
             multiplex_control,
             to_reblock,
             for_reblock,
@@ -255,9 +250,8 @@ where
                         core_affinity::set_for_current(cpu_id);
                     }
                     if let Err(e) = clients::start(self) {
-                        log::error!("client_{i} error: {e}");
+                        log::error!("fatal client_{i} error: {e}");
                     }
-                    self.broken_pipeline.store(true);
                 })?;
         }
 
@@ -270,9 +264,8 @@ where
                     core_affinity::set_for_current(cpu_id);
                 }
                 if let Err(e) = dispatch::start(self) {
-                    log::error!("dispatch error: {e}");
+                    log::error!("fatal dispatch error: {e}");
                 }
-                self.broken_pipeline.store(true);
             })?;
 
         let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
@@ -285,9 +278,8 @@ where
                         core_affinity::set_for_current(cpu_id);
                     }
                     if let Err(e) = decode::start(self) {
-                        log::error!("decode_{i} error: {e}");
+                        log::error!("fatal decode_{i} error: {e}");
                     }
-                    self.broken_pipeline.store(true);
                 })?;
         }
 
@@ -300,9 +292,8 @@ where
                     core_affinity::set_for_current(cpu_id);
                 }
                 if let Err(e) = reblock::start(self) {
-                    log::error!("reblock error: {e}");
+                    log::error!("fatal reblock error: {e}");
                 }
-                self.broken_pipeline.store(true);
             })?;
 
         let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
@@ -314,9 +305,8 @@ where
                     core_affinity::set_for_current(cpu_id);
                 }
                 if let Err(e) = udp::start(self) {
-                    log::error!("udp error: {e}");
+                    log::error!("fatal udp error: {e}");
                 }
-                self.broken_pipeline.store(true);
             })?;
 
         log::info!(

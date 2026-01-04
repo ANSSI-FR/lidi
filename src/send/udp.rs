@@ -35,10 +35,6 @@ pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     )?;
 
     loop {
-        if sender.broken_pipeline.load() {
-            return Ok(());
-        }
-
         let packets = sender.for_send.recv()?;
 
         udp.send(packets)?;

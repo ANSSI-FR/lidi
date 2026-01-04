@@ -5,10 +5,6 @@ use std::thread;
 
 pub(crate) fn start<F>(receiver: &receive::Receiver<F>) -> Result<(), receive::Error> {
     loop {
-        if receiver.broken_pipeline.load() {
-            return Ok(());
-        }
-
         match receiver.for_decode.recv()? {
             super::Reassembled::Error => {
                 log::warn!("synchronization lost received, propagating");
