@@ -172,6 +172,10 @@ where
     ClientEnd: Send + Sync + Fn(C, bool),
     E: Into<Error>,
 {
+    /// # Errors
+    ///
+    /// Will return `Err` if `multiplex_control` semaphore
+    /// cannot be created.
     pub fn new(
         config: Config,
         raptorq: protocol::RaptorQ,
@@ -203,6 +207,9 @@ where
         })
     }
 
+    /// # Errors
+    ///
+    /// Will return `Err` if scoped threads cannot spawned.
     #[allow(clippy::too_many_lines)]
     pub fn start<'a>(&'a self, scope: &'a thread::Scope<'a, '_>) -> Result<(), Error> {
         log::info!(

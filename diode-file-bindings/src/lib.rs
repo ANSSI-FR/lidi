@@ -9,6 +9,9 @@ use std::{
     str::FromStr,
 };
 
+/// # Panics
+///
+/// Will return `Err` if ip and port cannot be parsed.
 #[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn diode_new_config(
@@ -41,6 +44,9 @@ pub unsafe extern "C" fn diode_free_config(ptr: *mut file::Config<aux::DiodeSend
     }
 }
 
+/// # Panics
+///
+/// Will return `Err` if reference to `config` is wrong.
 #[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn diode_send_file(
@@ -61,6 +67,9 @@ pub unsafe extern "C" fn diode_send_file(
     file::send::send_file(config, &rust_filepath).unwrap_or(0) as u32
 }
 
+/// # Panics
+///
+/// Will return `Err` if reference to `config` is wrong.
 #[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn diode_receive_files(

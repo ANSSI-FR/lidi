@@ -30,6 +30,13 @@ where
     }
 }
 
+/// # Errors
+///
+/// Will return `Err` if:
+/// - `net::TcpStream::connect(socket_addr)?`
+///   or
+/// - `unix::net::UnixStream::connect(path)?`
+///   fails.
 pub fn send(
     config: &udp::Config<aux::DiodeSend>,
     from_udp: net::SocketAddr,

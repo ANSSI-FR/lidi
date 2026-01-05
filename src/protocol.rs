@@ -77,6 +77,11 @@ pub struct RaptorQ {
 }
 
 impl RaptorQ {
+    /// # Errors
+    ///
+    /// Will return `Err` if `symbol_count`
+    ///   or
+    /// `nb_repair_packets` parsing fails
     pub fn new(mtu: u16, block_size: u32, repair_percentage: u32) -> Result<Self, Error> {
         let mut max_packet_size = mtu - PACKET_HEADER_SIZE - RAPTORQ_HEADER_SIZE;
         max_packet_size -= max_packet_size % RAPTORQ_ALIGNMENT;
@@ -110,18 +115,22 @@ impl RaptorQ {
         })
     }
 
+    #[must_use]
     pub const fn block_size(&self) -> u32 {
         self.transfer_length
     }
 
+    #[must_use]
     pub const fn min_nb_packets(&self) -> u16 {
         self.symbol_count
     }
 
+    #[must_use]
     pub fn nb_packets(&self) -> u32 {
         u32::from(self.symbol_count) + u32::from(self.nb_repair_packets)
     }
 
+    #[must_use]
     pub fn encode(&self, block_id: u8, data: &[u8]) -> Vec<raptorq::EncodingPacket> {
         let encoder = raptorq::SourceBlockEncoder::with_encoding_plan(
             block_id,
@@ -139,6 +148,7 @@ impl RaptorQ {
         packets
     }
 
+    #[must_use]
     pub fn decode(&self, block_id: u8, packets: Vec<raptorq::EncodingPacket>) -> Option<Vec<u8>> {
         let mut decoder = raptorq::SourceBlockDecoder::new(
             block_id,

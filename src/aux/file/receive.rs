@@ -10,6 +10,9 @@ use std::{
     path, thread,
 };
 
+/// # Errors
+///
+/// Will return `Err` if `output_dir` is not a directory.
 pub fn receive_files(
     config: &file::Config<aux::DiodeReceive>,
     output_dir: &path::Path,

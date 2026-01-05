@@ -10,6 +10,10 @@ use std::{
     path,
 };
 
+/// # Errors
+///
+/// Will return `Err` if `send_file` function
+/// returns an `Err`.
 pub fn send_files(
     config: &file::Config<aux::DiodeSend>,
     files: &[String],
@@ -21,6 +25,13 @@ pub fn send_files(
     Ok(())
 }
 
+/// # Errors
+///
+/// Will return `Err` if:
+/// - `net::TcpStream::connect(socket_addr)?`
+///   or
+/// - `unix::net::UnixStream::connect(path)?`
+///   fails.
 pub fn send_file(
     config: &file::Config<aux::DiodeSend>,
     file_path: &String,

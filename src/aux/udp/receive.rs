@@ -73,6 +73,10 @@ fn receive_tcp_loop(
     }
 }
 
+/// # Errors
+///
+/// Will return `Err` if `from_unix` `PathBuf`
+/// already exists.
 pub fn receive(
     config: &udp::Config<aux::DiodeReceive>,
     to_udp_bind: net::SocketAddr,

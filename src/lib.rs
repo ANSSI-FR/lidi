@@ -12,6 +12,10 @@ mod sock_utils;
 #[allow(unsafe_code)]
 mod udp;
 
+/// # Errors
+///
+/// Will return `Err` if `file` cannot be opened
+/// or logger cannot be set (Term or file mode).
 pub fn init_logger(
     level_filter: log::LevelFilter,
     file: Option<path::PathBuf>,

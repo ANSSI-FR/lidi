@@ -123,6 +123,10 @@ impl<C> Sender<C>
 where
     C: Read + AsRawFd + Send,
 {
+    /// # Errors
+    ///
+    /// Will return `Err` if `multiplex_control` semaphore
+    /// cannot be created.
     pub fn new(config: Config, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
@@ -151,6 +155,9 @@ where
         })
     }
 
+    /// # Errors
+    ///
+    /// Will return `Err` if scoped threads cannot spawned.
     pub fn start<'a>(&'a self, scope: &'a thread::Scope<'a, '_>) -> Result<(), Error> {
         log::info!(
             "max {} simultaneous clients/transfers",
@@ -246,14 +253,18 @@ where
 
         Ok(())
     }
-
+    /// # Errors
+    ///
+    /// Will return `Err` if the `send` returns a `SendError<T>`.
     pub fn new_client(&self, client: C) -> Result<(), Error> {
         if let Err(e) = self.to_server.send(Some(client)) {
             return Err(Error::Diode(format!("failed to enqueue client: {e}")));
         }
         Ok(())
     }
-
+    /// # Errors
+    ///
+    /// Will return `Err` if the `send` returns a `SendError<T>`.
     pub fn stop(&self) -> Result<(), Error> {
         if let Err(e) = self.to_server.send(None) {
             return Err(Error::Diode(format!("failed to stop: {e}")));
