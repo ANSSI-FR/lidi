@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tweaking parameters &mdash; Lidi 1.3.5 documentation</title>
+  <title>Tweaking parameters &mdash; Lidi 2.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=4720776d"></script>
+      <script src="_static/documentation_options.js?v=51b770b3"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
@@ -48,6 +48,8 @@
 <li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Tweaking parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="files.html">Sending files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="udp.html">Sending UDP with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oneshot.html">Oneshot Lidi</a></li>
 </ul>
 
         </div>
@@ -76,11 +78,61 @@
              
   <section id="tweaking-parameters">
 <span id="id1"></span><h1>Tweaking parameters<a class="headerlink" href="#tweaking-parameters" title="Link to this heading"></a></h1>
-<p>If you want to run lidi closer to its intended speed, please set the following sysctl (root required):</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">net</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">rmem_max</span><span class="o">=</span><span class="mi">67108864</span>
-<span class="n">net</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">wmem_max</span><span class="o">=</span><span class="mi">67108864</span>
-<span class="n">net</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">netdev_max_backlog</span><span class="o">=</span><span class="mi">1000</span>
-<span class="n">net</span><span class="o">.</span><span class="n">ipv4</span><span class="o">.</span><span class="n">udp_mem</span><span class="o">=</span><span class="s2">&quot;12148128 16197504 67108864&quot;</span>
+<p>On the receiver side some kernel/hardware parameters need to be adjusted to ensure no packets are lost. Use <cite>ethtool -g</cite> to read available hardware configuration. On the example below, RX ring parameter for <cite>eth0</cite> is not set (line <cite>RX: n/a</cite> for <cite>Current hardware settings</cite>) while it can be set to <cite>4096</cite> (line <cite>RX: 4096</cite> for <cite>Pre-set maximum</cite>).</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>root@diode:~# ethtool -g eth0
+Ring parameters for eth0:
+Pre-set maximums:
+RX:                  4096
+RX Mini:             n/a
+RX Jumbo:            n/a
+TX:                  n/a
+TX push buff len:    n/a
+Current hardware settings:
+RX:                  n/a
+RX Mini:             n/a
+RX Jumbo:            n/a
+TX:                  n/a
+RX Buf Len:          n/a
+CQE Size:            n/a
+TX Push:             off
+RX Push:             off
+TX push buff len:    n/a
+TCP data split:      n/a
+</pre></div>
+</div>
+<p>Set the RX ring parameter to the maximum value supported by the card. On the example above, simply run <cite>ethtool -G eth0 rx 4096</cite> and then <cite>ethtool -g eth0</cite> to check the RX ring parameter has been set correctly (see below).</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>root@diode:~# ethtool -G eth0 rx 4096
+root@diode:~# ethtool -g eth0
+Ring parameters for eth0:
+Pre-set maximums:
+RX:                  4096
+RX Mini:             n/a
+RX Jumbo:            n/a
+TX:                  n/a
+TX push buff len:    n/a
+Current hardware settings:
+RX:                  4096
+RX Mini:             n/a
+RX Jumbo:            n/a
+TX:                  n/a
+RX Buf Len:          n/a
+CQE Size:            n/a
+TX Push:             off
+RX Push:             off
+TX push buff len:    n/a
+TCP data split:      n/a
+</pre></div>
+</div>
+<p>Some sysctl values need to be set (as root) on the receiver side to ensure kernel buffers are large enough to ensure no packet are lost. The value <cite>97536000</cite> is adequate for lidi defaults parameters. This value can be computed by multiplying the MTU on the UDP link (default is <cite>1500</cite>) by the number of packets per block (default is <cite>512</cite>), multiplied by <cite>127</cite> (constant value to ensure lidi can bufferize 127 blocks).</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>sysctl -w net.ipv4.udp_mem=&quot;97536000 97536000 97536000&quot;
+sysctl -w net.core.rmem_max=97536000
+sysctl -w net.ipv4.udp_rmem_min=97536000
+</pre></div>
+</div>
+<p>You can also set respective parameters on the sender side, but this is only required to achieve high throughput (above 2.5Gb/s).</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>sysctl -w net.ipv4.udp_mem=&quot;97536000 97536000 97536000&quot;
+sysctl -w net.core.wmem_max=97536000
+sysctl -w net.ipv4.udp_wmem_min=97536000
 </pre></div>
 </div>
 </section>
@@ -96,7 +148,7 @@
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2023, ANSSI-FR.</p>
+    <p>&#169; Copyright 2026, ANSSI-FR.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

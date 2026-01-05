@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Getting started &mdash; Lidi 1.3.5 documentation</title>
+  <title>Getting started &mdash; Lidi 2.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=4720776d"></script>
+      <script src="_static/documentation_options.js?v=51b770b3"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
@@ -59,6 +59,8 @@
 <li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tweaking.html">Tweaking parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="files.html">Sending files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="udp.html">Sending UDP with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oneshot.html">Oneshot Lidi</a></li>
 </ul>
 
         </div>
@@ -99,14 +101,14 @@
 </ul>
 <p>The usual way to install the rust toolchain is to firstly install the tool <cite>rustup</cite>.
 Once <cite>rustup</cite> is available, you can simply run:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ rustup install stable
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rustup<span class="w"> </span>install<span class="w"> </span>stable
 </pre></div>
 </div>
 </section>
 <section id="building">
 <h4>Building<a class="headerlink" href="#building" title="Link to this heading"></a></h4>
 <p>Building lidi is fairly easy once you have all the dependencies set-up:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo build --release
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cargo<span class="w"> </span>build<span class="w"> </span>--release
 </pre></div>
 </div>
 <p>This step provides you with the two main binaries for lidi: the sender and the receiver part, in addition to other utility binaries, such as file sending/receiving ones.</p>
@@ -117,12 +119,12 @@ Once <cite>rustup</cite> is available, you can simply run:</p>
 <h2>Setting up a simple case<a class="headerlink" href="#setting-up-a-simple-case" title="Link to this heading"></a></h2>
 <p>The simplest case we can set up is to have lidi sender and receiver part running on the same machine. Next, we will use <cite>netcat</cite> tool to actually send and receive data over the (software) diode link.</p>
 <p>In a first terminal, we start by running the sender part of lidi with default parameters:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-send
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cargo<span class="w"> </span>run<span class="w"> </span>--release<span class="w"> </span>--bin<span class="w"> </span>diode-send<span class="w"> </span>--<span class="w"> </span>--from-tcp<span class="w"> </span><span class="m">127</span>.0.0.1:5000<span class="w"> </span>--to<span class="w"> </span><span class="m">127</span>.0.0.1:6000
 </pre></div>
 </div>
 <p>Some information logging should will show up, especially indicating that the diode is waiting for TCP connections on port 5000 and that the traffic will go through the diode on UDP port 6000.</p>
 <p>Next, we run the receiving part of lidi:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cargo run --release --bin diode-receive -- --to_tcp 127.0.0.1:7000
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cargo<span class="w"> </span>run<span class="w"> </span>--release<span class="w"> </span>--bin<span class="w"> </span>diode-receive<span class="w"> </span>--<span class="w"> </span>--from<span class="w"> </span><span class="m">127</span>.0.0.1:6000<span class="w"> </span>--to-tcp<span class="w"> </span><span class="m">127</span>.0.0.1:7000
 </pre></div>
 </div>
 <p>This time, logging will indicate that traffic will come up on UDP port 6000 and that transferred content will be served on TCP port 7000.</p>
@@ -133,12 +135,12 @@ If it is the case, double check that the sender part is still running and that i
 </div>
 <p>The diode is now waiting for TCP connections to send and receive data.
 We run a first netcat instance waiting for connection on port 7000 with the following command:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc -lv 127.0.0.1 7000
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>nc<span class="w"> </span>-lv<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">7000</span>
 </pre></div>
 </div>
 <p>Finally, we should be able to connect and send raw data through the diode in a fourth terminal:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ nc 127.0.0.1 5000
-Hello Lidi!
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5000</span>
+Hello<span class="w"> </span>Lidi!
 &lt;Ctrl-D&gt;
 </pre></div>
 </div>
@@ -158,7 +160,7 @@ Hello Lidi!
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2023, ANSSI-FR.</p>
+    <p>&#169; Copyright 2026, ANSSI-FR.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

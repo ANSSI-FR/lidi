@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sending files with Lidi &mdash; Lidi 2.0.0 documentation</title>
+  <title>Oneshot Lidi &mdash; Lidi 2.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
@@ -19,8 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Sending UDP with Lidi" href="udp.html" />
-    <link rel="prev" title="Tweaking parameters" href="tweaking.html" /> 
+    <link rel="prev" title="Sending UDP with Lidi" href="udp.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -47,9 +46,9 @@
 <li class="toctree-l1"><a class="reference internal" href="gstarted.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tweaking.html">Tweaking parameters</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Sending files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="files.html">Sending files with Lidi</a></li>
 <li class="toctree-l1"><a class="reference internal" href="udp.html">Sending UDP with Lidi</a></li>
-<li class="toctree-l1"><a class="reference internal" href="oneshot.html">Oneshot Lidi</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Oneshot Lidi</a></li>
 </ul>
 
         </div>
@@ -66,9 +65,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Sending files with Lidi</li>
+      <li class="breadcrumb-item active">Oneshot Lidi</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="_sources/files.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/oneshot.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -76,48 +75,64 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="sending-files-with-lidi">
-<h1>Sending files with Lidi<a class="headerlink" href="#sending-files-with-lidi" title="Link to this heading"></a></h1>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Send a file to diode-receive-file through lidi.
+  <section id="oneshot-lidi">
+<h1>Oneshot Lidi<a class="headerlink" href="#oneshot-lidi" title="Link to this heading"></a></h1>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Read stdin and send it to diode-oneshot-receive (no need for diode-send nor diode-receive).
 
-Usage: diode-send-file [OPTIONS] &lt;--to-tcp &lt;ip:port&gt;|--to-unix &lt;path&gt;&gt; [FILES]...
-
-Arguments:
-  [FILES]...  Files to send
+Usage: diode-oneshot-send [OPTIONS] --to &lt;ip:port&gt;
 
 Options:
       --log-level &lt;Off|Error|Warn|Info|Debug|Trace&gt;
           Log level [default: Info]
-      --to-tcp &lt;ip:port&gt;
-          TCP address and port to connect to diode-send
-      --to-unix &lt;path&gt;
-          Path to Unix socket to connect to diode-send
-      --buffer-size &lt;bytes&gt;
-          Size of client internal read/write buffer [default: 4194304]
-      --hash
-          Compute and send the hash of file content
+      --encode-threads &lt;0..255&gt;
+          Number of parallel RaptorQ encoding threads [default: 1]
+      --flush
+          Flush client data immediately
+      --to &lt;ip:port&gt;
+          IP address and port where to send UDP packets to diode-receive
+      --to-bind &lt;ip:port&gt;
+          Binding IP for UDP traffic [default: 0.0.0.0:0]
+      --to-mtu &lt;nb_bytes&gt;
+          MTU of the output UDP link [default: 1500]
+      --batch &lt;2..1024&gt;
+          Use sendmmsg to send from 2 to 1024 UDP datagrams at once
+      --block &lt;nb_bytes&gt;
+          Size of RaptorQ block in bytes [default: 734928]
+      --repair &lt;percentage&gt;
+          Percentage of RaptorQ repair data [default: 2]
+      --cpu-affinity
+          Set CPU affinity for threads
   -h, --help
           Print help
 </pre></div>
 </div>
-<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Receive file(s) sent by diode-send-file through lidi.
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Receive data from diode-oneshot-send and write them to stdout (no need for diode-send nor diode-receive).
 
-Usage: diode-receive-file [OPTIONS] &lt;--from-tcp &lt;ip:port&gt;|--from-unix &lt;path&gt;&gt; [OUTPUT_DIRECTORY]
-
-Arguments:
-  [OUTPUT_DIRECTORY]  Output directory [default: .]
+Usage: diode-oneshot-receive [OPTIONS] --from &lt;ip:port&gt;
 
 Options:
       --log-level &lt;Off|Error|Warn|Info|Debug|Trace&gt;
           Log level [default: Info]
-      --from-tcp &lt;ip:port&gt;
-          IP address and port to accept TCP connections from diode-receive
-      --from-unix &lt;path&gt;
-          Path of Unix socket to accept Unix connections from diode-receive
-      --buffer-size &lt;bytes&gt;
-          Size of client write buffer [default: 4194304]
-      --hash
-          Verify the hash of file content
+      --from &lt;ip:port&gt;
+          IP address and port where to receive UDP packets from diode-send
+      --from-mtu &lt;nb_bytes&gt;
+          MTU of the input UDP link [default: 1500]
+      --batch &lt;2..1024&gt;
+          Use recvmmsg to receive from 2 to 1024 UDP datagrams at once
+      --reset-timeout &lt;seconds&gt;
+          Reset diode if no data are received after duration [default: 2]
+      --decode-threads &lt;0..255&gt;
+          Number of parallel RaptorQ decode threads [default: 1]
+      --flush
+          Flush immediately data to clients
+      --abort-timeout &lt;seconds&gt;
+          Abort connections if no data received after duration (0 = no abort)
+      --block &lt;nb_bytes&gt;
+          Size of RaptorQ block in bytes [default: 734928]
+      --repair &lt;percentage&gt;
+          Percentage of RaptorQ repair data [default: 2]
+      --cpu-affinity
+          Set CPU affinity for threads
   -h, --help
           Print help
 </pre></div>
@@ -128,8 +143,7 @@ Options:
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="tweaking.html" class="btn btn-neutral float-left" title="Tweaking parameters" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="udp.html" class="btn btn-neutral float-right" title="Sending UDP with Lidi" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="udp.html" class="btn btn-neutral float-left" title="Sending UDP with Lidi" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
 
   <hr/>

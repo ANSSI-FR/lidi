@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Welcome to Lidi’s documentation! &mdash; Lidi 1.3.5 documentation</title>
+  <title>Welcome to Lidi’s documentation! &mdash; Lidi 2.0.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=4720776d"></script>
+      <script src="_static/documentation_options.js?v=51b770b3"></script>
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
@@ -47,6 +47,8 @@
 <li class="toctree-l1"><a class="reference internal" href="parameters.html">Command line parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tweaking.html">Tweaking parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="files.html">Sending files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="udp.html">Sending UDP with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oneshot.html">Oneshot Lidi</a></li>
 </ul>
 
         </div>
@@ -77,13 +79,13 @@
 <h1>Welcome to Lidi’s documentation!<a class="headerlink" href="#welcome-to-lidi-s-documentation" title="Link to this heading"></a></h1>
 <section id="what-is-lidi">
 <h2>What is lidi?<a class="headerlink" href="#what-is-lidi" title="Link to this heading"></a></h2>
-<p>Lidi (leedee) allows you to copy TCP streams (or files) over a unidirectional link.</p>
+<p>Lidi (leedee) allows you to copy TCP/UDP/Unix streams (or files) over a unidirectional link.</p>
 <p>It is usually used along with an actual network diode device but it can also be used over regular bidirectional links for testing purposes.</p>
 <p>For more information about the general purpose and concept of unidirectional networks and data diode: <a class="reference external" href="https://en.wikipedia.org/wiki/Unidirectional_network">Wikipedia - Unidirectional network</a>.</p>
 </section>
 <section id="why-lidi">
 <h2>Why lidi?<a class="headerlink" href="#why-lidi" title="Link to this heading"></a></h2>
-<p>Lidi has been developed to answer a specific need: copy TCP streams (or files) across a unidirectional link fast and reliably.</p>
+<p>Lidi has been developed to answer a specific need: copy TCP/UDP/Unix streams (or files) across a unidirectional link fast and reliably.</p>
 <p>Lidi was designed from the ground up to achieve these goals, for example the Rust language has been chosen for its strong safety properties as well as its very good performance profile.</p>
 </section>
 <section id="caveat">
@@ -110,6 +112,8 @@ Read the <a class="reference internal" href="tweaking.html#tweaking-parameters">
 </li>
 <li class="toctree-l1"><a class="reference internal" href="tweaking.html">Tweaking parameters</a></li>
 <li class="toctree-l1"><a class="reference internal" href="files.html">Sending files with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="udp.html">Sending UDP with Lidi</a></li>
+<li class="toctree-l1"><a class="reference internal" href="oneshot.html">Oneshot Lidi</a></li>
 </ul>
 </div>
 </section>
@@ -133,7 +137,7 @@ Read the <a class="reference internal" href="tweaking.html#tweaking-parameters">
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2023, ANSSI-FR.</p>
+    <p>&#169; Copyright 2026, ANSSI-FR.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
