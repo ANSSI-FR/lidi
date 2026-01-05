@@ -70,7 +70,10 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level, false);
+    if let Err(e) = diode::init_logger(args.log_level, None, false) {
+        eprintln!("failed to initialize logger: {e}");
+        return;
+    }
 
     log::info!(
         "{} version {}",

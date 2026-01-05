@@ -42,6 +42,12 @@ struct Args {
     )]
     log_level: log::LevelFilter,
     #[clap(
+        value_name = "path",
+        long,
+        help = "Log messages in a file instead of the console"
+    )]
+    log_file: Option<path::PathBuf>,
+    #[clap(
         value_name = "ip:port",
         long,
         help = "IP address and port where to receive UDP packets from diode-send"
@@ -165,7 +171,10 @@ impl TryFrom<&Clients> for Client {
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level, false);
+    if let Err(e) = diode::init_logger(args.log_level, args.log_file, false) {
+        eprintln!("failed to initialize logger: {e}");
+        return;
+    }
 
     log::info!(
         "{} version {}",

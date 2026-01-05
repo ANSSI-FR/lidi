@@ -1,3 +1,5 @@
+use std::{fs, path};
+
 pub mod aux;
 pub mod protocol;
 pub mod receive;
@@ -10,7 +12,11 @@ mod sock_utils;
 #[allow(unsafe_code)]
 mod udp;
 
-pub fn init_logger(level_filter: log::LevelFilter, stderr_only: bool) {
+pub fn init_logger(
+    level_filter: log::LevelFilter,
+    file: Option<path::PathBuf>,
+    stderr_only: bool,
+) -> Result<(), String> {
     let terminal_mode = if stderr_only {
         simplelog::TerminalMode::Stderr
     } else {
@@ -27,12 +33,23 @@ pub fn init_logger(level_filter: log::LevelFilter, stderr_only: bool) {
         .unwrap_or_else(|e| e)
         .build();
 
-    if let Err(e) = simplelog::TermLogger::init(
-        level_filter,
-        config,
-        terminal_mode,
-        simplelog::ColorChoice::Auto,
-    ) {
-        eprintln!("failed to initialize logger: {e}");
+    match file {
+        Some(file) => fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .truncate(false)
+            .read(false)
+            .open(file)
+            .map_err(|e| e.to_string())
+            .and_then(|file| {
+                simplelog::WriteLogger::init(level_filter, config, file).map_err(|e| e.to_string())
+            }),
+        None => simplelog::TermLogger::init(
+            level_filter,
+            config,
+            terminal_mode,
+            simplelog::ColorChoice::Auto,
+        )
+        .map_err(|e| e.to_string()),
     }
 }

@@ -41,6 +41,12 @@ struct Args {
         help = "Log level"
     )]
     log_level: log::LevelFilter,
+    #[clap(
+        value_name = "path",
+        long,
+        help = "Log messages in a file instead of the console"
+    )]
+    log_file: Option<path::PathBuf>,
     #[clap(flatten)]
     from: Listeners,
     #[clap(
@@ -169,7 +175,10 @@ fn tcp_listener_loop(listener: &net::TcpListener, sender: &send::Sender<Client>)
 fn main() {
     let args = Args::parse();
 
-    diode::init_logger(args.log_level, false);
+    if let Err(e) = diode::init_logger(args.log_level, args.log_file, false) {
+        eprintln!("failed to initialize logger: {e}");
+        return;
+    }
 
     log::info!(
         "{} version {}",
