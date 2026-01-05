@@ -64,7 +64,8 @@ pub unsafe extern "C" fn diode_send_file(
     let cstr_filepath = unsafe { CStr::from_ptr(ptr_filepath) };
     let rust_filepath = String::from_utf8_lossy(cstr_filepath.to_bytes()).to_string();
 
-    file::send::send_file(config, &rust_filepath).unwrap_or(0) as u32
+    let result: usize = file::send::send_file(config, &rust_filepath).unwrap_or(0);
+    u32::try_from(result).unwrap_or(0)
 }
 
 /// # Panics
