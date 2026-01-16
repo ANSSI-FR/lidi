@@ -186,7 +186,7 @@ fn main() {
         env!("CARGO_PKG_VERSION")
     );
 
-    let raptorq = match protocol::RaptorQ::new(args.to_mtu, args.block, args.repair) {
+    let raptorq = match protocol::RaptorQ::new(args.to_mtu, args.block, args.repair, 0) {
         Ok(raptorq) => raptorq,
         Err(e) => {
             log::error!("{e}");

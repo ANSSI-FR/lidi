@@ -74,6 +74,13 @@ struct Args {
         help = "Percentage of RaptorQ repair data"
     )]
     repair: u32,
+    #[clap(
+        default_value = "1",
+        value_name = "percentage",
+        long,
+        help = "Minimal percentage of RaptorQ repair data required before decoding"
+    )]
+    min_repair: u32,
     #[clap(long, help = "Set CPU affinity for threads")]
     cpu_affinity: bool,
 }
@@ -92,13 +99,14 @@ fn main() {
         env!("CARGO_PKG_VERSION")
     );
 
-    let raptorq = match protocol::RaptorQ::new(args.from_mtu, args.block, args.repair) {
-        Ok(raptorq) => raptorq,
-        Err(e) => {
-            log::error!("{e}");
-            return;
-        }
-    };
+    let raptorq =
+        match protocol::RaptorQ::new(args.from_mtu, args.block, args.repair, args.min_repair) {
+            Ok(raptorq) => raptorq,
+            Err(e) => {
+                log::error!("{e}");
+                return;
+            }
+        };
 
     let receiver = match receive::Receiver::new(
         receive::Config {

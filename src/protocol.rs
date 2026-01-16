@@ -74,6 +74,7 @@ pub struct RaptorQ {
     plan: raptorq::SourceBlockEncodingPlan,
     config: raptorq::ObjectTransmissionInformation,
     nb_repair_packets: u16,
+    min_nb_repair_packets: u16,
 }
 
 impl RaptorQ {
@@ -82,7 +83,12 @@ impl RaptorQ {
     /// Will return `Err` if `symbol_count`
     ///   or
     /// `nb_repair_packets` parsing fails
-    pub fn new(mtu: u16, block_size: u32, repair_percentage: u32) -> Result<Self, Error> {
+    pub fn new(
+        mtu: u16,
+        block_size: u32,
+        repair_percentage: u32,
+        min_repair_percentage: u32,
+    ) -> Result<Self, Error> {
         let mut max_packet_size = mtu - PACKET_HEADER_SIZE - RAPTORQ_HEADER_SIZE;
         max_packet_size -= max_packet_size % RAPTORQ_ALIGNMENT;
 
@@ -100,10 +106,19 @@ impl RaptorQ {
             max_packet_size,
         );
 
-        let nb_repair_packets = u16::try_from(
+        let mut nb_repair_packets = u16::try_from(
             ((transfer_length / 100) * repair_percentage) / u32::from(max_packet_size),
         )
         .map_err(|e| Error::Other(format!("nb_repair_packets: {e}")))?;
+
+        let min_nb_repair_packets = u16::try_from(
+            ((transfer_length / 100) * min_repair_percentage) / u32::from(max_packet_size),
+        )
+        .map_err(|e| Error::Other(format!("min_nb_repair_packets: {e}")))?;
+
+        if nb_repair_packets < min_nb_repair_packets {
+            nb_repair_packets = min_nb_repair_packets;
+        }
 
         Ok(Self {
             max_packet_size,
@@ -112,6 +127,7 @@ impl RaptorQ {
             plan,
             config,
             nb_repair_packets,
+            min_nb_repair_packets,
         })
     }
 
@@ -122,7 +138,10 @@ impl RaptorQ {
 
     #[must_use]
     pub const fn min_nb_packets(&self) -> u16 {
-        self.symbol_count
+        // we require to have at least min_nb_repair_packets packets
+        // in addition to normal packets to improve integrity of
+        // RaptorQ decoding process
+        self.symbol_count + self.min_nb_repair_packets
     }
 
     #[must_use]
@@ -163,8 +182,12 @@ impl fmt::Display for RaptorQ {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             fmt,
-            "RaptorQ max_packet_size == {} transfer_length = {} symbol_count|nb_packets == {} nb_repair_packets == {}",
-            self.max_packet_size, self.transfer_length, self.symbol_count, self.nb_repair_packets
+            "RaptorQ max_packet_size == {} transfer_length = {} symbol_count|nb_packets == {} nb_repair_packets == {} min_nb_repair_packets == {}",
+            self.max_packet_size,
+            self.transfer_length,
+            self.symbol_count,
+            self.nb_repair_packets,
+            self.min_nb_repair_packets
         )
     }
 }
