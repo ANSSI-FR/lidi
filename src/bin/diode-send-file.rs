@@ -70,6 +70,7 @@ fn main() {
         diode,
         buffer_size: args.buffer_size,
         hash: args.hash,
+        max_files: 0,
     };
 
     if let Err(e) = file::send::send_files(&config, &args.files) {

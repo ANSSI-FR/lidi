@@ -9,6 +9,7 @@ pub struct Config<D> {
     pub diode: D,
     pub buffer_size: usize,
     pub hash: bool,
+    pub max_files: usize,
 }
 
 pub enum Error {

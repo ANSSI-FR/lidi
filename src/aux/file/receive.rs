@@ -55,7 +55,13 @@ fn receive_tcp_loop<'a>(
     scope: &'a thread::Scope<'a, '_>,
     server: &net::TcpListener,
 ) -> Result<(), file::Error> {
+    let mut count = 0;
+
     loop {
+        if config.max_files != 0 && count >= config.max_files {
+            return Ok(());
+        }
+        count += 1;
         let (client, client_addr) = server.accept()?;
         log::info!("new TCP client ({client_addr}) connected");
         scope.spawn(|| match receive_file(config, client, output_dir) {
@@ -71,7 +77,13 @@ fn receive_unix_loop<'a>(
     scope: &'a thread::Scope<'a, '_>,
     server: &unix::net::UnixListener,
 ) -> Result<(), file::Error> {
+    let mut count = 0;
+
     loop {
+        if config.max_files != 0 && count >= config.max_files {
+            return Ok(());
+        }
+        count += 1;
         let (client, client_addr) = server.accept()?;
         log::info!(
             "new Unix client ({}) connected",

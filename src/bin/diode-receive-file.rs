@@ -40,6 +40,13 @@ struct Args {
     buffer_size: usize,
     #[clap(long, help = "Verify the hash of file content")]
     hash: bool,
+    #[clap(
+        long,
+        default_value = "0",
+        value_name = "max_files",
+        help = "Exits after receiving max_files files"
+    )]
+    max_files: usize,
     #[clap(default_value = ".", help = "Output directory")]
     output_directory: path::PathBuf,
 }
@@ -67,6 +74,7 @@ fn main() {
         diode,
         buffer_size: args.buffer_size,
         hash: args.hash,
+        max_files: args.max_files,
     };
 
     if let Err(e) = file::receive::receive_files(&config, &args.output_directory) {
