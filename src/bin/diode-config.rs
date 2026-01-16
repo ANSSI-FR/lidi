@@ -1,3 +1,5 @@
+use std::process;
+
 use clap::Parser;
 use diode::protocol;
 use rand::Rng;
@@ -34,11 +36,19 @@ struct Args {
     )]
     repair: u32,
     #[clap(
+        default_value = "1",
+        value_name = "percentage",
+        long,
+        help = "Minimal percentage of RaptorQ repair data required before decoding"
+    )]
+    min_repair: u32,
+    #[clap(
+        default_value = "1",
         value_name = "percentage",
         long,
         help = "Simulates a percentage of packets loss"
     )]
-    remove: Option<u32>,
+    remove: u32,
 }
 
 fn main() {
@@ -46,7 +56,7 @@ fn main() {
 
     if let Err(e) = diode::init_logger(args.log_level, None, false) {
         eprintln!("failed to initialize logger: {e}");
-        return;
+        process::exit(1);
     }
 
     log::info!(
@@ -56,17 +66,19 @@ fn main() {
     );
 
     log::info!(
-        "configuration with MTU = {}, block = {}, repair = {}%",
+        "configuration with MTU = {}, block = {}, repair = {}%, min_repair = {}%, remove = {}%",
         args.mtu,
         args.block,
         args.repair,
+        args.min_repair,
+        args.remove,
     );
 
-    let raptorq = match protocol::RaptorQ::new(args.mtu, args.block, args.repair) {
+    let raptorq = match protocol::RaptorQ::new(args.mtu, args.block, args.repair, args.min_repair) {
         Ok(raptorq) => raptorq,
         Err(e) => {
             log::error!("{e}");
-            return;
+            process::exit(2);
         }
     };
 
@@ -86,7 +98,7 @@ fn main() {
 
     /* encoding */
     let mut packets = raptorq.encode(id, &data);
-    log::info!("{} packets", packets.len(),);
+    log::info!("{} packets encoded", packets.len(),);
     log::debug!("len(packet) = {}", packets[0].serialize().len());
 
     /* shuffling */
@@ -98,11 +110,9 @@ fn main() {
     }
 
     /* removing */
-    if let Some(remove) = args.remove {
-        let nb = nb_packets * (remove as usize).div_euclid(100);
-        log::info!("removing {remove}% ({nb} packets)");
-        packets = packets.split_off(nb);
-    }
+    let nb = (nb_packets * args.remove as usize).div_euclid(100);
+    log::info!("removing {}% ({nb} packets)", args.remove);
+    packets = packets.split_off(nb);
 
     /* decoding */
     log::info!("decoding with {} packets", packets.len());
@@ -113,6 +123,7 @@ fn main() {
                 log::info!("decode OK");
             } else {
                 log::error!("invalid decoded data");
+                process::exit(3);
             }
         }
     }

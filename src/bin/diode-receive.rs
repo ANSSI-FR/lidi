@@ -112,6 +112,13 @@ struct Args {
     )]
     repair: u32,
     #[clap(
+        default_value = "1",
+        value_name = "percentage",
+        long,
+        help = "Minimal percentage of RaptorQ repair data required before decoding"
+    )]
+    min_repair: u32,
+    #[clap(
         default_value = "10",
         value_name = "nb_seconds",
         value_parser = parse_duration_seconds,
@@ -182,13 +189,14 @@ fn main() {
         env!("CARGO_PKG_VERSION")
     );
 
-    let raptorq = match protocol::RaptorQ::new(args.from_mtu, args.block, args.repair) {
-        Ok(raptorq) => raptorq,
-        Err(e) => {
-            log::error!("{e}");
-            return;
-        }
-    };
+    let raptorq =
+        match protocol::RaptorQ::new(args.from_mtu, args.block, args.repair, args.min_repair) {
+            Ok(raptorq) => raptorq,
+            Err(e) => {
+                log::error!("{e}");
+                return;
+            }
+        };
 
     let receiver = match receive::Receiver::new(
         receive::Config {
