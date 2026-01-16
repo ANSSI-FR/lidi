@@ -21,12 +21,10 @@ services:
     ports:
       - "5000:5000"
     command:
-      - "--from_tcp"
+      - "--from-tcp"
       - "172.16.0.2:5000"
-      - "--to_udp"
+      - "--to"
       - "172.16.0.3:6000"
-      - "--bandwidth_limit"
-      - "10"
 
   receive:
     image: diode:receive
@@ -38,8 +36,8 @@ services:
       diode_net:
         ipv4_address: 172.16.0.3
     command:
-      - "--from_udp"
+      - "--from"
       - "172.16.0.3:6000"
-      - "--to_tcp"
+      - "--to-tcp"
       - "172.16.0.1:7000"
 
