@@ -140,7 +140,11 @@ where
     let mut cursor = 0;
     let mut remaining = usize::try_from(header.file_length)?;
 
-    let mut hasher = fasthash::Murmur3HasherExt::default();
+    let mut hasher = if config.hash {
+        Some(fasthash::SpookyHasherExt::default())
+    } else {
+        None
+    };
 
     loop {
         let end = if remaining >= (config.buffer_size - cursor) {
@@ -151,8 +155,8 @@ where
         match diode.read(&mut buffer[cursor..end])? {
             0 => {
                 if 0 < cursor {
-                    if config.hash {
-                        buffer[..cursor].hash(&mut hasher);
+                    if let Some(hasher) = hasher.as_mut() {
+                        buffer[..cursor].hash(hasher);
                     }
                     file.write_all(&buffer[..cursor])?;
                 }
@@ -172,7 +176,7 @@ where
                     )));
                 }
 
-                if config.hash {
+                if let Some(hasher) = hasher.as_mut() {
                     let hash = hasher.finish_ext();
                     log::debug!("expected hash = {}", footer.hash);
                     log::debug!("computed hash = {hash}");
@@ -192,8 +196,8 @@ where
                     cursor += nread;
                     continue;
                 }
-                if config.hash {
-                    buffer.hash(&mut hasher);
+                if let Some(hasher) = hasher.as_mut() {
+                    buffer.hash(hasher);
                 }
                 file.write_all(&buffer)?;
                 cursor = 0;

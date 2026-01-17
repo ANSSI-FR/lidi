@@ -96,21 +96,29 @@ where
     let mut cursor = 0;
     let mut total = 0;
 
-    let mut hasher = fasthash::Murmur3HasherExt::default();
+    let mut hasher = if config.hash {
+        Some(fasthash::SpookyHasherExt::default())
+    } else {
+        None
+    };
 
     loop {
         match file.read(&mut buffer[cursor..])? {
             0 => {
                 if 0 < cursor {
                     total += cursor;
-                    if config.hash {
-                        buffer[..cursor].hash(&mut hasher);
+                    if let Some(hasher) = hasher.as_mut() {
+                        buffer[..cursor].hash(hasher);
                     }
                     diode.write_all(&buffer[..cursor])?;
                 }
 
                 let footer = file::protocol::Footer {
-                    hash: if config.hash { hasher.finish_ext() } else { 0 },
+                    hash: if let Some(hasher) = hasher.as_mut() {
+                        hasher.finish_ext()
+                    } else {
+                        0
+                    },
                 };
 
                 footer.serialize_to(&mut diode)?;
@@ -124,8 +132,8 @@ where
                     continue;
                 }
                 total += config.buffer_size;
-                if config.hash {
-                    buffer.hash(&mut hasher);
+                if let Some(hasher) = hasher.as_mut() {
+                    buffer.hash(hasher);
                 }
                 diode.write_all(&buffer)?;
                 cursor = 0;
