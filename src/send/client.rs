@@ -3,7 +3,7 @@
 use crate::{protocol, send};
 use std::{io, os::fd::AsRawFd, thread};
 
-pub(crate) fn start<C>(
+pub fn start<C>(
     sender: &send::Sender<C>,
     client_id: protocol::ClientId,
     mut client: C,

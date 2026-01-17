@@ -4,9 +4,9 @@
 use crate::{receive, udp};
 use std::{mem, thread};
 
-pub(crate) const WINDOW_WIDTH: u8 = u8::MAX / 2;
+pub const WINDOW_WIDTH: u8 = u8::MAX / 2;
 
-pub(crate) fn start<ClientNew, ClientEnd>(
+pub fn start<ClientNew, ClientEnd>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
 ) -> Result<(), receive::Error> {
     let min_nb_packets = usize::from(receiver.raptorq.min_nb_packets());

@@ -3,17 +3,11 @@
 use std::os::fd::AsRawFd;
 use std::{io, mem, ptr};
 
-pub(crate) fn set_socket_send_buffer_size<S: AsRawFd>(
-    socket: &S,
-    size: i32,
-) -> Result<(), io::Error> {
+pub fn set_socket_send_buffer_size<S: AsRawFd>(socket: &S, size: i32) -> Result<(), io::Error> {
     unsafe { setsockopt_buffer_size(socket.as_raw_fd(), size, libc::SO_SNDBUF) }
 }
 
-pub(crate) fn set_socket_recv_buffer_size<S: AsRawFd>(
-    socket: &S,
-    size: i32,
-) -> Result<(), io::Error> {
+pub fn set_socket_recv_buffer_size<S: AsRawFd>(socket: &S, size: i32) -> Result<(), io::Error> {
     unsafe { setsockopt_buffer_size(socket.as_raw_fd(), size, libc::SO_RCVBUF) }
 }
 
@@ -38,11 +32,11 @@ unsafe fn setsockopt_buffer_size(fd: i32, size: i32, option_name: i32) -> Result
     }
 }
 
-pub(crate) fn get_socket_send_buffer_size<S: AsRawFd>(socket: &S) -> Result<i32, io::Error> {
+pub fn get_socket_send_buffer_size<S: AsRawFd>(socket: &S) -> Result<i32, io::Error> {
     unsafe { getsockopt_buffer_size(socket.as_raw_fd(), libc::SO_SNDBUF) }
 }
 
-pub(crate) fn get_socket_recv_buffer_size<S: AsRawFd>(socket: &S) -> Result<i32, io::Error> {
+pub fn get_socket_recv_buffer_size<S: AsRawFd>(socket: &S) -> Result<i32, io::Error> {
     unsafe { getsockopt_buffer_size(socket.as_raw_fd(), libc::SO_RCVBUF) }
 }
 

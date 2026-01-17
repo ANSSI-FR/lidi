@@ -3,7 +3,7 @@
 use crate::{receive, sock_utils, udp};
 use std::{net, os::fd::AsRawFd};
 
-pub(crate) fn start<ClientNew, ClientEnd>(
+pub fn start<ClientNew, ClientEnd>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
 ) -> Result<(), receive::Error> {
     log::info!(

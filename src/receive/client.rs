@@ -7,7 +7,7 @@ use std::{
     thread,
 };
 
-pub(crate) fn start<C, ClientNew, ClientEnd, E>(
+pub fn start<C, ClientNew, ClientEnd, E>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
     client_id: protocol::ClientId,
     recvq: &crossbeam_channel::Receiver<protocol::Block>,

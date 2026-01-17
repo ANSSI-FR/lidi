@@ -201,7 +201,7 @@ pub(crate) enum BlockType {
 }
 
 impl BlockType {
-    fn serialized(self) -> u8 {
+    const fn serialized(self) -> u8 {
         match self {
             Self::Heartbeat => ID_HEARTBEAT,
             Self::Start => ID_START,
@@ -318,7 +318,7 @@ impl Block {
         Self(data)
     }
 
-    pub fn max_data_len(raptorq: &RaptorQ) -> usize {
+    pub const fn max_data_len(raptorq: &RaptorQ) -> usize {
         raptorq.transfer_length as usize - SERIALIZE_OVERHEAD
     }
 

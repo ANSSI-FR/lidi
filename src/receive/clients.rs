@@ -3,7 +3,7 @@
 use crate::{protocol, receive, receive::client};
 use std::{io::Write, os::fd::AsRawFd, thread};
 
-pub(crate) fn start<C, ClientNew, ClientEnd, E>(
+pub fn start<C, ClientNew, ClientEnd, E>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
 ) -> Result<(), receive::Error>
 where
