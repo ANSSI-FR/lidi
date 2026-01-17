@@ -114,11 +114,7 @@ where
                 }
 
                 let footer = file::protocol::Footer {
-                    hash: if let Some(hasher) = hasher.as_mut() {
-                        hasher.finish_ext()
-                    } else {
-                        0
-                    },
+                    hash: hasher.as_mut().map_or(0, |hasher| hasher.finish_ext()),
                 };
 
                 footer.serialize_to(&mut diode)?;

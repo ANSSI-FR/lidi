@@ -117,12 +117,12 @@ fn main() {
             log::error!("failed to start diode sender: {e}");
         }
 
-        let mut err = None;
-
-        if let Err(e) = sender.new_client(io::stdin()) {
+        let err = if let Err(e) = sender.new_client(io::stdin()) {
             log::error!("failed to send Unix client to connect queue: {e}");
-            err = Some(1);
-        }
+            Some(1)
+        } else {
+            None
+        };
 
         if let Err(e) = sender.stop() {
             log::error!("failed to send stop: {e}");

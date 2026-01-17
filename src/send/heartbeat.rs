@@ -3,7 +3,7 @@
 use crate::{protocol, send};
 use std::thread;
 
-pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
+pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     let Some(duration) = sender.config.heartbeat_interval else {
         return Err(send::Error::Other(
             "no heartbeat duration but heartbeat enabled".into(),

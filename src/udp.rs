@@ -2,12 +2,12 @@
 
 use std::{io, mem, net, num, pin, ptr};
 
-pub(crate) enum Datagrams {
+pub enum Datagrams {
     Single(Vec<u8>),
     Multiple(Vec<Vec<u8>>),
 }
 
-pub(crate) struct ReceiveMsg {
+pub struct ReceiveMsg {
     socket: i32,
     udp_packet_size: u16,
     msghdr: libc::msghdr,
@@ -56,7 +56,7 @@ impl ReceiveMsg {
     }
 }
 
-pub(crate) struct ReceiveMmsg {
+pub struct ReceiveMmsg {
     socket: i32,
     mmsghdr: Vec<libc::mmsghdr>,
     _iovecs: pin::Pin<Vec<libc::iovec>>,
@@ -126,20 +126,20 @@ impl ReceiveMmsg {
     }
 }
 
-pub(crate) enum Receive {
+pub enum Receive {
     Msg(ReceiveMsg),
     Mmsg(ReceiveMmsg),
 }
 
 impl Receive {
-    pub(crate) fn new(socket: i32, udp_packet_size: u16, batch_receive: Option<u32>) -> Self {
+    pub fn new(socket: i32, udp_packet_size: u16, batch_receive: Option<u32>) -> Self {
         match batch_receive {
             None | Some(1) => Self::Msg(ReceiveMsg::new(socket, udp_packet_size)),
             Some(n) => Self::Mmsg(ReceiveMmsg::new(socket, udp_packet_size, n)),
         }
     }
 
-    pub(crate) fn recv(&mut self) -> Result<Datagrams, io::Error> {
+    pub fn recv(&mut self) -> Result<Datagrams, io::Error> {
         match self {
             Self::Msg(receiver) => receiver.recv(),
             Self::Mmsg(receiver) => receiver.recv(),
@@ -284,13 +284,13 @@ impl SendM {
     }
 }
 
-pub(crate) struct Send {
+pub struct Send {
     _dest: pin::Pin<Box<libc::sockaddr>>,
     sendm: SendM,
 }
 
 impl Send {
-    pub(crate) fn new(
+    pub fn new(
         socket: i32,
         dest: net::SocketAddr,
         batch_send: Option<u32>,
@@ -355,10 +355,7 @@ impl Send {
         Ok(Self { _dest: dest, sendm })
     }
 
-    pub(crate) fn send(
-        &mut self,
-        datagrams: Vec<raptorq::EncodingPacket>,
-    ) -> Result<(), io::Error> {
+    pub fn send(&mut self, datagrams: Vec<raptorq::EncodingPacket>) -> Result<(), io::Error> {
         self.sendm.send(datagrams)
     }
 }

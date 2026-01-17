@@ -3,7 +3,7 @@
 use crate::{send, sock_utils, udp};
 use std::{net, os::fd::AsRawFd, thread};
 
-pub(crate) fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
+pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     log::info!(
         "sending UDP traffic to {} with MTU {} binding to {}",
         sender.config.to,

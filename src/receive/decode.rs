@@ -3,7 +3,7 @@
 use crate::{protocol, receive};
 use std::thread;
 
-pub(crate) fn start<ClientNew, ClientEnd>(
+pub fn start<ClientNew, ClientEnd>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
 ) -> Result<(), receive::Error> {
     loop {

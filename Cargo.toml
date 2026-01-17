@@ -33,3 +33,6 @@ pedantic = { level = "deny", priority = -1 }
 must_use_candidate = "allow"
 enum-glob-use = "allow"
 missing-errors-doc = "allow"
+nursery = { level = "deny", priority = -1 }
+or_fun_call = "allow"
+significant_drop_tightening = "allow"
