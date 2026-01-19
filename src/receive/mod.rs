@@ -43,6 +43,7 @@ pub struct Config {
     pub abort_timeout: Option<time::Duration>,
     pub heartbeat_interval: Option<time::Duration>,
     pub cpu_affinity: bool,
+    pub hash: bool,
 }
 
 pub enum Error {
