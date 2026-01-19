@@ -44,6 +44,7 @@ pub struct Config {
     pub to_mtu: u16,
     pub batch_send: Option<u32>,
     pub cpu_affinity: bool,
+    pub hash: bool,
 }
 
 pub enum Error {

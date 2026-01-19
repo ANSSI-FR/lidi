@@ -1,9 +1,9 @@
-use fasthash::HasherExt;
-
 use crate::aux::{self, file};
+use fasthash::HasherExt;
 use std::{
     fs,
     hash::Hash,
+    hash::Hasher,
     io::{Read, Write},
     net,
     os::unix::{self, fs::PermissionsExt},
@@ -156,7 +156,7 @@ where
             0 => {
                 if 0 < cursor {
                     if let Some(hasher) = hasher.as_mut() {
-                        buffer[..cursor].hash(hasher);
+                        hasher.write(&buffer[..cursor]);
                     }
                     file.write_all(&buffer[..cursor])?;
                 }

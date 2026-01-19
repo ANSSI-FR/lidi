@@ -83,6 +83,8 @@ struct Args {
     min_repair: u32,
     #[clap(long, help = "Set CPU affinity for threads")]
     cpu_affinity: bool,
+    #[clap(long, help = "Hash each client transfered data")]
+    hash: bool,
 }
 
 fn main() {
@@ -120,6 +122,7 @@ fn main() {
             heartbeat_interval: None,
             batch_receive: args.batch,
             cpu_affinity: args.cpu_affinity,
+            hash: args.hash,
         },
         raptorq,
         |_| Ok::<_, io::Error>(io::stdout()),

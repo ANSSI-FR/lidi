@@ -1,7 +1,8 @@
 //! Worker that reads data from a client socket and split it into [`crate::protocol`] blocks
 
 use crate::{protocol, send};
-use std::{io, os::fd::AsRawFd, thread};
+use fasthash::HasherExt;
+use std::{hash::Hasher, io, os::fd::AsRawFd, thread};
 
 pub fn start<C>(
     sender: &send::Sender<C>,
@@ -23,6 +24,12 @@ where
     let mut buffer = vec![0; protocol::Block::max_data_len(&sender.raptorq)];
     let mut cursor = 0;
     let mut transmitted = 0;
+
+    let mut hasher = if sender.config.hash {
+        Some(fasthash::SpookyHasherExt::default())
+    } else {
+        None
+    };
 
     loop {
         log::trace!("client {client_id:x}: read...");
@@ -46,6 +53,10 @@ where
 
         log::trace!("client {client_id:x}: send {cursor} bytes");
 
+        if let Some(hasher) = hasher.as_mut() {
+            hasher.write(&buffer[..cursor]);
+        }
+
         sender.to_encoding.send(Some(protocol::Block::new(
             block_type,
             &sender.raptorq,
@@ -57,7 +68,14 @@ where
         cursor = 0;
 
         if 0 == read {
-            log::info!("client {client_id:x}: disconnect, {transmitted} bytes sent");
+            if let Some(hasher) = hasher {
+                let hash = hasher.finish_ext();
+                log::info!(
+                    "client {client_id:x}: disconnect, {transmitted} bytes sent, hash is {hash:x}"
+                );
+            } else {
+                log::info!("client {client_id:x}: disconnect, {transmitted} bytes sent");
+            }
             return Ok(());
         }
 

@@ -127,6 +127,8 @@ struct Args {
     heartbeat: Option<time::Duration>,
     #[clap(long, help = "Set CPU affinity for threads")]
     cpu_affinity: bool,
+    #[clap(long, help = "Hash each client transfered data")]
+    hash: bool,
 }
 
 enum Client {
@@ -210,6 +212,7 @@ fn main() {
             heartbeat_interval: args.heartbeat,
             batch_receive: args.batch,
             cpu_affinity: args.cpu_affinity,
+            hash: args.hash,
         },
         raptorq,
         |_| Client::try_from(&args.to),
