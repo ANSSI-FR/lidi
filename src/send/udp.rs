@@ -1,7 +1,7 @@
 //! Worker that actually sends packets on the UDP diode link
 
 use crate::{send, sock_utils, udp};
-use std::{net, os::fd::AsRawFd, thread};
+use std::{net, os::fd::AsRawFd};
 
 pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     log::info!(
@@ -36,11 +36,18 @@ pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
 
     loop {
         let Some(packets) = sender.for_send.recv()? else {
+            let mut count = sender.config.nb_encode_threads - 1;
+            while 0 < count {
+                match sender.for_send.recv()? {
+                    Some(packets) => udp.send(packets)?,
+                    None => {
+                        count -= 1;
+                    }
+                }
+            }
             return Ok(());
         };
 
         udp.send(packets)?;
-
-        thread::yield_now();
     }
 }

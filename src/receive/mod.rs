@@ -22,7 +22,7 @@ use std::{
     io::{self, Write},
     iter, net,
     os::fd::AsRawFd,
-    thread, time,
+    sync, thread, time,
 };
 
 mod client;
@@ -148,6 +148,7 @@ pub struct Receiver<ClientNew, ClientEnd> {
     config: Config,
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
+    block_to_dispatch: sync::atomic::AtomicU8,
     to_reblock: crossbeam_channel::Sender<crate::udp::Datagrams>,
     for_reblock: crossbeam_channel::Receiver<crate::udp::Datagrams>,
     to_decode: crossbeam_channel::Sender<Reassembled>,
@@ -186,6 +187,8 @@ where
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
+        let block_to_dispatch = sync::atomic::AtomicU8::new(0);
+
         let (to_reblock, for_reblock) = crossbeam_channel::unbounded();
         let (to_decode, for_decode) = crossbeam_channel::unbounded();
         let (to_dispatch, for_dispatch) = crossbeam_channel::unbounded();
@@ -195,6 +198,7 @@ where
             config,
             raptorq,
             multiplex_control,
+            block_to_dispatch,
             to_reblock,
             for_reblock,
             to_decode,

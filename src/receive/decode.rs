@@ -1,7 +1,7 @@
 //! Worker that decodes `RaptorQ` packets into protocol blocks
 
 use crate::{protocol, receive};
-use std::thread;
+use std::{sync, thread};
 
 pub fn start<ClientNew, ClientEnd>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
@@ -16,16 +16,30 @@ pub fn start<ClientNew, ClientEnd>(
                     }
                     Some(block) => {
                         log::debug!("block {id} decoded with {} bytes!", block.len());
-                        receiver
-                            .to_dispatch
-                            .send(Some(protocol::Block::deserialize(block)))?;
+
+                        'inner: loop {
+                            let block_to_dispatch = receiver
+                                .block_to_dispatch
+                                .load(sync::atomic::Ordering::SeqCst);
+
+                            if block_to_dispatch == id {
+                                receiver
+                                    .to_dispatch
+                                    .send(Some(protocol::Block::deserialize(block)))?;
+                                receiver
+                                    .block_to_dispatch
+                                    .fetch_add(1, sync::atomic::Ordering::SeqCst);
+                                break 'inner;
+                            }
+
+                            thread::yield_now();
+                        }
                     }
                 }
             }
             super::Reassembled::Error => {
                 log::warn!("synchronization lost received, propagating");
                 receiver.to_dispatch.send(None)?;
-                continue;
             }
         }
 

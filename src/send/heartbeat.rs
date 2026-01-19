@@ -1,7 +1,7 @@
 //! Optional worker that periodically inserts [`crate::protocol`] heartbeat block in the encoding queue
 
 use crate::{protocol, send};
-use std::thread;
+use std::{sync::atomic, thread};
 
 pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     let Some(duration) = sender.config.heartbeat_interval else {
@@ -13,12 +13,12 @@ pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     loop {
         log::debug!("send heartbeat");
 
-        sender.to_encoding.send(Some(protocol::Block::new(
-            protocol::BlockType::Heartbeat,
-            &sender.raptorq,
-            0,
-            None,
-        )?))?;
+        sender.to_encoding.send(Some((
+            sender
+                .block_to_encode
+                .fetch_add(1, atomic::Ordering::SeqCst),
+            protocol::Block::new(protocol::BlockType::Heartbeat, &sender.raptorq, 0, None)?,
+        )))?;
 
         thread::sleep(duration);
     }

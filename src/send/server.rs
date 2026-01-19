@@ -1,7 +1,7 @@
 //! Worker that gets a client socket and becomes a `crate::send::client` worker
 
 use crate::{protocol, send, send::client};
-use std::{io::Read, os::fd::AsRawFd, thread};
+use std::{io::Read, os::fd::AsRawFd, sync::atomic};
 
 pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error>
 where
@@ -26,16 +26,14 @@ where
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: error: {e}");
 
-            if let Err(e) = sender.to_encoding.send(Some(protocol::Block::new(
-                protocol::BlockType::Abort,
-                &sender.raptorq,
-                client_id,
-                None,
-            )?)) {
+            if let Err(e) = sender.to_encoding.send(Some((
+                sender
+                    .block_to_encode
+                    .fetch_add(1, atomic::Ordering::SeqCst),
+                protocol::Block::new(protocol::BlockType::Abort, &sender.raptorq, client_id, None)?,
+            ))) {
                 log::error!("client {client_id:x}: failed to abort : {e}");
             }
         }
-
-        thread::yield_now();
     }
 }
