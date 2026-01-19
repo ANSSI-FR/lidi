@@ -2,7 +2,7 @@
 //! reordering
 
 use crate::{receive, udp};
-use std::{mem, thread};
+use std::{mem, sync, thread};
 
 pub const WINDOW_WIDTH: u8 = u8::MAX / 2;
 
@@ -62,6 +62,10 @@ pub fn start<ClientNew, ClientEnd>(
 
             let packet = raptorq::EncodingPacket::deserialize(first_datagram);
             cur_id = packet.payload_id().source_block_number();
+
+            receiver
+                .block_to_dispatch
+                .store(cur_id, sync::atomic::Ordering::SeqCst);
 
             let mut id = cur_id;
             let last = id.wrapping_add(WINDOW_WIDTH);

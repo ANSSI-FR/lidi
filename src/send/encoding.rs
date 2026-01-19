@@ -1,24 +1,14 @@
 //! Worker that encodes protocol blocks into `RaptorQ` packets
 
 use crate::send;
-use std::thread;
+use std::{sync::atomic, thread};
 
 pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     loop {
-        let mut block_id_to_encode = sender
-            .block_to_encode
-            .lock()
-            .map_err(|e| send::Error::Other(format!("failed to acquire lock: {e}")))?;
-        let Some(block) = sender.for_encoding.recv()? else {
+        let Some((block_id, block)) = sender.for_encoding.recv()? else {
             sender.to_send.send(None)?;
             return Ok(());
         };
-
-        let block_id = *block_id_to_encode;
-        *block_id_to_encode = block_id_to_encode.wrapping_add(1);
-
-        // explicitly release the mutex
-        drop(block_id_to_encode);
 
         let client_id = block.client_id();
 
@@ -26,20 +16,16 @@ pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
 
         let packets = sender.raptorq.encode(block_id, block.serialized());
 
-        loop {
-            let mut to_send = sender
-                .block_to_send
-                .lock()
-                .map_err(|e| send::Error::Other(format!("failed to acquire lock: {e}")))?;
+        'inner: loop {
+            let block_to_send = sender.block_to_send.load(atomic::Ordering::SeqCst);
 
-            if *to_send == block_id {
-                log::trace!("send block {block_id}");
+            if block_to_send == block_id {
                 sender.to_send.send(Some(packets))?;
-                *to_send = to_send.wrapping_add(1);
-                break;
+                sender.block_to_send.fetch_add(1, atomic::Ordering::SeqCst);
+                break 'inner;
             }
-        }
 
-        thread::yield_now();
+            thread::yield_now();
+        }
     }
 }
