@@ -1,7 +1,6 @@
 //! Worker that encodes protocol blocks into `RaptorQ` packets
 
 use crate::send;
-use std::{sync::atomic, thread};
 
 pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     loop {
@@ -16,16 +15,22 @@ pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
 
         let packets = sender.raptorq.encode(block_id, block.serialized());
 
-        'inner: loop {
-            let block_to_send = sender.block_to_send.load(atomic::Ordering::SeqCst);
+        let mut block_to_send = sender.block_to_send.0.lock().map_err(|e| {
+            send::Error::Other(format!("failed to acquire block_to_send mutex: {e}"))
+        })?;
 
-            if block_to_send == block_id {
-                sender.to_send.send(Some(packets))?;
-                sender.block_to_send.fetch_add(1, atomic::Ordering::SeqCst);
-                break 'inner;
-            }
+        block_to_send = sender
+            .block_to_send
+            .1
+            .wait_while(block_to_send, |block_to_send| *block_to_send != block_id)
+            .map_err(|e| {
+                send::Error::Other(format!("failed to wait_while block_to_send mutex: {e}"))
+            })?;
 
-            thread::yield_now();
-        }
+        sender.to_send.send(Some(packets))?;
+
+        *block_to_send = block_to_send.wrapping_add(1);
+        drop(block_to_send);
+        sender.block_to_send.1.notify_all();
     }
 }

@@ -117,7 +117,7 @@ pub struct Sender<C> {
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
     block_to_encode: sync::atomic::AtomicU8,
-    block_to_send: sync::atomic::AtomicU8,
+    block_to_send: (sync::Mutex<u8>, sync::Condvar),
     to_server: crossbeam_channel::Sender<Option<C>>,
     for_server: crossbeam_channel::Receiver<Option<C>>,
     to_encoding: crossbeam_channel::Sender<Option<(u8, protocol::Block)>>,
@@ -139,7 +139,7 @@ where
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
         let block_to_encode = sync::atomic::AtomicU8::new(0);
-        let block_to_send = sync::atomic::AtomicU8::new(0);
+        let block_to_send = (sync::Mutex::new(0), sync::Condvar::new());
 
         let (to_server, for_server) = crossbeam_channel::bounded(1);
         let (to_encoding, for_encoding) =

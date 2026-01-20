@@ -148,7 +148,7 @@ pub struct Receiver<ClientNew, ClientEnd> {
     config: Config,
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
-    block_to_dispatch: sync::atomic::AtomicU8,
+    block_to_dispatch: (sync::Mutex<u8>, sync::Condvar),
     to_reblock: crossbeam_channel::Sender<crate::udp::Datagrams>,
     for_reblock: crossbeam_channel::Receiver<crate::udp::Datagrams>,
     to_decode: crossbeam_channel::Sender<Reassembled>,
@@ -187,7 +187,7 @@ where
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
-        let block_to_dispatch = sync::atomic::AtomicU8::new(0);
+        let block_to_dispatch = (sync::Mutex::new(0), sync::Condvar::new());
 
         let (to_reblock, for_reblock) = crossbeam_channel::unbounded();
         let (to_decode, for_decode) = crossbeam_channel::unbounded();
