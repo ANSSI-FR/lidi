@@ -2,7 +2,7 @@
 
 use crate::{protocol, send};
 use fasthash::HasherExt;
-use std::{hash::Hasher, io, os::fd::AsRawFd, sync::atomic};
+use std::{hash::Hasher, io, os::fd::AsRawFd};
 
 pub fn start<C>(
     sender: &send::Sender<C>,
@@ -14,12 +14,12 @@ where
 {
     log::info!("client {client_id:x}: connected");
 
-    sender.to_encoding.send(Some((
-        sender
-            .block_to_encode
-            .fetch_add(1, atomic::Ordering::SeqCst),
-        protocol::Block::new(protocol::BlockType::Start, &sender.raptorq, client_id, None)?,
-    )))?;
+    sender.to_ordering.send(Some(protocol::Block::new(
+        protocol::BlockType::Start,
+        &sender.raptorq,
+        client_id,
+        None,
+    )?))?;
 
     let mut buffer = vec![0; protocol::Block::max_data_len(&sender.raptorq)];
     let mut cursor = 0;
@@ -57,17 +57,12 @@ where
             hasher.write(&buffer[..cursor]);
         }
 
-        sender.to_encoding.send(Some((
-            sender
-                .block_to_encode
-                .fetch_add(1, atomic::Ordering::SeqCst),
-            protocol::Block::new(
-                block_type,
-                &sender.raptorq,
-                client_id,
-                Some(&buffer[..cursor]),
-            )?,
-        )))?;
+        sender.to_ordering.send(Some(protocol::Block::new(
+            block_type,
+            &sender.raptorq,
+            client_id,
+            Some(&buffer[..cursor]),
+        )?))?;
 
         transmitted += cursor;
         cursor = 0;

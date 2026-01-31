@@ -8,9 +8,9 @@
 //! Here follows a simplified representation of the workers pipeline:
 //!
 //! ```text
-//!             ----------             ---------               -----------
-//! listeners --| client |-> clients --| block |-> encodings --| packets |-> udp
-//!             ----------             ---------               -----------
+//!             ----------             ---------              ---------                -----------
+//! listeners --| client |-> clients --| block |-> ordering --| block | -> encodings --| packets |-> udp
+//!             ----------             ---------              ---------                -----------
 //! ```
 //!
 //! Notes:
@@ -31,6 +31,7 @@ use std::{
 mod client;
 mod encoding;
 mod heartbeat;
+mod ordering;
 mod server;
 mod udp;
 
@@ -77,6 +78,12 @@ impl From<io::Error> for Error {
     }
 }
 
+impl From<crossbeam_channel::SendError<Option<protocol::Block>>> for Error {
+    fn from(_: crossbeam_channel::SendError<Option<protocol::Block>>) -> Self {
+        Self::SendBlock
+    }
+}
+
 impl From<crossbeam_channel::SendError<Option<(u8, protocol::Block)>>> for Error {
     fn from(_: crossbeam_channel::SendError<Option<(u8, protocol::Block)>>) -> Self {
         Self::SendBlock
@@ -116,10 +123,11 @@ pub struct Sender<C> {
     config: Config,
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
-    block_to_encode: sync::atomic::AtomicU8,
     block_to_send: (sync::Mutex<u8>, sync::Condvar),
     to_server: crossbeam_channel::Sender<Option<C>>,
     for_server: crossbeam_channel::Receiver<Option<C>>,
+    to_ordering: crossbeam_channel::Sender<Option<protocol::Block>>,
+    for_ordering: crossbeam_channel::Receiver<Option<protocol::Block>>,
     to_encoding: crossbeam_channel::Sender<Option<(u8, protocol::Block)>>,
     for_encoding: crossbeam_channel::Receiver<Option<(u8, protocol::Block)>>,
     to_send: crossbeam_channel::Sender<Option<Vec<raptorq::EncodingPacket>>>,
@@ -138,10 +146,11 @@ where
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
-        let block_to_encode = sync::atomic::AtomicU8::new(0);
         let block_to_send = (sync::Mutex::new(0), sync::Condvar::new());
 
         let (to_server, for_server) = crossbeam_channel::bounded(1);
+        let (to_ordering, for_ordering) =
+            crossbeam_channel::bounded(config.nb_encode_threads as usize);
         let (to_encoding, for_encoding) =
             crossbeam_channel::bounded(config.nb_encode_threads as usize);
         let (to_send, for_send) = crossbeam_channel::bounded(config.nb_encode_threads as usize);
@@ -150,10 +159,11 @@ where
             config,
             raptorq,
             multiplex_control,
-            block_to_encode,
             block_to_send,
             to_server,
             for_server,
+            to_ordering,
+            for_ordering,
             to_encoding,
             for_encoding,
             to_send,
@@ -195,6 +205,19 @@ where
                 }
                 if let Err(e) = udp::start(self) {
                     log::error!("fatal udp error: {e}");
+                }
+            })?;
+
+        let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
+        thread::Builder::new()
+            .name("ordering".into())
+            .spawn_scoped(scope, move || {
+                if let Some(cpu_id) = cpu_id {
+                    log::debug!("set CPU affinity to {}", cpu_id.id);
+                    core_affinity::set_for_current(cpu_id);
+                }
+                if let Err(e) = ordering::start(self) {
+                    log::error!("fatal ordering error: {e}");
                 }
             })?;
 
