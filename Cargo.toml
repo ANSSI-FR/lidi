@@ -1,6 +1,6 @@
 [package]
 name = "diode"
-version = "2.1.0"
+version = "2.1.1"
 edition = "2024"
 license = "GPL-3.0"
 
@@ -8,17 +8,41 @@ license = "GPL-3.0"
 members = [".", "diode-file-bindings"]
 
 [dependencies]
-clap = { version = "4", default-features = false, features = ["color", "derive", "error-context", "help", "std", "suggestions", "usage"] }
+clap = { version = "4", default-features = false, features = [
+    "color",
+    "derive",
+    "error-context",
+    "help",
+    "std",
+    "suggestions",
+    "usage",
+] }
 core_affinity = { version = "0", default-features = false }
-crossbeam-channel = { version = "0", default-features = false, features = ["std"] }
-crossbeam-utils = { version = "0", default-features = false, features = ["std"] }
-fasthash = { version = "0", default-features = false, features = ["sse42", "aes", "avx", "avx2"] }
+crossbeam-channel = { version = "0", default-features = false, features = [
+    "std",
+] }
+crossbeam-utils = { version = "0", default-features = false, features = [
+    "std",
+] }
+fasthash = { version = "0", default-features = false, features = [
+    "sse42",
+    "aes",
+    "avx",
+    "avx2",
+] }
 libc = { version = "0", default-features = false, features = ["std"] }
 log = { version = "0", default-features = false, features = ["std"] }
-rand = { version = "0", default-features = false, features = ["std", "std_rng", "thread_rng"] }
+rand = { version = "0", default-features = false, features = [
+    "std",
+    "std_rng",
+    "thread_rng",
+] }
 raptorq = { version = "2", default-features = false, features = ["std"] }
 semka = { version = "2", default-features = false, features = [] }
-simplelog = { version = "0", default-features = false, features = ["termcolor", "local-offset"] }
+simplelog = { version = "0", default-features = false, features = [
+    "termcolor",
+    "local-offset",
+] }
 
 [profile.release]
 opt-level = 3
