@@ -24,12 +24,6 @@ crossbeam-channel = { version = "0", default-features = false, features = [
 crossbeam-utils = { version = "0", default-features = false, features = [
     "std",
 ] }
-fasthash = { version = "0", default-features = false, features = [
-    "sse42",
-    "aes",
-    "avx",
-    "avx2",
-] }
 libc = { version = "0", default-features = false, features = ["std"] }
 log = { version = "0", default-features = false, features = ["std"] }
 rand = { version = "0", default-features = false, features = [
@@ -43,6 +37,17 @@ simplelog = { version = "0", default-features = false, features = [
     "termcolor",
     "local-offset",
 ] }
+
+[target.'cfg(any(target_arch="x86", target_arch="x86_64"))'.dependencies]
+fasthash = { version = "0", default-features = false, features = [
+    "sse42",
+    "aes",
+    "avx",
+    "avx2",
+] }
+
+[target.'cfg(not(any(target_arch="x86", target_arch="x86_64")))'.dependencies]
+fasthash = { version = "0", default-features = false }
 
 [profile.release]
 opt-level = 3
