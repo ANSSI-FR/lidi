@@ -2,7 +2,7 @@ use std::process;
 
 use clap::Parser;
 use diode::protocol;
-use rand::Rng;
+use rand::RngExt;
 
 #[derive(clap::Parser)]
 #[clap(about = "Test diode config parameters.")]
