@@ -1,5 +1,5 @@
 use clap::Parser;
-use rand::RngCore;
+use rand::Rng;
 use std::{io::Write, net, os::unix, path};
 
 #[derive(clap::Args)]
