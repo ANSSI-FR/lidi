@@ -69,12 +69,8 @@ struct Args {
         help = "MTU of the input UDP link"
     )]
     from_mtu: u16,
-    #[clap(
-        value_name = "2..1024",
-        long,
-        help = "Use recvmmsg to receive from 2 to 1024 UDP datagrams at once"
-    )]
-    batch: Option<u32>,
+    #[clap(default_value_t, long, help = "Receive mode")]
+    mode: diode::RecvMode,
     #[clap(
         default_value = "2",
         value_name = "seconds",
@@ -127,6 +123,7 @@ struct Args {
         long,
         help = "Maximum duration expected between heartbeat messages, 0 to disable")]
     heartbeat: Option<time::Duration>,
+    #[cfg(feature = "transfer-hash")]
     #[clap(long, help = "Hash each client transfered data")]
     hash: bool,
 }
@@ -210,7 +207,8 @@ fn main() {
             reset_timeout: args.reset_timeout,
             abort_timeout: args.abort_timeout,
             heartbeat_interval: args.heartbeat,
-            batch_receive: args.batch,
+            mode: args.mode,
+            #[cfg(feature = "transfer-hash")]
             hash: args.hash,
         },
         raptorq,

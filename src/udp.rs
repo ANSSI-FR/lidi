@@ -1,21 +1,74 @@
 //! Functions and wrappers over libc's UDP socket multiple messages receive and send
 
-use std::{io, mem, net, num, pin, ptr};
+use super::{RecvMode, SendMode};
+#[cfg(feature = "send-mmsg")]
+use std::num;
+#[cfg(feature = "receive-mmsg")]
+use std::ptr;
+use std::{io, net};
+#[cfg(any(
+    feature = "receive-msg",
+    feature = "receive-mmsg",
+    feature = "send-msg",
+    feature = "send-mmsg"
+))]
+use std::{marker, mem, os::fd::AsRawFd, pin};
 
-pub enum Datagrams {
+#[cfg(any(feature = "receive-mmsg", feature = "send-mmsg"))]
+const MAX_BATCH_SIZE: u32 = 1024;
+
+pub enum ReceiveDatagrams {
+    #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
     Single(Vec<u8>),
+    #[cfg(feature = "receive-mmsg")]
     Multiple(Vec<Vec<u8>>),
 }
 
-pub struct ReceiveMsg {
+#[cfg(feature = "receive-native")]
+pub struct ReceiveNative<'a> {
+    socket: &'a mut net::UdpSocket,
+    udp_packet_size: u16,
+    buffer: Vec<u8>,
+}
+
+#[cfg(feature = "receive-native")]
+impl<'a> ReceiveNative<'a> {
+    fn new(socket: &'a mut net::UdpSocket, udp_packet_size: u16) -> Self {
+        let buffer = vec![0u8; udp_packet_size as usize];
+
+        Self {
+            socket,
+            udp_packet_size,
+            buffer,
+        }
+    }
+
+    fn recv(&mut self) -> Result<ReceiveDatagrams, io::Error> {
+        let recv = self.socket.recv(&mut self.buffer)?;
+
+        if recv == 0 {
+            return Err(io::Error::other(format!(
+                "recv {recv} != {}",
+                self.udp_packet_size
+            )));
+        }
+
+        Ok(ReceiveDatagrams::Single(self.buffer[0..recv].to_vec()))
+    }
+}
+
+#[cfg(feature = "receive-msg")]
+pub struct ReceiveMsg<'a> {
     socket: i32,
     udp_packet_size: u16,
     msghdr: libc::msghdr,
     _iovec: pin::Pin<Box<libc::iovec>>,
     buffer: pin::Pin<Vec<u8>>,
+    phantom: marker::PhantomData<&'a ()>,
 }
 
-impl ReceiveMsg {
+#[cfg(feature = "receive-msg")]
+impl ReceiveMsg<'_> {
     fn new(socket: i32, udp_packet_size: u16) -> Self {
         let iovec = unsafe { mem::zeroed::<libc::iovec>() };
         let mut iovec = pin::Pin::new(Box::new(iovec));
@@ -35,10 +88,11 @@ impl ReceiveMsg {
             msghdr,
             _iovec: iovec,
             buffer,
+            phantom: marker::PhantomData,
         }
     }
 
-    fn recv(&mut self) -> Result<Datagrams, io::Error> {
+    fn recv(&mut self) -> Result<ReceiveDatagrams, io::Error> {
         let recv = unsafe { libc::recvmsg(self.socket, &raw mut self.msghdr, 0) };
 
         if recv < 0 {
@@ -52,31 +106,33 @@ impl ReceiveMsg {
         let recv = usize::try_from(recv)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("recv: {e}")))?;
 
-        Ok(Datagrams::Single(self.buffer[0..recv].to_vec()))
+        Ok(ReceiveDatagrams::Single(self.buffer[0..recv].to_vec()))
     }
 }
 
-pub struct ReceiveMmsg {
+#[cfg(feature = "receive-mmsg")]
+pub struct ReceiveMmsg<'a> {
     socket: i32,
     mmsghdr: Vec<libc::mmsghdr>,
     _iovecs: pin::Pin<Vec<libc::iovec>>,
     buffers: Vec<pin::Pin<Vec<u8>>>,
-    batch_size: u32,
+    phantom: marker::PhantomData<&'a ()>,
 }
 
-impl ReceiveMmsg {
-    fn new(socket: i32, udp_packet_size: u16, batch_size: u32) -> Self {
-        let iovecs = vec![unsafe { mem::zeroed::<libc::iovec>() }; batch_size as usize];
+#[cfg(feature = "receive-mmsg")]
+impl ReceiveMmsg<'_> {
+    fn new(socket: i32, udp_packet_size: u16) -> Self {
+        let batch_size = MAX_BATCH_SIZE as usize;
+        let iovecs = vec![unsafe { mem::zeroed::<libc::iovec>() }; batch_size];
         let mut iovecs = pin::Pin::new(iovecs);
 
-        let mut mmsghdr = vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; batch_size as usize];
-        for i in 0..batch_size as usize {
+        let mut mmsghdr = vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; batch_size];
+        for i in 0..batch_size {
             mmsghdr[i].msg_hdr.msg_iov = &raw mut iovecs[i];
             mmsghdr[i].msg_hdr.msg_iovlen = 1;
         }
 
-        let mut buffers =
-            vec![pin::Pin::new(vec![0u8; udp_packet_size as usize]); batch_size as usize];
+        let mut buffers = vec![pin::Pin::new(vec![0u8; udp_packet_size as usize]); batch_size];
 
         for (i, buffer) in buffers.iter_mut().enumerate() {
             iovecs[i].iov_base = buffer.as_mut_ptr().cast::<libc::c_void>();
@@ -88,16 +144,16 @@ impl ReceiveMmsg {
             mmsghdr,
             _iovecs: iovecs,
             buffers,
-            batch_size,
+            phantom: marker::PhantomData,
         }
     }
 
-    fn recv(&mut self) -> Result<Datagrams, io::Error> {
+    fn recv(&mut self) -> Result<ReceiveDatagrams, io::Error> {
         let nb_msg = unsafe {
             libc::recvmmsg(
                 self.socket,
                 self.mmsghdr.as_mut_ptr(),
-                self.batch_size,
+                MAX_BATCH_SIZE,
                 libc::MSG_WAITFORONE,
                 ptr::null_mut(),
             )
@@ -121,82 +177,176 @@ impl ReceiveMmsg {
                 },
             )?;
 
-            Ok(Datagrams::Multiple(buffers))
+            Ok(ReceiveDatagrams::Multiple(buffers))
         }
     }
 }
 
-pub enum Receive {
-    Msg(ReceiveMsg),
-    Mmsg(ReceiveMmsg),
+pub enum Receive<'a> {
+    #[cfg(feature = "receive-native")]
+    Native(ReceiveNative<'a>),
+    #[cfg(feature = "receive-msg")]
+    Msg(ReceiveMsg<'a>),
+    #[cfg(feature = "receive-mmsg")]
+    Mmsg(ReceiveMmsg<'a>),
 }
 
-impl Receive {
-    pub fn new(socket: i32, udp_packet_size: u16, batch_receive: Option<u32>) -> Self {
-        match batch_receive {
-            None | Some(1) => Self::Msg(ReceiveMsg::new(socket, udp_packet_size)),
-            Some(n) => Self::Mmsg(ReceiveMmsg::new(socket, udp_packet_size, n)),
+impl<'a> Receive<'a> {
+    pub fn new(socket: &'a mut net::UdpSocket, udp_packet_size: u16, mode: RecvMode) -> Self {
+        match mode {
+            #[cfg(feature = "receive-native")]
+            RecvMode::Native => Self::Native(ReceiveNative::new(socket, udp_packet_size)),
+            #[cfg(feature = "receive-msg")]
+            RecvMode::Recvmsg => Self::Msg(ReceiveMsg::new(socket.as_raw_fd(), udp_packet_size)),
+            #[cfg(feature = "receive-mmsg")]
+            RecvMode::Recvmmsg => Self::Mmsg(ReceiveMmsg::new(socket.as_raw_fd(), udp_packet_size)),
         }
     }
 
-    pub fn recv(&mut self) -> Result<Datagrams, io::Error> {
+    pub fn recv(&mut self) -> Result<ReceiveDatagrams, io::Error> {
         match self {
+            #[cfg(feature = "receive-native")]
+            Self::Native(receiver) => receiver.recv(),
+            #[cfg(feature = "receive-msg")]
             Self::Msg(receiver) => receiver.recv(),
+            #[cfg(feature = "receive-mmsg")]
             Self::Mmsg(receiver) => receiver.recv(),
         }
     }
 }
 
-enum SendM {
+pub enum Send<'a> {
+    #[cfg(feature = "send-native")]
+    Native {
+        socket: &'a mut net::UdpSocket,
+        dest: net::SocketAddr,
+    },
+    #[cfg(feature = "send-msg")]
     Msg {
         socket: i32,
+        _dest: pin::Pin<Box<libc::sockaddr>>,
         msghdr: libc::msghdr,
         iovec: pin::Pin<Box<libc::iovec>>,
+        phantom: marker::PhantomData<&'a ()>,
     },
+    #[cfg(feature = "send-mmsg")]
     Mmsg {
         socket: i32,
-        batch_size: usize,
+        _dest: pin::Pin<Box<libc::sockaddr>>,
         mmsghdr: Vec<libc::mmsghdr>,
         iovecs: pin::Pin<Vec<libc::iovec>>,
+        phantom: marker::PhantomData<&'a ()>,
     },
 }
 
-impl SendM {
-    fn new(
-        batch_send: Option<u32>,
-        socket: i32,
-        dest: *mut libc::sockaddr,
-        dest_len: u32,
+#[cfg(any(feature = "send-msg", feature = "send-mmsg"))]
+fn convert_address(
+    dest: net::SocketAddr,
+) -> Result<(pin::Pin<Box<libc::sockaddr>>, usize), io::Error> {
+    let (dest, dest_len) = match dest {
+        net::SocketAddr::V4(addr4) => {
+            let addr = libc::sockaddr_in {
+                sin_family: libc::sa_family_t::try_from(libc::AF_INET).map_err(|e| {
+                    io::Error::new(io::ErrorKind::InvalidData, format!("libc::AF_INET: {e}"))
+                })?,
+                sin_addr: libc::in_addr {
+                    s_addr: u32::from_le_bytes(addr4.ip().octets()),
+                },
+                sin_port: addr4.port().to_be(),
+                sin_zero: [0; 8],
+            };
+            let addr = Box::new(addr);
+            (
+                unsafe {
+                    mem::transmute::<
+                        std::boxed::Box<libc::sockaddr_in>,
+                        std::boxed::Box<libc::sockaddr>,
+                    >(addr)
+                },
+                mem::size_of::<libc::sockaddr_in>(),
+            )
+        }
+        net::SocketAddr::V6(addr6) => {
+            let addr = libc::sockaddr_in6 {
+                sin6_family: libc::sa_family_t::try_from(libc::AF_INET6).map_err(|e| {
+                    io::Error::new(io::ErrorKind::InvalidData, format!("libc::AF_INET6: {e}"))
+                })?,
+                sin6_port: addr6.port().to_be(),
+                sin6_flowinfo: addr6.flowinfo(),
+                sin6_addr: libc::in6_addr {
+                    s6_addr: addr6.ip().octets(),
+                },
+                sin6_scope_id: addr6.scope_id(),
+            };
+            let addr = Box::new(addr);
+            (
+                unsafe {
+                    mem::transmute::<
+                        std::boxed::Box<libc::sockaddr_in6>,
+                        std::boxed::Box<libc::sockaddr>,
+                    >(addr)
+                },
+                mem::size_of::<libc::sockaddr_in6>(),
+            )
+        }
+    };
+
+    Ok((pin::Pin::new(dest), dest_len))
+}
+
+impl<'a> Send<'a> {
+    pub fn new(
+        socket: &'a mut net::UdpSocket,
+        dest: net::SocketAddr,
+        mode: SendMode,
     ) -> Result<Self, io::Error> {
-        match batch_send {
-            None | Some(1) => {
+        match mode {
+            #[cfg(feature = "send-native")]
+            SendMode::Native => Ok(Self::Native { socket, dest }),
+            #[cfg(feature = "send-msg")]
+            SendMode::Sendmsg => {
+                let socket = socket.as_raw_fd();
+                let (mut dest, dest_len) = convert_address(dest)?;
+                let raw_dest = (&raw mut *dest).cast::<libc::sockaddr>();
+                let dest_len = u32::try_from(dest_len).map_err(|e| {
+                    io::Error::new(io::ErrorKind::InvalidData, format!("dest_len: {e}"))
+                })?;
+
                 let iovec = unsafe { mem::zeroed::<libc::iovec>() };
                 let mut iovec = pin::Pin::new(Box::new(iovec));
 
                 let mut msghdr = unsafe { mem::zeroed::<libc::msghdr>() };
 
-                msghdr.msg_name = dest.cast::<libc::c_void>();
+                msghdr.msg_name = raw_dest.cast::<libc::c_void>();
                 msghdr.msg_namelen = dest_len;
                 msghdr.msg_iov = &raw mut *iovec;
                 msghdr.msg_iovlen = 1;
 
                 Ok(Self::Msg {
                     socket,
+                    _dest: dest,
                     msghdr,
                     iovec,
+                    phantom: marker::PhantomData,
                 })
             }
-            Some(batch_size) => {
-                let batch_size = usize::try_from(batch_size).map_err(|e| {
-                    io::Error::new(io::ErrorKind::InvalidData, format!("batch_size: {e}"))
+            #[cfg(feature = "send-mmsg")]
+            SendMode::Sendmmsg => {
+                let socket = socket.as_raw_fd();
+                let (mut dest, dest_len) = convert_address(dest)?;
+                let raw_dest = (&raw mut *dest).cast::<libc::sockaddr>();
+                let dest_len = u32::try_from(dest_len).map_err(|e| {
+                    io::Error::new(io::ErrorKind::InvalidData, format!("dest_len: {e}"))
                 })?;
+
+                let batch_size = MAX_BATCH_SIZE as usize;
                 let iovecs = vec![unsafe { mem::zeroed::<libc::iovec>() }; batch_size];
                 let mut iovecs = pin::Pin::new(iovecs);
 
                 let mut mmsghdr = vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; batch_size];
 
                 for i in 0..batch_size {
-                    mmsghdr[i].msg_hdr.msg_name = dest.cast::<libc::c_void>();
+                    mmsghdr[i].msg_hdr.msg_name = raw_dest.cast::<libc::c_void>();
                     mmsghdr[i].msg_hdr.msg_namelen = dest_len;
                     mmsghdr[i].msg_hdr.msg_iov = &raw mut iovecs[i];
                     mmsghdr[i].msg_hdr.msg_iovlen = 1;
@@ -204,22 +354,39 @@ impl SendM {
 
                 Ok(Self::Mmsg {
                     socket,
+                    _dest: dest,
                     mmsghdr,
                     iovecs,
-                    batch_size,
+                    phantom: marker::PhantomData,
                 })
             }
         }
     }
 
-    fn send(&mut self, packets: &[raptorq::EncodingPacket]) -> Result<(), io::Error> {
+    pub fn send(&mut self, packets: &[raptorq::EncodingPacket]) -> Result<(), io::Error> {
         let mut datagrams = packets.iter().map(raptorq::EncodingPacket::serialize);
 
         match self {
+            #[cfg(feature = "send-native")]
+            Self::Native { socket, dest } => datagrams.try_for_each(|datagram| {
+                let len = datagram.len();
+
+                let sent = socket.send_to(&datagram, *dest)?;
+
+                if sent == len {
+                    Ok(())
+                } else {
+                    Err(io::Error::other(format!(
+                        "libc::sendmsg failed {sent} != {len}"
+                    )))
+                }
+            }),
+            #[cfg(feature = "send-msg")]
             Self::Msg {
                 socket,
                 msghdr,
                 iovec,
+                ..
             } => datagrams.try_for_each(|mut datagram| {
                 let len = datagram.len();
 
@@ -236,14 +403,15 @@ impl SendM {
                     )))
                 }
             }),
+            #[cfg(feature = "send-mmsg")]
             Self::Mmsg {
                 socket,
-                batch_size,
                 mmsghdr,
                 iovecs,
+                ..
             } => datagrams
                 .collect::<Vec<_>>()
-                .chunks_mut(*batch_size)
+                .chunks_mut(MAX_BATCH_SIZE as usize)
                 .try_for_each(|datagrams| {
                     let to_send = datagrams.len();
 
@@ -281,81 +449,5 @@ impl SendM {
                     }
                 }),
         }
-    }
-}
-
-pub struct Send {
-    _dest: pin::Pin<Box<libc::sockaddr>>,
-    sendm: SendM,
-}
-
-impl Send {
-    pub fn new(
-        socket: i32,
-        dest: net::SocketAddr,
-        batch_send: Option<u32>,
-    ) -> Result<Self, io::Error> {
-        let (dest, dest_len) = match dest {
-            net::SocketAddr::V4(addr4) => {
-                let addr = libc::sockaddr_in {
-                    sin_family: libc::sa_family_t::try_from(libc::AF_INET).map_err(|e| {
-                        io::Error::new(io::ErrorKind::InvalidData, format!("libc::AF_INET: {e}"))
-                    })?,
-                    sin_addr: libc::in_addr {
-                        s_addr: u32::from_le_bytes(addr4.ip().octets()),
-                    },
-                    sin_port: addr4.port().to_be(),
-                    sin_zero: [0; 8],
-                };
-                let addr = Box::new(addr);
-                (
-                    unsafe {
-                        mem::transmute::<
-                            std::boxed::Box<libc::sockaddr_in>,
-                            std::boxed::Box<libc::sockaddr>,
-                        >(addr)
-                    },
-                    mem::size_of::<libc::sockaddr_in>(),
-                )
-            }
-            net::SocketAddr::V6(addr6) => {
-                let addr = libc::sockaddr_in6 {
-                    sin6_family: libc::sa_family_t::try_from(libc::AF_INET6).map_err(|e| {
-                        io::Error::new(io::ErrorKind::InvalidData, format!("libc::AF_INET6: {e}"))
-                    })?,
-                    sin6_port: addr6.port().to_be(),
-                    sin6_flowinfo: addr6.flowinfo(),
-                    sin6_addr: libc::in6_addr {
-                        s6_addr: addr6.ip().octets(),
-                    },
-                    sin6_scope_id: addr6.scope_id(),
-                };
-                let addr = Box::new(addr);
-                (
-                    unsafe {
-                        mem::transmute::<
-                            std::boxed::Box<libc::sockaddr_in6>,
-                            std::boxed::Box<libc::sockaddr>,
-                        >(addr)
-                    },
-                    mem::size_of::<libc::sockaddr_in6>(),
-                )
-            }
-        };
-        let mut dest: pin::Pin<Box<libc::sockaddr>> = pin::Pin::new(dest);
-        let sendm = SendM::new(
-            batch_send,
-            socket,
-            (&raw mut *dest).cast::<libc::sockaddr>(),
-            u32::try_from(dest_len).map_err(|e| {
-                io::Error::new(io::ErrorKind::InvalidData, format!("dest_len: {e}"))
-            })?,
-        )?;
-
-        Ok(Self { _dest: dest, sendm })
-    }
-
-    pub fn send(&mut self, datagrams: &[raptorq::EncodingPacket]) -> Result<(), io::Error> {
-        self.sendm.send(datagrams)
     }
 }

@@ -41,7 +41,8 @@ pub struct Config {
     pub to_ports: Vec<u16>,
     pub to_bind: net::SocketAddr,
     pub to_mtu: u16,
-    pub batch_send: Option<u32>,
+    pub mode: crate::SendMode,
+    #[cfg(feature = "transfer-hash")]
     pub hash: bool,
 }
 
@@ -166,14 +167,7 @@ where
             self.config.max_clients
         );
 
-        if let Some(batch) = self.config.batch_send.as_ref() {
-            log::info!("batch send {batch} packets");
-
-            let nb_packets = self.raptorq.nb_packets();
-            if *batch < nb_packets {
-                log::warn!("batch size ({batch} packets) < {nb_packets}");
-            }
-        }
+        log::info!("send mode is {}", self.config.mode);
 
         for port in &self.config.to_ports {
             thread::Builder::new()

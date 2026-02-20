@@ -1,7 +1,7 @@
 //! Worker that actually receives packets from the UDP diode link
 
 use crate::{receive, sock_utils, udp};
-use std::{net, os::fd::AsRawFd};
+use std::net;
 
 pub fn start<ClientNew, ClientEnd>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
@@ -14,7 +14,7 @@ pub fn start<ClientNew, ClientEnd>(
         receiver.config.from_mtu,
     );
 
-    let socket = net::UdpSocket::bind(net::SocketAddr::new(receiver.config.from, port))?;
+    let mut socket = net::UdpSocket::bind(net::SocketAddr::new(receiver.config.from, port))?;
     socket.set_nonblocking(false)?;
 
     let buffer_size = i32::from(super::reblock::WINDOW_WIDTH)
@@ -32,11 +32,7 @@ pub fn start<ClientNew, ClientEnd>(
         log::warn!("Please review the kernel parameters using sysctl");
     }
 
-    let mut udp = udp::Receive::new(
-        socket.as_raw_fd(),
-        receiver.config.from_mtu,
-        receiver.config.batch_receive,
-    );
+    let mut udp = udp::Receive::new(&mut socket, receiver.config.from_mtu, receiver.config.mode);
 
     loop {
         let datagrams = udp.recv()?;

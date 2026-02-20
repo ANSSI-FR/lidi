@@ -65,6 +65,12 @@ nursery = { level = "deny", priority = -1 }
 or_fun_call = "allow"
 
 [features]
-default = [ "file-hash" ]
+default = [ "file-hash", "receive-native", "send-native", "receive-msg", "send-msg", "receive-mmsg", "send-mmsg" ]
 file-hash = [ "dep:fasthash" ]
 transfer-hash = [ "dep:fasthash" ]
+receive-native = [ ]
+receive-msg = [ ]
+receive-mmsg = [ ]
+send-native = [ ]
+send-msg = [ ]
+send-mmsg = [ ]

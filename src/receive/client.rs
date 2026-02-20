@@ -82,6 +82,10 @@ where
                     log::info!(
                         "client {client_id:x}: finished transfer, {transmitted} bytes transmitted, hash is {hash:x}"
                     );
+                } else {
+                    log::info!(
+                        "client {client_id:x}: finished transfer, {transmitted} bytes transmitted"
+                    );
                 }
 
                 #[cfg(not(feature = "transfer-hash"))]

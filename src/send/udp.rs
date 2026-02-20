@@ -1,7 +1,7 @@
 //! Worker that encodes protocol blocks into `RaptorQ` packets
 
 use crate::{send, sock_utils, udp};
-use std::{net, os::fd::AsRawFd};
+use std::net;
 
 pub fn start<C>(sender: &send::Sender<C>, to_port: u16) -> Result<(), send::Error> {
     log::info!(
@@ -11,7 +11,7 @@ pub fn start<C>(sender: &send::Sender<C>, to_port: u16) -> Result<(), send::Erro
         sender.config.to_bind
     );
 
-    let socket = net::UdpSocket::bind(sender.config.to_bind)?;
+    let mut socket = net::UdpSocket::bind(sender.config.to_bind)?;
     socket.set_nonblocking(false)?;
 
     let buffer_size = i32::try_from(sender.raptorq.nb_packets())
@@ -29,9 +29,9 @@ pub fn start<C>(sender: &send::Sender<C>, to_port: u16) -> Result<(), send::Erro
     }
 
     let mut udp = udp::Send::new(
-        socket.as_raw_fd(),
+        &mut socket,
         net::SocketAddr::new(sender.config.to, to_port),
-        sender.config.batch_send,
+        sender.config.mode,
     )?;
 
     loop {

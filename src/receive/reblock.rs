@@ -6,6 +6,7 @@ use std::{mem, thread};
 
 pub const WINDOW_WIDTH: u8 = u8::MAX / 2;
 
+#[allow(clippy::too_many_lines)]
 pub fn start<ClientNew, ClientEnd>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
 ) -> Result<(), receive::Error> {
@@ -56,8 +57,10 @@ pub fn start<ClientNew, ClientEnd>(
             blocks_ignore.fill(true);
 
             let first_datagram = match &datagrams {
-                udp::Datagrams::Single(datagram) => datagram,
-                udp::Datagrams::Multiple(datagrams) => &datagrams[0],
+                #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
+                udp::ReceiveDatagrams::Single(datagram) => datagram,
+                #[cfg(feature = "receive-mmsg")]
+                udp::ReceiveDatagrams::Multiple(datagrams) => &datagrams[0],
             };
 
             let packet = raptorq::EncodingPacket::deserialize(first_datagram);
@@ -79,14 +82,16 @@ pub fn start<ClientNew, ClientEnd>(
         }
 
         match datagrams {
-            udp::Datagrams::Single(datagram) => {
+            #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
+            udp::ReceiveDatagrams::Single(datagram) => {
                 let packet = raptorq::EncodingPacket::deserialize(&datagram);
                 let id = usize::from(packet.payload_id().source_block_number());
                 if !blocks_ignore[id] {
                     blocks_data[id].push(packet);
                 }
             }
-            udp::Datagrams::Multiple(datagrams) => {
+            #[cfg(feature = "receive-mmsg")]
+            udp::ReceiveDatagrams::Multiple(datagrams) => {
                 datagrams
                     .into_iter()
                     .map(|datagram| {
