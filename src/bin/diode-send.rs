@@ -113,8 +113,6 @@ struct Args {
         help = "Percentage of RaptorQ repair data"
     )]
     repair: u32,
-    #[clap(long, help = "Set CPU affinity for threads")]
-    cpu_affinity: bool,
     #[clap(long, help = "Hash each client transfered data")]
     hash: bool,
 }
@@ -206,7 +204,6 @@ fn main() {
             to_bind: args.to_bind,
             to_mtu: args.to_mtu,
             batch_send: args.batch,
-            cpu_affinity: args.cpu_affinity,
             hash: args.hash,
         },
         raptorq,

@@ -17,7 +17,6 @@ clap = { version = "4", default-features = false, features = [
     "suggestions",
     "usage",
 ] }
-core_affinity = { version = "0", default-features = false }
 crossbeam-channel = { version = "0", default-features = false, features = [
     "std",
 ] }

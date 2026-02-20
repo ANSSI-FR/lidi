@@ -26,8 +26,6 @@ Oneshot Lidi
              Size of RaptorQ block in bytes [default: 734928]
          --repair <percentage>
              Percentage of RaptorQ repair data [default: 2]
-         --cpu-affinity
-             Set CPU affinity for threads
      -h, --help
              Print help
 
@@ -58,7 +56,5 @@ Oneshot Lidi
              Size of RaptorQ block in bytes [default: 734928]
          --repair <percentage>
              Percentage of RaptorQ repair data [default: 2]
-         --cpu-affinity
-             Set CPU affinity for threads
      -h, --help
              Print help
