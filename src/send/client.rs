@@ -79,6 +79,8 @@ where
                 log::info!(
                     "client {client_id:x}: disconnect, {transmitted} bytes sent, hash is {hash:x}"
                 );
+            } else {
+                log::info!("client {client_id:x}: disconnect, {transmitted} bytes sent");
             }
 
             #[cfg(not(feature = "transfer-hash"))]

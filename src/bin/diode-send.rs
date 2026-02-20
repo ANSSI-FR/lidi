@@ -95,12 +95,8 @@ struct Args {
         help = "MTU of the output UDP link"
     )]
     to_mtu: u16,
-    #[clap(
-        value_name = "2..1024",
-        long,
-        help = "Use sendmmsg to send from 2 to 1024 UDP datagrams at once"
-    )]
-    batch: Option<u32>,
+    #[clap(default_value_t, long, help = "Send mode")]
+    mode: diode::SendMode,
     #[clap(
         default_value = "734928",
         value_name = "nb_bytes",
@@ -115,6 +111,7 @@ struct Args {
         help = "Percentage of RaptorQ repair data"
     )]
     repair: u32,
+    #[cfg(feature = "transfer-hash")]
     #[clap(long, help = "Hash each client transfered data")]
     hash: bool,
 }
@@ -205,7 +202,8 @@ fn main() {
             to_ports: args.to_ports,
             to_bind: args.to_bind,
             to_mtu: args.to_mtu,
-            batch_send: args.batch,
+            mode: args.mode,
+            #[cfg(feature = "transfer-hash")]
             hash: args.hash,
         },
         raptorq,

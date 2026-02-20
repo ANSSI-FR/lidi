@@ -20,8 +20,6 @@ Oneshot Lidi
              Binding IP for UDP traffic [default: 0.0.0.0:0]
          --to-mtu <nb_bytes>
              MTU of the output UDP link [default: 1500]
-         --batch <2..1024>
-             Use sendmmsg to send from 2 to 1024 UDP datagrams at once
          --block <nb_bytes>
              Size of RaptorQ block in bytes [default: 734928]
          --repair <percentage>
@@ -42,8 +40,6 @@ Oneshot Lidi
              IP address and port where to receive UDP packets from diode-send
          --from-mtu <nb_bytes>
              MTU of the input UDP link [default: 1500]
-         --batch <2..1024>
-             Use recvmmsg to receive from 2 to 1024 UDP datagrams at once
          --reset-timeout <seconds>
              Reset diode if no data are received after duration [default: 2]
          --decode-threads <0..255>

@@ -36,12 +36,13 @@ pub struct Config {
     pub from: net::IpAddr,
     pub from_ports: Vec<u16>,
     pub from_mtu: u16,
-    pub batch_receive: Option<u32>,
+    pub mode: crate::RecvMode,
     pub reset_timeout: time::Duration,
     pub max_clients: protocol::ClientId,
     pub flush: bool,
     pub abort_timeout: Option<time::Duration>,
     pub heartbeat_interval: Option<time::Duration>,
+    #[cfg(feature = "transfer-hash")]
     pub hash: bool,
 }
 
@@ -79,8 +80,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<crossbeam_channel::SendError<crate::udp::Datagrams>> for Error {
-    fn from(_: crossbeam_channel::SendError<crate::udp::Datagrams>) -> Self {
+impl From<crossbeam_channel::SendError<crate::udp::ReceiveDatagrams>> for Error {
+    fn from(_: crossbeam_channel::SendError<crate::udp::ReceiveDatagrams>) -> Self {
         Self::SendPackets
     }
 }
@@ -148,8 +149,8 @@ pub struct Receiver<ClientNew, ClientEnd> {
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
     block_to_dispatch: (sync::Mutex<u8>, sync::Condvar),
-    to_reblock: crossbeam_channel::Sender<crate::udp::Datagrams>,
-    for_reblock: crossbeam_channel::Receiver<crate::udp::Datagrams>,
+    to_reblock: crossbeam_channel::Sender<crate::udp::ReceiveDatagrams>,
+    for_reblock: crossbeam_channel::Receiver<crate::udp::ReceiveDatagrams>,
     to_decode: crossbeam_channel::Sender<Reassembled>,
     for_decode: crossbeam_channel::Receiver<Reassembled>,
     to_dispatch: crossbeam_channel::Sender<Option<protocol::Block>>,
@@ -221,14 +222,7 @@ where
             self.config.max_clients
         );
 
-        if let Some(batch) = self.config.batch_receive.as_ref() {
-            log::info!("batch receive {batch} packets");
-
-            let nb_packets = self.raptorq.nb_packets();
-            if *batch < nb_packets {
-                log::warn!("batch size ({batch} packets) < {nb_packets}");
-            }
-        }
+        log::info!("receive mode is {}", self.config.mode);
 
         log::info!(
             "reset timeout is {} seconds",

@@ -1,4 +1,18 @@
-use std::{fs, path};
+use std::{fmt, fs, path};
+
+#[cfg(not(any(feature = "send-native", feature = "send-msg", feature = "send-mmsg")))]
+compile_error!(
+    "at least one of the following feature is required: \"send-native\", \"send-msg\", \"send-mmsg\""
+);
+
+#[cfg(not(any(
+    feature = "receive-native",
+    feature = "receive-msg",
+    feature = "receive-mmsg"
+)))]
+compile_error!(
+    "at least one of the following feature is required: \"receive-native\", \"receive-msg\", \"receive-mmsg\""
+);
 
 pub mod aux;
 pub mod protocol;
@@ -11,6 +25,80 @@ mod sock_utils;
 // libc functions recv_mmsg and send_mmsg.
 #[allow(unsafe_code)]
 mod udp;
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum RecvMode {
+    #[cfg(feature = "receive-native")]
+    Native,
+    #[cfg(feature = "receive-msg")]
+    Recvmsg,
+    #[cfg(feature = "receive-mmsg")]
+    Recvmmsg,
+}
+
+impl Default for RecvMode {
+    fn default() -> Self {
+        let options = [
+            #[cfg(feature = "receive-native")]
+            Self::Native,
+            #[cfg(feature = "receive-msg")]
+            Self::Recvmsg,
+            #[cfg(feature = "receive-mmsg")]
+            Self::Recvmmsg,
+        ];
+        options[0]
+    }
+}
+
+impl fmt::Display for RecvMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            #[cfg(feature = "receive-native")]
+            Self::Native => write!(f, "native"),
+            #[cfg(feature = "receive-msg")]
+            Self::Recvmsg => write!(f, "recvmsg"),
+            #[cfg(feature = "receive-mmsg")]
+            Self::Recvmmsg => write!(f, "recvmmsg"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum SendMode {
+    #[cfg(feature = "send-native")]
+    Native,
+    #[cfg(feature = "send-msg")]
+    Sendmsg,
+    #[cfg(feature = "send-mmsg")]
+    Sendmmsg,
+}
+
+impl Default for SendMode {
+    fn default() -> Self {
+        let options = [
+            #[cfg(feature = "send-native")]
+            Self::Native,
+            #[cfg(feature = "send-msg")]
+            Self::Sendmsg,
+            #[cfg(feature = "send-mmsg")]
+            Self::Sendmmsg,
+        ];
+        options[0]
+    }
+}
+
+impl fmt::Display for SendMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            #[cfg(feature = "send-native")]
+            Self::Native => write!(f, "native"),
+            #[cfg(feature = "send-msg")]
+            Self::Sendmsg => write!(f, "sendmsg"),
+            #[cfg(feature = "send-mmsg")]
+            Self::Sendmmsg => write!(f, "sendmmsg"),
+        }
+    }
+}
 
 /// # Errors
 ///
