@@ -84,6 +84,7 @@ impl Footer {
         Ok(())
     }
 
+    #[cfg(feature = "file-hash")]
     pub fn deserialize_from<R: Read>(r: &mut R) -> Result<Self, Error> {
         let mut hash = [0u8; 16];
         r.read_exact(&mut hash)?;
