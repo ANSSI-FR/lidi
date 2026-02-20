@@ -22,9 +22,18 @@ struct Args {
     #[clap(
         value_name = "ip:port",
         long,
-        help = "IP address and port where to receive UDP packets from diode-send"
+        help = "IP address where to receive UDP packets from diode-send"
     )]
-    from: net::SocketAddr,
+    from: net::IpAddr,
+    #[clap(
+        value_name = "port[,port]*",
+        value_delimiter = ',',
+        num_args = 1..=10,
+        required = true,
+        long,
+        help = "Ports on which to receive UDP packets from diode-send"
+    )]
+    from_ports: Vec<u16>,
     #[clap(
         default_value = "1500",
         value_name = "nb_bytes",
@@ -45,13 +54,6 @@ struct Args {
         long,
         help = "Reset diode if no data are received after duration")]
     reset_timeout: time::Duration,
-    #[clap(
-        default_value = "1",
-        value_name = "0..255",
-        long,
-        help = "Number of parallel RaptorQ decode threads"
-    )]
-    decode_threads: u8,
     #[clap(long, help = "Flush immediately data to clients")]
     flush: bool,
     #[clap(
@@ -111,11 +113,11 @@ fn main() {
     let receiver = match receive::Receiver::new(
         receive::Config {
             from: args.from,
+            from_ports: args.from_ports,
             from_mtu: args.from_mtu,
             max_clients: 1,
             flush: args.flush,
             reset_timeout: args.reset_timeout,
-            nb_decode_threads: args.decode_threads,
             abort_timeout: args.abort_timeout,
             heartbeat_interval: None,
             batch_receive: args.batch,

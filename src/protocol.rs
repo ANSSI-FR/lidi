@@ -97,9 +97,9 @@ impl RaptorQ {
 
         let transfer_length = u32::from(max_packet_size) * u32::from(symbol_count);
 
-        log::debug!("generating source encoding plan...");
+        log::info!("generating source encoding plan...");
         let plan = raptorq::SourceBlockEncodingPlan::generate(symbol_count);
-        log::debug!("source encoding plan generated");
+        log::info!("source encoding plan generated");
 
         let config = raptorq::ObjectTransmissionInformation::with_defaults(
             u64::from(transfer_length),

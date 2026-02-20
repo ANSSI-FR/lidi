@@ -8,16 +8,15 @@
 //! Here follows a simplified representation of the workers pipeline:
 //!
 //! ```text
-//!             ----------             ---------              ---------                -----------
-//! listeners --| client |-> clients --| block |-> ordering --| block | -> encodings --| packets |-> udp
-//!             ----------             ---------              ---------                -----------
+//!             ----------             ---------              ---------
+//! listeners --| client |-> clients --| block |-> ordering --| block | -> udp
+//!             ----------             ---------              ---------
 //! ```
 //!
 //! Notes:
 //! - listeners threads are spawned from binary and not the library crate,
 //! - heartbeat worker has been omitted from the representation for readability,
 //! - there are `max_clients` clients workers running in parallel,
-//! - there are `nb_encode_threads` encoding workers running in parallel.
 
 use crate::protocol;
 use std::{
@@ -25,11 +24,10 @@ use std::{
     io::{self, Read},
     net,
     os::fd::AsRawFd,
-    sync, thread, time,
+    thread, time,
 };
 
 mod client;
-mod encoding;
 mod heartbeat;
 mod ordering;
 mod server;
@@ -38,9 +36,9 @@ mod udp;
 pub struct Config {
     pub max_clients: protocol::ClientId,
     pub flush: bool,
-    pub nb_encode_threads: u8,
     pub heartbeat_interval: Option<time::Duration>,
-    pub to: net::SocketAddr,
+    pub to: net::IpAddr,
+    pub to_ports: Vec<u16>,
     pub to_bind: net::SocketAddr,
     pub to_mtu: u16,
     pub batch_send: Option<u32>,
@@ -122,15 +120,12 @@ pub struct Sender<C> {
     config: Config,
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
-    block_to_send: (sync::Mutex<u8>, sync::Condvar),
     to_server: crossbeam_channel::Sender<Option<C>>,
     for_server: crossbeam_channel::Receiver<Option<C>>,
     to_ordering: crossbeam_channel::Sender<Option<protocol::Block>>,
     for_ordering: crossbeam_channel::Receiver<Option<protocol::Block>>,
-    to_encoding: crossbeam_channel::Sender<Option<(u8, protocol::Block)>>,
-    for_encoding: crossbeam_channel::Receiver<Option<(u8, protocol::Block)>>,
-    to_send: crossbeam_channel::Sender<Option<Vec<raptorq::EncodingPacket>>>,
-    for_send: crossbeam_channel::Receiver<Option<Vec<raptorq::EncodingPacket>>>,
+    to_udp: crossbeam_channel::Sender<Option<(u8, protocol::Block)>>,
+    for_udp: crossbeam_channel::Receiver<Option<(u8, protocol::Block)>>,
 }
 
 impl<C> Sender<C>
@@ -145,28 +140,20 @@ where
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
-        let block_to_send = (sync::Mutex::new(0), sync::Condvar::new());
-
         let (to_server, for_server) = crossbeam_channel::bounded(1);
-        let (to_ordering, for_ordering) =
-            crossbeam_channel::bounded(config.nb_encode_threads as usize);
-        let (to_encoding, for_encoding) =
-            crossbeam_channel::bounded(config.nb_encode_threads as usize);
-        let (to_send, for_send) = crossbeam_channel::bounded(config.nb_encode_threads as usize);
+        let (to_ordering, for_ordering) = crossbeam_channel::bounded(config.to_ports.len());
+        let (to_udp, for_udp) = crossbeam_channel::bounded(config.to_ports.len());
 
         Ok(Self {
             config,
             raptorq,
             multiplex_control,
-            block_to_send,
             to_server,
             for_server,
             to_ordering,
             for_ordering,
-            to_encoding,
-            for_encoding,
-            to_send,
-            for_send,
+            to_udp,
+            for_udp,
         })
     }
 
@@ -188,13 +175,15 @@ where
             }
         }
 
-        thread::Builder::new()
-            .name("udp".into())
-            .spawn_scoped(scope, move || {
-                if let Err(e) = udp::start(self) {
-                    log::error!("fatal udp error: {e}");
-                }
-            })?;
+        for port in &self.config.to_ports {
+            thread::Builder::new()
+                .name(format!("udp_{port}"))
+                .spawn_scoped(scope, move || {
+                    if let Err(e) = udp::start(self, *port) {
+                        log::error!("fatal udp error: {e}");
+                    }
+                })?;
+        }
 
         thread::Builder::new()
             .name("ordering".into())
@@ -203,16 +192,6 @@ where
                     log::error!("fatal ordering error: {e}");
                 }
             })?;
-
-        for i in 0..self.config.nb_encode_threads {
-            thread::Builder::new()
-                .name(format!("encoding_{i}"))
-                .spawn_scoped(scope, move || {
-                    if let Err(e) = encoding::start(self) {
-                        log::error!("fatal encoding_{i} error: {e}");
-                    }
-                })?;
-        }
 
         if let Some(hb_interval) = self.config.heartbeat_interval {
             log::info!(

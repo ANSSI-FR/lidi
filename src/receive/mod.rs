@@ -33,11 +33,11 @@ mod reblock;
 mod udp;
 
 pub struct Config {
-    pub from: net::SocketAddr,
+    pub from: net::IpAddr,
+    pub from_ports: Vec<u16>,
     pub from_mtu: u16,
     pub batch_receive: Option<u32>,
     pub reset_timeout: time::Duration,
-    pub nb_decode_threads: u8,
     pub max_clients: protocol::ClientId,
     pub flush: bool,
     pub abort_timeout: Option<time::Duration>,
@@ -271,15 +271,13 @@ where
                 }
             })?;
 
-        for i in 0..self.config.nb_decode_threads {
-            thread::Builder::new()
-                .name(format!("decode_{i}"))
-                .spawn_scoped(scope, move || {
-                    if let Err(e) = decode::start(self) {
-                        log::error!("fatal decode_{i} error: {e}");
-                    }
-                })?;
-        }
+        thread::Builder::new()
+            .name("decode".into())
+            .spawn_scoped(scope, move || {
+                if let Err(e) = decode::start(self) {
+                    log::error!("fatal decode error: {e}");
+                }
+            })?;
 
         thread::Builder::new()
             .name("reblock".to_string())
@@ -289,13 +287,15 @@ where
                 }
             })?;
 
-        thread::Builder::new()
-            .name("udp".to_string())
-            .spawn_scoped(scope, move || {
-                if let Err(e) = udp::start(self) {
-                    log::error!("fatal udp error: {e}");
-                }
-            })?;
+        for port in &self.config.from_ports {
+            thread::Builder::new()
+                .name(format!("udp_{port}"))
+                .spawn_scoped(scope, move || {
+                    if let Err(e) = udp::start(self, *port) {
+                        log::error!("fatal udp_{port} error: {e}");
+                    }
+                })?;
+        }
 
         log::info!(
             "RaptorQ block contains from {} to {} packets",

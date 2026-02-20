@@ -5,14 +5,16 @@ use std::{net, os::fd::AsRawFd};
 
 pub fn start<ClientNew, ClientEnd>(
     receiver: &receive::Receiver<ClientNew, ClientEnd>,
+    port: u16,
 ) -> Result<(), receive::Error> {
     log::info!(
-        "listening for UDP packets at {} with MTU {}",
+        "listening for UDP packets at {}:{} with MTU {}",
         receiver.config.from,
+        port,
         receiver.config.from_mtu,
     );
 
-    let socket = net::UdpSocket::bind(receiver.config.from)?;
+    let socket = net::UdpSocket::bind(net::SocketAddr::new(receiver.config.from, port))?;
     socket.set_nonblocking(false)?;
 
     let buffer_size = i32::from(super::reblock::WINDOW_WIDTH)

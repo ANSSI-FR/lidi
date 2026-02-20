@@ -212,8 +212,8 @@ impl SendM {
         }
     }
 
-    fn send(&mut self, packets: Vec<raptorq::EncodingPacket>) -> Result<(), io::Error> {
-        let mut datagrams = packets.into_iter().map(|packet| packet.serialize());
+    fn send(&mut self, packets: &[raptorq::EncodingPacket]) -> Result<(), io::Error> {
+        let mut datagrams = packets.iter().map(raptorq::EncodingPacket::serialize);
 
         match self {
             Self::Msg {
@@ -355,7 +355,7 @@ impl Send {
         Ok(Self { _dest: dest, sendm })
     }
 
-    pub fn send(&mut self, datagrams: Vec<raptorq::EncodingPacket>) -> Result<(), io::Error> {
+    pub fn send(&mut self, datagrams: &[raptorq::EncodingPacket]) -> Result<(), io::Error> {
         self.sendm.send(datagrams)
     }
 }

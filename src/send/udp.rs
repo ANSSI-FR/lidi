@@ -1,9 +1,9 @@
-//! Worker that actually sends packets on the UDP diode link
+//! Worker that encodes protocol blocks into `RaptorQ` packets
 
 use crate::{send, sock_utils, udp};
 use std::{net, os::fd::AsRawFd};
 
-pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
+pub fn start<C>(sender: &send::Sender<C>, to_port: u16) -> Result<(), send::Error> {
     log::info!(
         "sending UDP traffic to {} with MTU {} binding to {}",
         sender.config.to,
@@ -30,24 +30,23 @@ pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
 
     let mut udp = udp::Send::new(
         socket.as_raw_fd(),
-        sender.config.to,
+        net::SocketAddr::new(sender.config.to, to_port),
         sender.config.batch_send,
     )?;
 
     loop {
-        let Some(packets) = sender.for_send.recv()? else {
-            let mut count = sender.config.nb_encode_threads - 1;
-            while 0 < count {
-                match sender.for_send.recv()? {
-                    Some(packets) => udp.send(packets)?,
-                    None => {
-                        count -= 1;
-                    }
-                }
-            }
+        let Some((id, block)) = sender.for_udp.recv()? else {
             return Ok(());
         };
 
-        udp.send(packets)?;
+        let client_id = block.client_id();
+
+        log::debug!("encoding block {id} for client {client_id:x}");
+
+        let packets = sender.raptorq.encode(id, block.serialized());
+
+        log::debug!("sending block {id}");
+
+        udp.send(&packets)?;
     }
 }

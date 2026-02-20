@@ -7,11 +7,13 @@ pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
 
     loop {
         let Some(block) = sender.for_ordering.recv()? else {
-            sender.to_send.send(None)?;
+            for _ in 0..sender.config.to_ports.len() {
+                sender.to_udp.send(None)?;
+            }
             return Ok(());
         };
 
-        sender.to_encoding.send(Some((id, block)))?;
+        sender.to_udp.send(Some((id, block)))?;
 
         id = id.wrapping_add(1);
     }
