@@ -1,8 +1,10 @@
 use crate::aux::{self, file};
+#[cfg(feature = "file-hash")]
 use fasthash::HasherExt;
+#[cfg(feature = "file-hash")]
+use std::hash::{Hash, Hasher};
 use std::{
     fs,
-    hash::{Hash, Hasher},
     io::{Read, Write},
     net,
     os::unix::{self, fs::PermissionsExt},
@@ -95,6 +97,7 @@ where
     let mut cursor = 0;
     let mut total = 0;
 
+    #[cfg(feature = "file-hash")]
     let mut hasher = if config.hash {
         Some(fasthash::SpookyHasherExt::default())
     } else {
@@ -106,6 +109,7 @@ where
             0 => {
                 if 0 < cursor {
                     total += cursor;
+                    #[cfg(feature = "file-hash")]
                     if let Some(hasher) = hasher.as_mut() {
                         hasher.write(&buffer[..cursor]);
                     }
@@ -113,7 +117,10 @@ where
                 }
 
                 let footer = file::protocol::Footer {
+                    #[cfg(feature = "file-hash")]
                     hash: hasher.as_mut().map_or(0, |hasher| hasher.finish_ext()),
+                    #[cfg(not(feature = "file-hash"))]
+                    hash: 0,
                 };
 
                 footer.serialize_to(&mut diode)?;
@@ -127,6 +134,7 @@ where
                     continue;
                 }
                 total += config.buffer_size;
+                #[cfg(feature = "file-hash")]
                 if let Some(hasher) = hasher.as_mut() {
                     buffer.hash(hasher);
                 }

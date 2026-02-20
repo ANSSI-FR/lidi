@@ -1,8 +1,11 @@
 //! Worker that reads data from a client socket and split it into [`crate::protocol`] blocks
 
 use crate::{protocol, send};
+#[cfg(feature = "transfer-hash")]
 use fasthash::HasherExt;
-use std::{hash::Hasher, io, os::fd::AsRawFd};
+#[cfg(feature = "transfer-hash")]
+use std::hash::Hasher;
+use std::{io, os::fd::AsRawFd};
 
 pub fn start<C>(
     sender: &send::Sender<C>,
@@ -25,6 +28,7 @@ where
     let mut cursor = 0;
     let mut transmitted = 0;
 
+    #[cfg(feature = "transfer-hash")]
     let mut hasher = if sender.config.hash {
         Some(fasthash::SpookyHasherExt::default())
     } else {
@@ -53,6 +57,7 @@ where
 
         log::trace!("client {client_id:x}: send {cursor} bytes");
 
+        #[cfg(feature = "transfer-hash")]
         if let Some(hasher) = hasher.as_mut() {
             hasher.write(&buffer[..cursor]);
         }
@@ -68,14 +73,17 @@ where
         cursor = 0;
 
         if 0 == read {
+            #[cfg(feature = "transfer-hash")]
             if let Some(hasher) = hasher {
                 let hash = hasher.finish_ext();
                 log::info!(
                     "client {client_id:x}: disconnect, {transmitted} bytes sent, hash is {hash:x}"
                 );
-            } else {
-                log::info!("client {client_id:x}: disconnect, {transmitted} bytes sent");
             }
+
+            #[cfg(not(feature = "transfer-hash"))]
+            log::info!("client {client_id:x}: disconnect, {transmitted} bytes sent");
+
             return Ok(());
         }
     }

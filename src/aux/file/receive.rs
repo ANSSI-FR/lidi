@@ -1,9 +1,10 @@
 use crate::aux::{self, file};
+#[cfg(feature = "file-hash")]
 use fasthash::HasherExt;
+#[cfg(feature = "file-hash")]
+use std::hash::{Hash, Hasher};
 use std::{
     fs,
-    hash::Hash,
-    hash::Hasher,
     io::{Read, Write},
     net,
     os::unix::{self, fs::PermissionsExt},
@@ -140,6 +141,7 @@ where
     let mut cursor = 0;
     let mut remaining = usize::try_from(header.file_length)?;
 
+    #[cfg(feature = "file-hash")]
     let mut hasher = if config.hash {
         Some(fasthash::SpookyHasherExt::default())
     } else {
@@ -155,6 +157,7 @@ where
         match diode.read(&mut buffer[cursor..end])? {
             0 => {
                 if 0 < cursor {
+                    #[cfg(feature = "file-hash")]
                     if let Some(hasher) = hasher.as_mut() {
                         hasher.write(&buffer[..cursor]);
                     }
@@ -165,8 +168,6 @@ where
 
                 let received = usize::try_from(header.file_length)? - remaining;
 
-                let footer = file::protocol::Footer::deserialize_from(&mut diode)?;
-
                 if remaining != 0 {
                     log::debug!("expected file size = {}", header.file_length);
                     log::debug!("received file size = {received}");
@@ -176,7 +177,9 @@ where
                     )));
                 }
 
+                #[cfg(feature = "file-hash")]
                 if let Some(hasher) = hasher.as_mut() {
+                    let footer = file::protocol::Footer::deserialize_from(&mut diode)?;
                     let hash = hasher.finish_ext();
                     log::debug!("expected hash = {}", footer.hash);
                     log::debug!("computed hash = {hash}");
@@ -196,6 +199,7 @@ where
                     cursor += nread;
                     continue;
                 }
+                #[cfg(feature = "file-hash")]
                 if let Some(hasher) = hasher.as_mut() {
                     buffer.hash(hasher);
                 }

@@ -8,6 +8,7 @@ use std::{fmt, io, num};
 pub struct Config<D> {
     pub diode: D,
     pub buffer_size: usize,
+    #[cfg(feature = "file-hash")]
     pub hash: bool,
     pub max_files: usize,
 }

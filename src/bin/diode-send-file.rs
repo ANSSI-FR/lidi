@@ -38,6 +38,7 @@ struct Args {
         help = "Size of client internal read/write buffer"
     )]
     buffer_size: usize,
+    #[cfg(feature = "file-hash")]
     #[clap(long, help = "Compute and send the hash of file content")]
     hash: bool,
     #[clap(help = "Files to send")]
@@ -69,6 +70,7 @@ fn main() {
     let config = file::Config {
         diode,
         buffer_size: args.buffer_size,
+        #[cfg(feature = "file-hash")]
         hash: args.hash,
         max_files: 0,
     };

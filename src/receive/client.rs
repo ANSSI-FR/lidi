@@ -1,9 +1,11 @@
 //! Worker that writes decoded and reordered messages to client
 
 use crate::{protocol, receive};
+#[cfg(feature = "transfer-hash")]
 use fasthash::HasherExt;
+#[cfg(feature = "transfer-hash")]
+use std::hash::Hasher;
 use std::{
-    hash::Hasher,
     io::{self, Write},
     os::fd::AsRawFd,
     thread,
@@ -28,6 +30,7 @@ where
 
     let mut transmitted = 0;
 
+    #[cfg(feature = "transfer-hash")]
     let mut hasher = if receiver.config.hash {
         Some(fasthash::SpookyHasherExt::default())
     } else {
@@ -48,6 +51,7 @@ where
         if !payload.is_empty() {
             log::trace!("client {client_id:x}: payload {} bytes", payload.len());
 
+            #[cfg(feature = "transfer-hash")]
             if let Some(hasher) = hasher.as_mut() {
                 hasher.write(payload);
             }
@@ -72,16 +76,19 @@ where
                 return Ok(());
             }
             protocol::BlockType::End => {
+                #[cfg(feature = "transfer-hash")]
                 if let Some(hasher) = hasher {
                     let hash = hasher.finish_ext();
                     log::info!(
                         "client {client_id:x}: finished transfer, {transmitted} bytes transmitted, hash is {hash:x}"
                     );
-                } else {
-                    log::info!(
-                        "client {client_id:x}: finished transfer, {transmitted} bytes transmitted"
-                    );
                 }
+
+                #[cfg(not(feature = "transfer-hash"))]
+                log::info!(
+                    "client {client_id:x}: finished transfer, {transmitted} bytes transmitted"
+                );
+
                 client.flush()?;
                 (receiver.client_end)(
                     client.into_inner().map_err(|e| {

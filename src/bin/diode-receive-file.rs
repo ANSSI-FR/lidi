@@ -38,6 +38,7 @@ struct Args {
         help = "Size of client write buffer"
     )]
     buffer_size: usize,
+    #[cfg(feature = "file-hash")]
     #[clap(long, help = "Verify the hash of file content")]
     hash: bool,
     #[clap(
@@ -73,6 +74,7 @@ fn main() {
     let config = file::Config {
         diode,
         buffer_size: args.buffer_size,
+        #[cfg(feature = "file-hash")]
         hash: args.hash,
         max_files: args.max_files,
     };
