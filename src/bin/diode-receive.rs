@@ -125,8 +125,6 @@ struct Args {
         long,
         help = "Maximum duration expected between heartbeat messages, 0 to disable")]
     heartbeat: Option<time::Duration>,
-    #[clap(long, help = "Set CPU affinity for threads")]
-    cpu_affinity: bool,
     #[clap(long, help = "Hash each client transfered data")]
     hash: bool,
 }
@@ -211,7 +209,6 @@ fn main() {
             abort_timeout: args.abort_timeout,
             heartbeat_interval: args.heartbeat,
             batch_receive: args.batch,
-            cpu_affinity: args.cpu_affinity,
             hash: args.hash,
         },
         raptorq,

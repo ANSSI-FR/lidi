@@ -20,7 +20,7 @@ use crate::protocol;
 use std::{
     fmt,
     io::{self, Write},
-    iter, net,
+    net,
     os::fd::AsRawFd,
     sync, thread, time,
 };
@@ -42,7 +42,6 @@ pub struct Config {
     pub flush: bool,
     pub abort_timeout: Option<time::Duration>,
     pub heartbeat_interval: Option<time::Duration>,
-    pub cpu_affinity: bool,
     pub hash: bool,
 }
 
@@ -254,76 +253,45 @@ where
             log::info!("heartbeat is disabled");
         }
 
-        let mut cpu_ids = if self.config.cpu_affinity {
-            core_affinity::get_core_ids().map(|ids| ids.into_iter().rev())
-        } else {
-            None
-        };
-
         for i in 0..self.config.max_clients {
-            let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
             thread::Builder::new()
                 .name(format!("client_{i}"))
                 .spawn_scoped(scope, move || {
-                    if let Some(cpu_id) = cpu_id {
-                        log::debug!("set CPU affinity to {}", cpu_id.id);
-                        core_affinity::set_for_current(cpu_id);
-                    }
                     if let Err(e) = clients::start(self) {
                         log::error!("fatal client_{i} error: {e}");
                     }
                 })?;
         }
 
-        let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
         thread::Builder::new()
             .name("dispatch".to_string())
             .spawn_scoped(scope, move || {
-                if let Some(cpu_id) = cpu_id {
-                    log::debug!("set CPU affinity to {}", cpu_id.id);
-                    core_affinity::set_for_current(cpu_id);
-                }
                 if let Err(e) = dispatch::start(self) {
                     log::error!("fatal dispatch error: {e}");
                 }
             })?;
 
-        let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
         for i in 0..self.config.nb_decode_threads {
             thread::Builder::new()
                 .name(format!("decode_{i}"))
                 .spawn_scoped(scope, move || {
-                    if let Some(cpu_id) = cpu_id {
-                        log::debug!("set CPU affinity to {}", cpu_id.id);
-                        core_affinity::set_for_current(cpu_id);
-                    }
                     if let Err(e) = decode::start(self) {
                         log::error!("fatal decode_{i} error: {e}");
                     }
                 })?;
         }
 
-        let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
         thread::Builder::new()
             .name("reblock".to_string())
             .spawn_scoped(scope, move || {
-                if let Some(cpu_id) = cpu_id {
-                    log::debug!("set CPU affinity to {}", cpu_id.id);
-                    core_affinity::set_for_current(cpu_id);
-                }
                 if let Err(e) = reblock::start(self) {
                     log::error!("fatal reblock error: {e}");
                 }
             })?;
 
-        let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
         thread::Builder::new()
             .name("udp".to_string())
             .spawn_scoped(scope, move || {
-                if let Some(cpu_id) = cpu_id {
-                    log::debug!("set CPU affinity to {}", cpu_id.id);
-                    core_affinity::set_for_current(cpu_id);
-                }
                 if let Err(e) = udp::start(self) {
                     log::error!("fatal udp error: {e}");
                 }

@@ -23,7 +23,7 @@ use crate::protocol;
 use std::{
     fmt,
     io::{self, Read},
-    iter, net,
+    net,
     os::fd::AsRawFd,
     sync, thread, time,
 };
@@ -44,7 +44,6 @@ pub struct Config {
     pub to_bind: net::SocketAddr,
     pub to_mtu: u16,
     pub batch_send: Option<u32>,
-    pub cpu_affinity: bool,
     pub hash: bool,
 }
 
@@ -189,47 +188,26 @@ where
             }
         }
 
-        let mut cpu_ids = if self.config.cpu_affinity {
-            core_affinity::get_core_ids().map(iter::IntoIterator::into_iter)
-        } else {
-            None
-        };
-
-        let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
         thread::Builder::new()
             .name("udp".into())
             .spawn_scoped(scope, move || {
-                if let Some(cpu_id) = cpu_id {
-                    log::debug!("set CPU affinity to {}", cpu_id.id);
-                    core_affinity::set_for_current(cpu_id);
-                }
                 if let Err(e) = udp::start(self) {
                     log::error!("fatal udp error: {e}");
                 }
             })?;
 
-        let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
         thread::Builder::new()
             .name("ordering".into())
             .spawn_scoped(scope, move || {
-                if let Some(cpu_id) = cpu_id {
-                    log::debug!("set CPU affinity to {}", cpu_id.id);
-                    core_affinity::set_for_current(cpu_id);
-                }
                 if let Err(e) = ordering::start(self) {
                     log::error!("fatal ordering error: {e}");
                 }
             })?;
 
         for i in 0..self.config.nb_encode_threads {
-            let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
             thread::Builder::new()
                 .name(format!("encoding_{i}"))
                 .spawn_scoped(scope, move || {
-                    if let Some(cpu_id) = cpu_id {
-                        log::debug!("set CPU affinity to {}", cpu_id.id);
-                        core_affinity::set_for_current(cpu_id);
-                    }
                     if let Err(e) = encoding::start(self) {
                         log::error!("fatal encoding_{i} error: {e}");
                     }
@@ -241,14 +219,9 @@ where
                 "heartbeat block will be sent every {} seconds",
                 hb_interval.as_secs()
             );
-            let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
             thread::Builder::new()
                 .name("heartbeat".into())
                 .spawn_scoped(scope, move || {
-                    if let Some(cpu_id) = cpu_id {
-                        log::debug!("set CPU affinity to {}", cpu_id.id);
-                        core_affinity::set_for_current(cpu_id);
-                    }
                     if let Err(e) = heartbeat::start(self) {
                         log::error!("fatal heartbeat error; {e}");
                     }
@@ -258,14 +231,9 @@ where
         }
 
         for i in 0..self.config.max_clients {
-            let cpu_id = cpu_ids.as_mut().and_then(iter::Iterator::next);
             thread::Builder::new()
                 .name(format!("client_{i}"))
                 .spawn_scoped(scope, move || {
-                    if let Some(cpu_id) = cpu_id {
-                        log::debug!("set CPU affinity to {}", cpu_id.id);
-                        core_affinity::set_for_current(cpu_id);
-                    }
                     if let Err(e) = server::start(self) {
                         log::error!("fatal client_{i} error: {e}");
                     }
