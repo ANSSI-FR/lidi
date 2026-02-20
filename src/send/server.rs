@@ -9,9 +9,7 @@ where
 {
     loop {
         let Some(client) = sender.for_server.recv()? else {
-            for _ in 0..sender.config.nb_encode_threads {
-                sender.to_ordering.send(None)?;
-            }
+            sender.to_ordering.send(None)?;
             return Ok(());
         };
 

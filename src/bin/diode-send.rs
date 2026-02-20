@@ -57,13 +57,6 @@ struct Args {
     )]
     max_clients: protocol::ClientId,
     #[clap(
-        default_value = "1",
-        value_name = "0..255",
-        long,
-        help = "Number of parallel RaptorQ encoding threads"
-    )]
-    encode_threads: u8,
-    #[clap(
         default_value = "5",
         value_name = "nb_seconds",
         value_parser = parse_duration_seconds,
@@ -74,11 +67,20 @@ struct Args {
     #[clap(long, help = "Flush client data immediately")]
     flush: bool,
     #[clap(
-        value_name = "ip:port",
+        value_name = "ip",
         long,
-        help = "IP address and port where to send UDP packets to diode-receive"
+        help = "IP address where to send UDP packets to diode-receive"
     )]
-    to: net::SocketAddr,
+    to: net::IpAddr,
+    #[clap(
+        value_name = "port[,port]*",
+        value_delimiter = ',',
+        num_args = 1..=10,
+        required = true,
+        long,
+        help = "Ports on which to send UDP packets to diode-receive"
+    )]
+    to_ports: Vec<u16>,
     #[clap(
         default_value = "0.0.0.0:0",
         value_name = "ip:port",
@@ -198,9 +200,9 @@ fn main() {
         send::Config {
             max_clients: args.max_clients,
             flush: args.flush,
-            nb_encode_threads: args.encode_threads,
             heartbeat_interval: args.heartbeat,
             to: args.to,
+            to_ports: args.to_ports,
             to_bind: args.to_bind,
             to_mtu: args.to_mtu,
             batch_send: args.batch,
