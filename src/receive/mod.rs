@@ -187,6 +187,10 @@ where
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
+        if config.from_mtu > crate::MAX_MTU {
+            return Err(Error::Other(format!("mtu {} is too large (> {})", config.from_mtu, crate::MAX_MTU)));
+        }
+
         let block_to_dispatch = (sync::Mutex::new(0), sync::Condvar::new());
 
         let (to_reblock, for_reblock) = crossbeam_channel::unbounded();

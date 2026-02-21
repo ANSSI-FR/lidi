@@ -141,6 +141,10 @@ where
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
+        if config.to_mtu > crate::MAX_MTU {
+            return Err(Error::Other(format!("mtu {} is too large (> {})", config.to_mtu, crate::MAX_MTU)));
+        }
+
         let (to_server, for_server) = crossbeam_channel::bounded(1);
         let (to_ordering, for_ordering) = crossbeam_channel::bounded(config.to_ports.len());
         let (to_udp, for_udp) = crossbeam_channel::bounded(config.to_ports.len());

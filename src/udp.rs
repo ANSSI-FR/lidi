@@ -122,17 +122,16 @@ pub struct ReceiveMmsg<'a> {
 #[cfg(feature = "receive-mmsg")]
 impl ReceiveMmsg<'_> {
     fn new(socket: i32, udp_packet_size: u16) -> Self {
-        let batch_size = MAX_BATCH_SIZE as usize;
-        let iovecs = vec![unsafe { mem::zeroed::<libc::iovec>() }; batch_size];
+        let iovecs = vec![unsafe { mem::zeroed::<libc::iovec>() }; MAX_BATCH_SIZE as usize];
         let mut iovecs = pin::Pin::new(iovecs);
 
-        let mut mmsghdr = vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; batch_size];
-        for i in 0..batch_size {
+        let mut mmsghdr = vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; MAX_BATCH_SIZE as usize];
+        for i in 0..MAX_BATCH_SIZE as usize {
             mmsghdr[i].msg_hdr.msg_iov = &raw mut iovecs[i];
             mmsghdr[i].msg_hdr.msg_iovlen = 1;
         }
 
-        let mut buffers = vec![pin::Pin::new(vec![0u8; udp_packet_size as usize]); batch_size];
+        let mut buffers = vec![pin::Pin::new(vec![0u8; udp_packet_size as usize]); MAX_BATCH_SIZE as usize];
 
         for (i, buffer) in buffers.iter_mut().enumerate() {
             iovecs[i].iov_base = buffer.as_mut_ptr().cast::<libc::c_void>();
@@ -339,13 +338,12 @@ impl<'a> Send<'a> {
                     io::Error::new(io::ErrorKind::InvalidData, format!("dest_len: {e}"))
                 })?;
 
-                let batch_size = MAX_BATCH_SIZE as usize;
-                let iovecs = vec![unsafe { mem::zeroed::<libc::iovec>() }; batch_size];
+                let iovecs = vec![unsafe { mem::zeroed::<libc::iovec>() }; MAX_BATCH_SIZE as usize];
                 let mut iovecs = pin::Pin::new(iovecs);
 
-                let mut mmsghdr = vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; batch_size];
+                let mut mmsghdr = vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; MAX_BATCH_SIZE as usize];
 
-                for i in 0..batch_size {
+                for i in 0..MAX_BATCH_SIZE as usize {
                     mmsghdr[i].msg_hdr.msg_name = raw_dest.cast::<libc::c_void>();
                     mmsghdr[i].msg_hdr.msg_namelen = dest_len;
                     mmsghdr[i].msg_hdr.msg_iov = &raw mut iovecs[i];
@@ -364,72 +362,69 @@ impl<'a> Send<'a> {
     }
 
     pub fn send(&mut self, packets: &[raptorq::EncodingPacket]) -> Result<(), io::Error> {
-        let mut datagrams = packets.iter().map(raptorq::EncodingPacket::serialize);
+        let datagrams = packets.iter().map(raptorq::EncodingPacket::serialize);
 
         match self {
             #[cfg(feature = "send-native")]
-            Self::Native { socket, dest } => datagrams.try_for_each(|datagram| {
-                let len = datagram.len();
+            Self::Native { socket, dest } => {
+                for datagram in datagrams {
+                    let len = datagram.len();
 
-                let sent = socket.send_to(&datagram, *dest)?;
+                    let sent = socket.send_to(&datagram, *dest)?;
 
-                if sent == len {
-                    Ok(())
-                } else {
-                    Err(io::Error::other(format!(
-                        "libc::sendmsg failed {sent} != {len}"
-                    )))
+                    if sent != len {
+                        return Err(io::Error::other(format!(
+                            "libc::sendmsg failed {sent} != {len}"
+                        )));
+                    }
                 }
-            }),
+            }
             #[cfg(feature = "send-msg")]
             Self::Msg {
                 socket,
                 msghdr,
                 iovec,
                 ..
-            } => datagrams.try_for_each(|mut datagram| {
-                let len = datagram.len();
+            } => {
+                for mut datagram in datagrams {
+                    let len = datagram.len();
 
-                iovec.iov_base = datagram.as_mut_ptr().cast();
-                iovec.iov_len = len;
+                    iovec.iov_base = datagram.as_mut_ptr().cast();
+                    iovec.iov_len = len;
 
-                let sent = unsafe { libc::sendmsg(*socket, msghdr, 0) };
+                    let sent = unsafe { libc::sendmsg(*socket, msghdr, 0) };
 
-                if sent == len.cast_signed() {
-                    Ok(())
-                } else {
-                    Err(io::Error::other(format!(
-                        "libc::sendmsg failed {sent} != {len}"
-                    )))
+                    if sent != len.cast_signed() {
+                        return Err(io::Error::other(format!(
+                            "libc::sendmsg failed {sent} != {len}"
+                        )));
+                    }
                 }
-            }),
+            }
             #[cfg(feature = "send-mmsg")]
             Self::Mmsg {
                 socket,
                 mmsghdr,
                 iovecs,
                 ..
-            } => datagrams
-                .collect::<Vec<_>>()
-                .chunks_mut(MAX_BATCH_SIZE as usize)
-                .try_for_each(|datagrams| {
+            } => {
+                for datagrams in datagrams
+                    .collect::<Vec<_>>()
+                    .chunks_mut(MAX_BATCH_SIZE as usize)
+                {
                     let to_send = datagrams.len();
 
-                    datagrams
-                        .iter_mut()
-                        .enumerate()
-                        .try_for_each(|(i, datagram)| {
-                            mmsghdr[i].msg_len = u32::try_from(datagram.len())?;
-                            iovecs[i].iov_base = datagram.as_mut_ptr().cast::<libc::c_void>();
-                            iovecs[i].iov_len = datagram.len();
-                            Ok(())
-                        })
-                        .map_err(|e: num::TryFromIntError| {
-                            io::Error::new(
-                                io::ErrorKind::InvalidData,
-                                format!("datagram.len(): {e}"),
-                            )
-                        })?;
+                    for (i, datagram) in datagrams.iter_mut().enumerate() {
+                        mmsghdr[i].msg_len =
+                            u32::try_from(datagram.len()).map_err(|e: num::TryFromIntError| {
+                                io::Error::new(
+                                    io::ErrorKind::InvalidData,
+                                    format!("datagram.len(): {e}"),
+                                )
+                            })?;
+                        iovecs[i].iov_base = datagram.as_mut_ptr().cast::<libc::c_void>();
+                        iovecs[i].iov_len = datagram.len();
+                    }
 
                     let sent = unsafe {
                         libc::sendmmsg(
@@ -442,12 +437,13 @@ impl<'a> Send<'a> {
                         ) as isize
                     };
 
-                    if sent.cast_unsigned() == to_send {
-                        Ok(())
-                    } else {
-                        Err(io::Error::other("libc::sendmmsg"))
+                    if sent.cast_unsigned() != to_send {
+                        return Err(io::Error::other("libc::sendmmsg"));
                     }
-                }),
+                }
+            }
         }
+
+        Ok(())
     }
 }
