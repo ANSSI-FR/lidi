@@ -26,6 +26,8 @@ mod sock_utils;
 #[allow(unsafe_code)]
 mod udp;
 
+pub const MAX_MTU: u16 = 9000;
+
 #[derive(Clone, Copy, clap::ValueEnum)]
 pub enum RecvMode {
     #[cfg(feature = "receive-native")]

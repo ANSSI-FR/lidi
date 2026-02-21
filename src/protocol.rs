@@ -257,45 +257,27 @@ impl Block {
         client_id: ClientId,
         data: Option<&[u8]>,
     ) -> Result<Self, Error> {
-        match data {
-            None => {
-                let mut content = vec![
-                    0u8;
-                    usize::try_from(raptorq.transfer_length).map_err(|e| {
-                        Error::Other(format!("transfer_length: {e}"))
-                    })?
-                ];
-                let bytes = client_id.to_le_bytes();
-                content[0] = bytes[0];
-                content[1] = bytes[1];
-                content[2] = bytes[2];
-                content[3] = bytes[3];
-                content[4] = block.serialized();
-                Ok(Self(content))
-            }
-            Some(data) => {
-                let mut content = Vec::with_capacity(
-                    usize::try_from(raptorq.transfer_length)
-                        .map_err(|e| Error::Other(format!("transfer_length: {e}")))?,
-                );
-                content.extend_from_slice(&client_id.to_le_bytes());
-                content.push(block.serialized());
-                content.extend_from_slice(&u32::to_le_bytes(
-                    u32::try_from(data.len())
-                        .map_err(|e| Error::Other(format!("data.len(): {e}")))?,
-                ));
-                content.extend_from_slice(data);
-                if content.len() < content.capacity() {
-                    content.resize(content.capacity(), 0);
-                }
-                Ok(Self(content))
-            }
+        let mut content = vec![
+            0u8;
+            usize::try_from(raptorq.transfer_length)
+                .map_err(|e| Error::Other(format!("transfer_length: {e}")))?
+        ];
+        content[0..4].copy_from_slice(&client_id.to_le_bytes());
+        content[4] = block.serialized();
+
+        if let Some(data) = data {
+            let data_len = data.len();
+            content[5..9].copy_from_slice(&u32::to_le_bytes(
+                u32::try_from(data_len).map_err(|e| Error::Other(format!("data.len(): {e}")))?,
+            ));
+            content[9..9 + data_len].copy_from_slice(data);
         }
+
+        Ok(Self(content))
     }
 
     pub(crate) fn client_id(&self) -> ClientId {
-        let bytes = [self.0[0], self.0[1], self.0[2], self.0[3]];
-        u32::from_le_bytes(bytes)
+        u32::from_le_bytes([self.0[0], self.0[1], self.0[2], self.0[3]])
     }
 
     pub(crate) fn block_type(&self) -> Result<BlockType, Error> {
@@ -310,8 +292,7 @@ impl Block {
     }
 
     fn payload_len(&self) -> u32 {
-        let data_len_bytes = [self.0[5], self.0[6], self.0[7], self.0[8]];
-        u32::from_le_bytes(data_len_bytes)
+        u32::from_le_bytes([self.0[5], self.0[6], self.0[7], self.0[8]])
     }
 
     pub(crate) const fn deserialize(data: Vec<u8>) -> Self {
