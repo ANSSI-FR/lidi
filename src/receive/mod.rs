@@ -22,7 +22,7 @@ use std::{
     io::{self, Write},
     net,
     os::fd::AsRawFd,
-    sync, thread, time,
+    thread, time,
 };
 
 mod client;
@@ -80,8 +80,16 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<crossbeam_channel::SendError<crate::udp::ReceiveDatagrams>> for Error {
-    fn from(_: crossbeam_channel::SendError<crate::udp::ReceiveDatagrams>) -> Self {
+#[cfg(not(feature = "receive-mmsg"))]
+impl From<crossbeam_channel::SendError<raptorq::EncodingPacket>> for Error {
+    fn from(_: crossbeam_channel::SendError<raptorq::EncodingPacket>) -> Self {
+        Self::SendPackets
+    }
+}
+
+#[cfg(feature = "receive-mmsg")]
+impl From<crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>> for Error {
+    fn from(_: crossbeam_channel::SendError<Vec<raptorq::EncodingPacket>>) -> Self {
         Self::SendPackets
     }
 }
@@ -148,9 +156,14 @@ pub struct Receiver<ClientNew, ClientEnd> {
     config: Config,
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
-    block_to_dispatch: (sync::Mutex<u8>, sync::Condvar),
-    to_reblock: crossbeam_channel::Sender<crate::udp::ReceiveDatagrams>,
-    for_reblock: crossbeam_channel::Receiver<crate::udp::ReceiveDatagrams>,
+    #[cfg(not(feature = "receive-mmsg"))]
+    to_reblock: crossbeam_channel::Sender<raptorq::EncodingPacket>,
+    #[cfg(not(feature = "receive-mmsg"))]
+    for_reblock: crossbeam_channel::Receiver<raptorq::EncodingPacket>,
+    #[cfg(feature = "receive-mmsg")]
+    to_reblock: crossbeam_channel::Sender<Vec<raptorq::EncodingPacket>>,
+    #[cfg(feature = "receive-mmsg")]
+    for_reblock: crossbeam_channel::Receiver<Vec<raptorq::EncodingPacket>>,
     to_decode: crossbeam_channel::Sender<Reassembled>,
     for_decode: crossbeam_channel::Receiver<Reassembled>,
     to_dispatch: crossbeam_channel::Sender<Option<protocol::Block>>,
@@ -188,10 +201,12 @@ where
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
         if config.from_mtu > crate::MAX_MTU {
-            return Err(Error::Other(format!("mtu {} is too large (> {})", config.from_mtu, crate::MAX_MTU)));
+            return Err(Error::Other(format!(
+                "mtu {} is too large (> {})",
+                config.from_mtu,
+                crate::MAX_MTU
+            )));
         }
-
-        let block_to_dispatch = (sync::Mutex::new(0), sync::Condvar::new());
 
         let (to_reblock, for_reblock) = crossbeam_channel::unbounded();
         let (to_decode, for_decode) = crossbeam_channel::unbounded();
@@ -202,7 +217,6 @@ where
             config,
             raptorq,
             multiplex_control,
-            block_to_dispatch,
             to_reblock,
             for_reblock,
             to_decode,
@@ -296,7 +310,8 @@ where
         }
 
         log::info!(
-            "RaptorQ block contains from {} to {} packets",
+            "RaptorQ block of {} bytes splitted from {}/{} packets",
+            self.raptorq.block_size(),
             self.raptorq.min_nb_packets(),
             self.raptorq.nb_packets()
         );

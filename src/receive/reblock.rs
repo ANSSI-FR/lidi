@@ -1,7 +1,7 @@
 //! Worker for grouping packets according to their block numbers to handle potential UDP packets
 //! reordering
 
-use crate::{receive, udp};
+use crate::receive;
 use std::{mem, thread};
 
 pub const WINDOW_WIDTH: u8 = u8::MAX / 2;
@@ -22,7 +22,7 @@ pub fn start<ClientNew, ClientEnd>(
     let mut reset = true;
 
     loop {
-        let datagrams = match receiver
+        let packets = match receiver
             .for_reblock
             .recv_timeout(receiver.config.reset_timeout)
         {
@@ -45,7 +45,7 @@ pub fn start<ClientNew, ClientEnd>(
                 continue;
             }
             Err(e) => return Err(receive::Error::from(e)),
-            Ok(datagrams) => datagrams,
+            Ok(packets) => packets,
         };
 
         if reset {
@@ -56,22 +56,12 @@ pub fn start<ClientNew, ClientEnd>(
             }
             blocks_ignore.fill(true);
 
-            let first_datagram = match &datagrams {
-                #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
-                udp::ReceiveDatagrams::Single(datagram) => datagram,
-                #[cfg(feature = "receive-mmsg")]
-                udp::ReceiveDatagrams::Multiple(datagrams) => &datagrams[0],
-            };
+            #[cfg(not(feature = "receive-mmsg"))]
+            let first_packet = &packets;
+            #[cfg(feature = "receive-mmsg")]
+            let first_packet = &packets[0];
 
-            let packet = raptorq::EncodingPacket::deserialize(first_datagram);
-            cur_id = packet.payload_id().source_block_number();
-
-            let mut block_to_dispatch = receiver.block_to_dispatch.0.lock().map_err(|e| {
-                receive::Error::Other(format!("failed to acquire block_to_dispatch mutex: {e}"))
-            })?;
-            *block_to_dispatch = cur_id;
-            drop(block_to_dispatch);
-            receiver.block_to_dispatch.1.notify_all();
+            cur_id = first_packet.payload_id().source_block_number();
 
             let mut id = cur_id;
             let last = id.wrapping_add(WINDOW_WIDTH);
@@ -81,32 +71,28 @@ pub fn start<ClientNew, ClientEnd>(
             }
         }
 
-        match datagrams {
-            #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
-            udp::ReceiveDatagrams::Single(datagram) => {
-                let packet = raptorq::EncodingPacket::deserialize(&datagram);
-                let id = usize::from(packet.payload_id().source_block_number());
-                if !blocks_ignore[id] {
-                    blocks_data[id].push(packet);
-                }
+        #[cfg(not(feature = "receive-mmsg"))]
+        {
+            let id = packets.payload_id().source_block_number() as usize;
+
+            if !blocks_ignore[id] {
+                blocks_data[id].push(packets);
             }
-            #[cfg(feature = "receive-mmsg")]
-            udp::ReceiveDatagrams::Multiple(datagrams) => {
-                datagrams
-                    .into_iter()
-                    .map(|datagram| {
-                        let packet = raptorq::EncodingPacket::deserialize(&datagram);
-                        let id = usize::from(packet.payload_id().source_block_number());
-                        (id, packet)
-                    })
-                    .filter(|(id, _)| !blocks_ignore[*id])
-                    .for_each(|(id, packet)| blocks_data[id].push(packet));
+        }
+        #[cfg(feature = "receive-mmsg")]
+        for packet in packets {
+            let id = packet.payload_id().source_block_number() as usize;
+
+            if !blocks_ignore[id] {
+                blocks_data[id].push(packet);
             }
         }
 
-        while blocks_data[usize::from(cur_id)].len() >= min_nb_packets {
+        while blocks_data[cur_id as usize].len() >= min_nb_packets {
+            blocks_ignore[cur_id as usize] = true;
+
             let packets = mem::replace(
-                &mut blocks_data[usize::from(cur_id)],
+                &mut blocks_data[cur_id as usize],
                 Vec::with_capacity(nb_packets),
             );
 
@@ -117,10 +103,7 @@ pub fn start<ClientNew, ClientEnd>(
                 packets,
             })?;
 
-            blocks_ignore[usize::from(cur_id)] = true;
-
-            let opposite = usize::from(cur_id.wrapping_add(WINDOW_WIDTH));
-            blocks_ignore[opposite] = false;
+            let opposite = cur_id.wrapping_add(WINDOW_WIDTH) as usize;
 
             if !blocks_data[opposite].is_empty() {
                 log::error!("lost block {opposite} (too far)");
@@ -128,6 +111,8 @@ pub fn start<ClientNew, ClientEnd>(
                 reset = true;
                 break;
             }
+
+            blocks_ignore[opposite] = false;
 
             cur_id = cur_id.wrapping_add(1);
         }
