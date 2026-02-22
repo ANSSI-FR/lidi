@@ -1,7 +1,13 @@
 use clap::Parser;
 use rand::Rng;
-use std::{io::Write, net, os::unix, path};
+use std::{
+    io::{self, Write},
+    net,
+    os::unix,
+    path,
+};
 
+#[allow(clippy::struct_field_names)]
 #[derive(clap::Args)]
 #[group(required = true, multiple = false)]
 struct Clients {
@@ -17,6 +23,8 @@ struct Clients {
         help = "Path to Unix socket to connect to diode-send"
     )]
     to_unix: Option<path::PathBuf>,
+    #[clap(long, help = "Stdout")]
+    to_stdout: bool,
 }
 
 #[derive(Parser)]
@@ -61,6 +69,9 @@ fn main() {
     } else if let Some(to_unix) = args.to.to_unix {
         log::debug!("Unix connect to {}", to_unix.display());
         let diode = unix::net::UnixStream::connect(to_unix).expect("Unix connect");
+        start(diode, args.buffer_size);
+    } else if args.to.to_stdout {
+        let diode = io::stdout();
         start(diode, args.buffer_size);
     } else {
         unreachable!();
