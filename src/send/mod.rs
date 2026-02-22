@@ -137,7 +137,7 @@ where
     /// cannot be created.
     pub fn new(config: Config, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
         let multiplex_control = semka::Sem::new(config.max_clients)
-            .ok_or(Error::Other("failed to create semaphore".into()))?;
+            .ok_or_else(|| Error::Other(String::from("failed to create semaphore")))?;
 
         if config.to_mtu > crate::MAX_MTU {
             return Err(Error::Other(format!(
@@ -191,7 +191,7 @@ where
                 hb_interval.as_secs()
             );
             thread::Builder::new()
-                .name("heartbeat".into())
+                .name(String::from("heartbeat"))
                 .spawn_scoped(scope, move || {
                     if let Err(e) = heartbeat::start(self) {
                         log::error!("fatal heartbeat error; {e}");

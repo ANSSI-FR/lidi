@@ -198,7 +198,7 @@ where
         client_end: ClientEnd,
     ) -> Result<Self, Error> {
         let multiplex_control = semka::Sem::new(config.max_clients)
-            .ok_or(Error::Other("failed to create semaphore".into()))?;
+            .ok_or_else(|| Error::Other(String::from("failed to create semaphore")))?;
 
         if config.from_mtu > crate::MAX_MTU {
             return Err(Error::Other(format!(
@@ -276,7 +276,7 @@ where
         }
 
         thread::Builder::new()
-            .name("dispatch".to_string())
+            .name(String::from("dispatch"))
             .spawn_scoped(scope, move || {
                 if let Err(e) = dispatch::start(self) {
                     log::error!("fatal dispatch error: {e}");
@@ -284,7 +284,7 @@ where
             })?;
 
         thread::Builder::new()
-            .name("decode".into())
+            .name(String::from("decode"))
             .spawn_scoped(scope, move || {
                 if let Err(e) = decode::start(self) {
                     log::error!("fatal decode error: {e}");
@@ -292,7 +292,7 @@ where
             })?;
 
         thread::Builder::new()
-            .name("reblock".to_string())
+            .name(String::from("reblock"))
             .spawn_scoped(scope, move || {
                 if let Err(e) = reblock::start(self) {
                     log::error!("fatal reblock error: {e}");

@@ -48,7 +48,7 @@ fn receive_unix_loop(
             "new Unix client ({}) connected",
             client_addr
                 .as_pathname()
-                .map_or("unknown".to_string(), |p| p.display().to_string())
+                .map_or_else(|| String::from("unknown"), |p| p.display().to_string())
         );
         match receive_udp(config, client, to_udp_bind, to_udp) {
             Ok(total) => log::info!("UDP received, {total} bytes received"),

@@ -19,9 +19,9 @@ pub fn receive_files(
     output_dir: &path::Path,
 ) -> Result<(), file::Error> {
     if !output_dir.is_dir() {
-        return Err(file::Error::Other(
-            "output_directory is not a directory".to_string(),
-        ));
+        return Err(file::Error::Other(String::from(
+            "output_directory is not a directory",
+        )));
     }
 
     thread::scope(|scope| -> Result<(), file::Error> {
@@ -90,7 +90,7 @@ fn receive_unix_loop<'a>(
             "new Unix client ({}) connected",
             client_addr
                 .as_pathname()
-                .map_or("unknown".to_string(), |p| p.display().to_string())
+                .map_or_else(|| String::from("unknown"), |p| p.display().to_string())
         );
         scope.spawn(|| match receive_file(config, client, output_dir) {
             Ok(total) => log::info!("file received, {total} bytes received"),
@@ -115,7 +115,7 @@ where
     let file_path = path::PathBuf::from(header.file_name);
     let file_name = file_path
         .file_name()
-        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?;
+        .ok_or_else(|| file::Error::Other(String::from("unwrap of file_name failed")))?;
     let file_path = output_dir.join(path::PathBuf::from(file_name));
 
     log::debug!("storing at \"{}\"", file_path.display());
