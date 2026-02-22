@@ -64,7 +64,7 @@ where
     let file_path = path::PathBuf::from(file_path);
 
     if !file_path.is_file() {
-        return Err(file::Error::Other("not a file".to_string()));
+        return Err(file::Error::Other(String::from("not a file")));
     }
 
     let mut file = fs::OpenOptions::new()
@@ -75,10 +75,12 @@ where
 
     let file_name = file_path
         .file_name()
-        .ok_or(file::Error::Other("unwrap of file_name failed".to_string()))?
+        .ok_or_else(|| file::Error::Other(String::from("unwrap of file_name failed")))?
         .to_os_string()
         .into_string()
-        .map_err(|_| file::Error::Other("conversion from OsString to String failed".to_string()))?;
+        .map_err(|_| {
+            file::Error::Other(String::from("conversion from OsString to String failed"))
+        })?;
 
     log::debug!("file name is {file_name:?}");
 

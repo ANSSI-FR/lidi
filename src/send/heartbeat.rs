@@ -5,9 +5,9 @@ use std::{sync, thread};
 
 pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
     let Some(duration) = sender.config.heartbeat_interval else {
-        return Err(send::Error::Other(
-            "no heartbeat duration but heartbeat enabled".into(),
-        ));
+        return Err(send::Error::Other(String::from(
+            "no heartbeat duration but heartbeat enabled",
+        )));
     };
 
     loop {

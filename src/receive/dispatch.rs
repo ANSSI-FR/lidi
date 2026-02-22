@@ -96,11 +96,9 @@ pub fn start<ClientNew, ClientEnd>(
         }
 
         if will_end {
-            let client_sendq = active_transfers
-                .remove(&client_id)
-                .ok_or(receive::Error::Other(format!(
-                    "transfer {client_id} is not active"
-                )))?;
+            let client_sendq = active_transfers.remove(&client_id).ok_or_else(|| {
+                receive::Error::Other(format!("transfer {client_id} is not active"))
+            })?;
 
             ended_transfers.retain(|client_id, client_sendq| {
                 let retain = !client_sendq.is_empty();
