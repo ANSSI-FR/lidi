@@ -5,7 +5,7 @@ use crate::{protocol, send};
 use fasthash::HasherExt;
 #[cfg(feature = "transfer-hash")]
 use std::hash::Hasher;
-use std::{io, os::fd::AsRawFd};
+use std::{io, os::fd::AsRawFd, sync};
 
 pub fn start<C>(
     sender: &send::Sender<C>,
@@ -17,12 +17,14 @@ where
 {
     log::info!("client {client_id:x}: connected");
 
-    sender.to_ordering.send(Some(protocol::Block::new(
-        protocol::BlockType::Start,
-        &sender.raptorq,
-        client_id,
-        None,
-    )?))?;
+    let block_id = sender
+        .next_block
+        .fetch_add(1, sync::atomic::Ordering::SeqCst);
+
+    sender.to_udp.send(Some((
+        block_id,
+        protocol::Block::new(protocol::BlockType::Start, &sender.raptorq, client_id, None)?,
+    )))?;
 
     let mut buffer = vec![0; protocol::Block::max_data_len(&sender.raptorq)];
     let mut cursor = 0;
@@ -62,12 +64,19 @@ where
             hasher.write(&buffer[..cursor]);
         }
 
-        sender.to_ordering.send(Some(protocol::Block::new(
-            block_type,
-            &sender.raptorq,
-            client_id,
-            Some(&buffer[..cursor]),
-        )?))?;
+        let block_id = sender
+            .next_block
+            .fetch_add(1, sync::atomic::Ordering::SeqCst);
+
+        sender.to_udp.send(Some((
+            block_id,
+            protocol::Block::new(
+                block_type,
+                &sender.raptorq,
+                client_id,
+                Some(&buffer[..cursor]),
+            )?,
+        )))?;
 
         transmitted += cursor;
         cursor = 0;

@@ -8,9 +8,9 @@
 //! Here follows a simplified representation of the workers pipeline:
 //!
 //! ```text
-//!             ----------             ---------              ---------
-//! listeners --| client |-> clients --| block |-> ordering --| block | -> udp
-//!             ----------             ---------              ---------
+//!             ----------             ---------
+//! listeners --| client |-> clients --| block |-> udp
+//!             ----------             ---------
 //! ```
 //!
 //! Notes:
@@ -24,12 +24,11 @@ use std::{
     io::{self, Read},
     net,
     os::fd::AsRawFd,
-    thread, time,
+    sync, thread, time,
 };
 
 mod client;
 mod heartbeat;
-mod ordering;
 mod server;
 mod udp;
 
@@ -121,10 +120,9 @@ pub struct Sender<C> {
     config: Config,
     raptorq: protocol::RaptorQ,
     multiplex_control: semka::Sem,
+    next_block: sync::atomic::AtomicU8,
     to_server: crossbeam_channel::Sender<Option<C>>,
     for_server: crossbeam_channel::Receiver<Option<C>>,
-    to_ordering: crossbeam_channel::Sender<Option<protocol::Block>>,
-    for_ordering: crossbeam_channel::Receiver<Option<protocol::Block>>,
     to_udp: crossbeam_channel::Sender<Option<(u8, protocol::Block)>>,
     for_udp: crossbeam_channel::Receiver<Option<(u8, protocol::Block)>>,
 }
@@ -142,21 +140,25 @@ where
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
         if config.to_mtu > crate::MAX_MTU {
-            return Err(Error::Other(format!("mtu {} is too large (> {})", config.to_mtu, crate::MAX_MTU)));
+            return Err(Error::Other(format!(
+                "mtu {} is too large (> {})",
+                config.to_mtu,
+                crate::MAX_MTU
+            )));
         }
 
+        let next_block = sync::atomic::AtomicU8::new(0);
+
         let (to_server, for_server) = crossbeam_channel::bounded(1);
-        let (to_ordering, for_ordering) = crossbeam_channel::bounded(config.to_ports.len());
         let (to_udp, for_udp) = crossbeam_channel::bounded(config.to_ports.len());
 
         Ok(Self {
             config,
             raptorq,
             multiplex_control,
+            next_block,
             to_server,
             for_server,
-            to_ordering,
-            for_ordering,
             to_udp,
             for_udp,
         })
@@ -182,14 +184,6 @@ where
                     }
                 })?;
         }
-
-        thread::Builder::new()
-            .name("ordering".into())
-            .spawn_scoped(scope, move || {
-                if let Err(e) = ordering::start(self) {
-                    log::error!("fatal ordering error: {e}");
-                }
-            })?;
 
         if let Some(hb_interval) = self.config.heartbeat_interval {
             log::info!(

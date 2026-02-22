@@ -1,7 +1,7 @@
 //! Worker that gets a client socket and becomes a `crate::send::client` worker
 
 use crate::{protocol, send, send::client};
-use std::{io::Read, os::fd::AsRawFd};
+use std::{io::Read, os::fd::AsRawFd, sync};
 
 pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error>
 where
@@ -9,7 +9,9 @@ where
 {
     loop {
         let Some(client) = sender.for_server.recv()? else {
-            sender.to_ordering.send(None)?;
+            for _ in 0..sender.config.to_ports.len() {
+                sender.to_udp.send(None)?;
+            }
             return Ok(());
         };
 
@@ -24,12 +26,14 @@ where
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: error: {e}");
 
-            if let Err(e) = sender.to_ordering.send(Some(protocol::Block::new(
-                protocol::BlockType::Abort,
-                &sender.raptorq,
-                client_id,
-                None,
-            )?)) {
+            let block_id = sender
+                .next_block
+                .fetch_add(1, sync::atomic::Ordering::SeqCst);
+
+            if let Err(e) = sender.to_udp.send(Some((
+                block_id,
+                protocol::Block::new(protocol::BlockType::Abort, &sender.raptorq, client_id, None)?,
+            ))) {
                 log::error!("client {client_id:x}: failed to abort : {e}");
             }
         }

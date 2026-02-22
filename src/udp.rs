@@ -131,7 +131,8 @@ impl ReceiveMmsg<'_> {
             mmsghdr[i].msg_hdr.msg_iovlen = 1;
         }
 
-        let mut buffers = vec![pin::Pin::new(vec![0u8; udp_packet_size as usize]); MAX_BATCH_SIZE as usize];
+        let mut buffers =
+            vec![pin::Pin::new(vec![0u8; udp_packet_size as usize]); MAX_BATCH_SIZE as usize];
 
         for (i, buffer) in buffers.iter_mut().enumerate() {
             iovecs[i].iov_base = buffer.as_mut_ptr().cast::<libc::c_void>();
@@ -341,7 +342,8 @@ impl<'a> Send<'a> {
                 let iovecs = vec![unsafe { mem::zeroed::<libc::iovec>() }; MAX_BATCH_SIZE as usize];
                 let mut iovecs = pin::Pin::new(iovecs);
 
-                let mut mmsghdr = vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; MAX_BATCH_SIZE as usize];
+                let mut mmsghdr =
+                    vec![unsafe { mem::zeroed::<libc::mmsghdr>() }; MAX_BATCH_SIZE as usize];
 
                 for i in 0..MAX_BATCH_SIZE as usize {
                     mmsghdr[i].msg_hdr.msg_name = raw_dest.cast::<libc::c_void>();
