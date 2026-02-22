@@ -53,7 +53,6 @@ opt-level = 3
 lto = true
 debug = false
 strip = true
-panic = "abort"
 codegen-units = 1
 
 [lints.clippy]
