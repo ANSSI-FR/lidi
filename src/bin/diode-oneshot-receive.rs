@@ -20,7 +20,7 @@ struct Args {
     )]
     log_level: log::LevelFilter,
     #[clap(
-        value_name = "ip:port",
+        value_name = "ip",
         long,
         help = "IP address where to receive UDP packets from diode-send"
     )]
