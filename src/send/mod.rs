@@ -212,7 +212,8 @@ where
         }
 
         log::info!(
-            "RaptorQ block contains from {} to {} packets",
+            "RaptorQ block {} bytes splitted in {}/{} packets",
+            self.raptorq.block_size(),
             self.raptorq.min_nb_packets(),
             self.raptorq.nb_packets()
         );

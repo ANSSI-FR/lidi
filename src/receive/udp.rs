@@ -35,7 +35,24 @@ pub fn start<ClientNew, ClientEnd>(
     let mut udp = udp::Receive::new(&mut socket, receiver.config.from_mtu, receiver.config.mode);
 
     loop {
-        let datagrams = udp.recv()?;
-        receiver.to_reblock.send(datagrams)?;
+        match udp.recv()? {
+            #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
+            udp::ReceiveDatagrams::Single(datagram) => {
+                let packet = raptorq::EncodingPacket::deserialize(&datagram);
+                #[cfg(not(feature = "receive-mmsg"))]
+                receiver.to_reblock.send(packet)?;
+                #[cfg(feature = "receive-mmsg")]
+                receiver.to_reblock.send(vec![packet])?;
+            }
+            #[cfg(feature = "receive-mmsg")]
+            udp::ReceiveDatagrams::Multiple(datagrams) => {
+                receiver.to_reblock.send(
+                    datagrams
+                        .into_iter()
+                        .map(|datagram| raptorq::EncodingPacket::deserialize(&datagram))
+                        .collect(),
+                )?;
+            }
+        }
     }
 }
