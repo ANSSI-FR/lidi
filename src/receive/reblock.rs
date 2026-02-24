@@ -14,8 +14,8 @@ pub fn start<ClientNew, ClientEnd>(
     let nb_packets = usize::try_from(receiver.raptorq.nb_packets())
         .map_err(|e| receive::Error::Other(format!("nb_packets: {e}")))?;
 
-    let mut blocks_data = vec![Vec::with_capacity(nb_packets); usize::from(u8::MAX) + 1];
-    let mut blocks_ignore = vec![true; usize::from(u8::MAX) + 1];
+    let mut blocks_data = vec![Vec::with_capacity(nb_packets); u8::MAX as usize + 1];
+    let mut blocks_ignore = [true; u8::MAX as usize + 1];
 
     let mut cur_id: u8 = 0;
 
