@@ -119,7 +119,6 @@ impl From<protocol::Error> for Error {
 pub struct Sender<C> {
     config: Config,
     raptorq: protocol::RaptorQ,
-    multiplex_control: semka::Sem,
     next_block: sync::atomic::AtomicU8,
     to_server: crossbeam_channel::Sender<Option<C>>,
     for_server: crossbeam_channel::Receiver<Option<C>>,
@@ -131,14 +130,7 @@ impl<C> Sender<C>
 where
     C: Read + AsRawFd + Send,
 {
-    /// # Errors
-    ///
-    /// Will return `Err` if `multiplex_control` semaphore
-    /// cannot be created.
     pub fn new(config: Config, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
-        let multiplex_control = semka::Sem::new(config.max_clients)
-            .ok_or_else(|| Error::Other(String::from("failed to create semaphore")))?;
-
         if config.to_mtu > crate::MAX_MTU {
             return Err(Error::Other(format!(
                 "mtu {} is too large (> {})",
@@ -155,7 +147,6 @@ where
         Ok(Self {
             config,
             raptorq,
-            multiplex_control,
             next_block,
             to_server,
             for_server,

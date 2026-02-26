@@ -15,13 +15,7 @@ where
     loop {
         let (client_id, recvq) = receiver.for_clients.recv()?;
 
-        log::debug!("try to acquire multiplex access..");
-        receiver.multiplex_control.wait();
-        log::debug!("multiplex access acquired");
-
         let client_res = client::start(receiver, client_id, &recvq);
-
-        receiver.multiplex_control.signal();
 
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: send loop error: {e}");

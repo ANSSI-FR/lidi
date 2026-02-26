@@ -1,5 +1,5 @@
 use clap::Parser;
-use rand::Rng;
+use rand::TryRng;
 use std::{
     io::{self, Write},
     net,
@@ -82,16 +82,19 @@ fn start<D>(mut diode: D, buffer_size: usize)
 where
     D: Write,
 {
-    let mut thread_rng = rand::rng();
+    let mut rng = rand::rngs::SysRng;
     let mut buffer = vec![0u8; buffer_size];
-    thread_rng.fill_bytes(&mut buffer);
+    rng.try_fill_bytes(&mut buffer).unwrap();
+
+    let mut rnd = (rng.try_next_u32().unwrap() & 0xff) as u8;
+    let step = (rng.try_next_u32().unwrap() & 0xff) as u8;
 
     loop {
-        let rnd = (thread_rng.next_u32() & 0xff) as u8;
-        for n in &mut buffer {
-            *n ^= rnd;
+        for b in &mut buffer {
+            *b ^= rnd;
         }
         log::debug!("sending buffer of {buffer_size} bytes");
         diode.write_all(&buffer).expect("write");
+        rnd = rnd.wrapping_add(step);
     }
 }

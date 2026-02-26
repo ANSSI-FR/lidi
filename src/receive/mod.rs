@@ -155,7 +155,6 @@ enum Reassembled {
 pub struct Receiver<ClientNew, ClientEnd> {
     config: Config,
     raptorq: protocol::RaptorQ,
-    multiplex_control: semka::Sem,
     #[cfg(not(feature = "receive-mmsg"))]
     to_reblock: crossbeam_channel::Sender<raptorq::EncodingPacket>,
     #[cfg(not(feature = "receive-mmsg"))]
@@ -187,19 +186,12 @@ where
     ClientEnd: Send + Sync + Fn(C, bool),
     E: Into<Error>,
 {
-    /// # Errors
-    ///
-    /// Will return `Err` if `multiplex_control` semaphore
-    /// cannot be created.
     pub fn new(
         config: Config,
         raptorq: protocol::RaptorQ,
         client_new: ClientNew,
         client_end: ClientEnd,
     ) -> Result<Self, Error> {
-        let multiplex_control = semka::Sem::new(config.max_clients)
-            .ok_or_else(|| Error::Other(String::from("failed to create semaphore")))?;
-
         if config.from_mtu > crate::MAX_MTU {
             return Err(Error::Other(format!(
                 "mtu {} is too large (> {})",
@@ -216,7 +208,6 @@ where
         Ok(Self {
             config,
             raptorq,
-            multiplex_control,
             to_reblock,
             for_reblock,
             to_decode,
