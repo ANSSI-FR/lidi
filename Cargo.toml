@@ -20,18 +20,13 @@ clap = { version = "4", default-features = false, features = [
 crossbeam-channel = { version = "0", default-features = false, features = [
     "std",
 ] }
-crossbeam-utils = { version = "0", default-features = false, features = [
-    "std",
-] }
 libc = { version = "0", default-features = false, features = ["std"] }
 log = { version = "0", default-features = false, features = ["std"] }
 rand = { version = "0", default-features = false, features = [
     "std",
-    "std_rng",
-    "thread_rng",
+    "sys_rng",
 ] }
 raptorq = { version = "2", default-features = false, features = ["std"] }
-semka = { version = "2", default-features = false, features = [] }
 simplelog = { version = "0", default-features = false, features = [
     "termcolor",
     "local-offset",

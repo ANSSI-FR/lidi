@@ -2,7 +2,7 @@ use std::process;
 
 use clap::Parser;
 use diode::protocol;
-use rand::RngExt;
+use rand::TryRng;
 
 #[derive(clap::Parser)]
 #[clap(about = "Test diode config parameters.")]
@@ -84,15 +84,14 @@ fn main() {
 
     log::info!("{raptorq}");
 
-    let mut rng = rand::rng();
+    let mut rng = rand::rngs::SysRng;
 
     let block_size = raptorq.block_size();
 
     log::debug!("generating random data block of {block_size} bytes");
     let mut data = vec![0u8; block_size as usize];
-    for di in &mut data {
-        *di = rng.random();
-    }
+    rng.try_fill_bytes(&mut data)
+        .expect("failed to fill bytes with sys_rng");
 
     let id = 0;
 
@@ -104,9 +103,13 @@ fn main() {
     /* shuffling */
     let nb_packets = packets.len();
     log::info!("shuffling {nb_packets} packets");
-    let range = nb_packets / 2..nb_packets;
     for i in 0..(nb_packets / 2) {
-        packets.swap(i, rng.random_range(range.clone()));
+        let j = usize::try_from(
+            rng.try_next_u32()
+                .expect("failed to get net u32 with sys_rng"),
+        )
+        .expect("failed to convert u32 to usize");
+        packets.swap(i, nb_packets / 2 + (j % (nb_packets / 2)));
     }
 
     /* removing */

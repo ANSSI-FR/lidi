@@ -15,13 +15,9 @@ where
             return Ok(());
         };
 
-        sender.multiplex_control.wait();
-
         let client_id = protocol::new_client_id();
 
         let client_res = client::start(sender, client_id, client);
-
-        sender.multiplex_control.signal();
 
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: error: {e}");
