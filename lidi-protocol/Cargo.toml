@@ -1,0 +1,12 @@
+[package]
+name = "lidi-protocol"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+raptorq = { version = "2", default-features = false, features = ["std"] }
+
