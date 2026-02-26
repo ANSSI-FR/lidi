@@ -1,0 +1,23 @@
+[package]
+name = "lidi-utils"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+libc = { version = "0", default-features = false, features = ["std"] }
+log = { version = "0", default-features = false, features = [ "std", "serde" ] }
+serde = { version = "1", default-features = false, features = [ "std", "derive" ] }
+simplelog = { version = "0", default-features = false, features = [
+    "termcolor",
+    "local-offset",
+] }
+toml = { version = "1", default-features = false, features = [ "std", "parse", "serde" ] }
+twox-hash = { version = "1", optional = true, default-features = false }
+
+[features]
+default = []
+hash = [ "dep:twox-hash" ]

@@ -1,0 +1,26 @@
+[package]
+name = "lidi-receive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+crossbeam-channel = { version = "0", default-features = false, features = [
+    "std",
+] }
+libc = { version = "0", default-features = false, features = ["std"] }
+lidi-protocol = { path = "../lidi-protocol", default-features = false }
+lidi-utils = { path = "../lidi-utils", default-features = false }
+log = { version = "0", default-features = false, features = ["std"] }
+raptorq = { version = "2", default-features = false, features = ["std"] }
+
+[features]
+default = [ "hash", "heartbeat", "receive-native", "receive-msg", "receive-mmsg" ]
+hash = [ "lidi-utils/hash" ]
+heartbeat = [ ]
+receive-native = [ ]
+receive-msg = [ ]
+receive-mmsg = [ ]
