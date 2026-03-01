@@ -3,13 +3,14 @@ use lidi_send as send;
 use std::{io, process, sync, thread};
 
 fn main() {
-    let mut config = match lidi_utils::command_arguments(lidi_utils::Role::Send, false) {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("{e}");
-            return;
-        }
-    };
+    let mut config =
+        match lidi_command_utils::command_arguments(lidi_command_utils::Role::Send, false) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("{e}");
+                return;
+            }
+        };
 
     let common = config.common();
 

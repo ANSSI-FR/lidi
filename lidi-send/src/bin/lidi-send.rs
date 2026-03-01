@@ -71,7 +71,8 @@ fn tcp_listener_loop(
 }
 
 fn main() {
-    let config = match lidi_utils::command_arguments(lidi_utils::Role::Send, false) {
+    let config = match lidi_command_utils::command_arguments(lidi_command_utils::Role::Send, false)
+    {
         Ok(config) => config,
         Err(e) => {
             eprintln!("{e}");
@@ -112,7 +113,7 @@ fn main() {
             };
 
             match from {
-                lidi_utils::config::Endpoint::Tcp(from_tcp) => {
+                lidi_command_utils::config::Endpoint::Tcp(from_tcp) => {
                     match net::TcpListener::bind(from_tcp) {
                         Err(e) => {
                             log::error!("failed to bind TCP {from_tcp}: {e}");
@@ -129,7 +130,7 @@ fn main() {
                         }
                     }
                 }
-                lidi_utils::config::Endpoint::Unix(from_unix) => {
+                lidi_command_utils::config::Endpoint::Unix(from_unix) => {
                     if from_unix.exists() {
                         log::error!("Unix socket path '{}' already exists", from_unix.display());
                         return;

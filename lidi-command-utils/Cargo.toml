@@ -1,5 +1,5 @@
 [package]
-name = "lidi-utils"
+name = "lidi-command-utils"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

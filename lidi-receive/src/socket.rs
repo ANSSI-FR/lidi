@@ -1,4 +1,4 @@
-use lidi_utils::{config, socket};
+use lidi_command_utils::{config, socket};
 #[cfg(feature = "receive-mmsg")]
 use std::ptr;
 use std::{io, net, os::fd::AsRawFd};

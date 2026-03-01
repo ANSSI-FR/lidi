@@ -16,8 +16,8 @@
 //! - there are `max_clients` clients workers running in parallel,
 //! - there are `nb_decode_threads` decode workers running in parallel.
 
+use lidi_command_utils::config;
 use lidi_protocol as protocol;
-use lidi_utils::config;
 use std::{
     fmt,
     io::{self, Write},
