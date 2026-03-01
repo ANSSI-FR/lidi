@@ -18,7 +18,6 @@ fn endpoint_parser(args: &str) -> Result<config::Endpoint, String> {
 }
 
 #[derive(Parser)]
-#[clap()]
 struct CommonArgs {
     #[clap(
         help = "Path to configuration file (will be read before applying command line arguments)"
