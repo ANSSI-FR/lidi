@@ -16,8 +16,8 @@ simplelog = { version = "0", default-features = false, features = [
     "local-offset",
 ] }
 toml = { version = "1", default-features = false, features = [ "std", "parse", "serde" ] }
-twox-hash = { version = "1", optional = true, default-features = false }
+twox-hash = { version = "2", optional = true, default-features = false, features = [ "std", "xxhash3_128" ] }
 
 [features]
-default = []
+default = [ ]
 hash = [ "dep:twox-hash" ]
