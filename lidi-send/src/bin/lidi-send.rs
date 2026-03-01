@@ -1,14 +1,17 @@
 use lidi_protocol as protocol;
 use lidi_send as send;
+#[cfg(feature = "endpoint-unix")]
+use std::os::unix;
 use std::{
     io::{self, Read},
     net,
-    os::{fd::AsRawFd, unix},
+    os::fd::AsRawFd,
     sync, thread,
 };
 
 enum Client {
     Tcp(net::TcpStream),
+    #[cfg(feature = "endpoint-unix")]
     Unix(unix::net::UnixStream),
 }
 
@@ -16,6 +19,7 @@ impl Read for Client {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         match self {
             Self::Tcp(stream) => stream.read(buf),
+            #[cfg(feature = "endpoint-unix")]
             Self::Unix(stream) => stream.read(buf),
         }
     }
@@ -25,11 +29,13 @@ impl AsRawFd for Client {
     fn as_raw_fd(&self) -> i32 {
         match self {
             Self::Tcp(stream) => stream.as_raw_fd(),
+            #[cfg(feature = "endpoint-unix")]
             Self::Unix(stream) => stream.as_raw_fd(),
         }
     }
 }
 
+#[cfg(feature = "endpoint-unix")]
 fn unix_listener_loop(
     listener: &unix::net::UnixListener,
     sender: &send::Sender<Client>,
@@ -131,24 +137,36 @@ fn main() {
                     }
                 }
                 lidi_command_utils::config::Endpoint::Unix(from_unix) => {
-                    if from_unix.exists() {
-                        log::error!("Unix socket path '{}' already exists", from_unix.display());
+                    #[cfg(not(feature = "endpoint-unix"))]
+                    {
+                        let _ = from_unix;
+                        log::error!("Unix endpoint not available (was not enabled at compilation)");
                         return;
                     }
-
-                    match unix::net::UnixListener::bind(&from_unix) {
-                        Err(e) => {
-                            log::error!("failed to bind Unix {}: {e}", from_unix.display());
+                    #[cfg(feature = "endpoint-unix")]
+                    {
+                        if from_unix.exists() {
+                            log::error!(
+                                "Unix socket path '{}' already exists",
+                                from_unix.display()
+                            );
                             return;
                         }
-                        Ok(listener) => {
-                            log::info!("accepting Unix clients at {}", from_unix.display());
-                            thread::Builder::new()
-                                .name(format!("endpoint_{endpoint}"))
-                                .spawn_scoped(scope, move || {
-                                    unix_listener_loop(&listener, &lsender, endpoint);
-                                })
-                                .expect("thread spawn");
+
+                        match unix::net::UnixListener::bind(&from_unix) {
+                            Err(e) => {
+                                log::error!("failed to bind Unix {}: {e}", from_unix.display());
+                                return;
+                            }
+                            Ok(listener) => {
+                                log::info!("accepting Unix clients at {}", from_unix.display());
+                                thread::Builder::new()
+                                    .name(format!("endpoint_{endpoint}"))
+                                    .spawn_scoped(scope, move || {
+                                        unix_listener_loop(&listener, &lsender, endpoint);
+                                    })
+                                    .expect("thread spawn");
+                            }
                         }
                     }
                 }

@@ -18,8 +18,9 @@ log = { version = "0", default-features = false, features = ["std"] }
 raptorq = { version = "2", default-features = false, features = ["std"] }
 
 [features]
-default = [ "command-line", "hash", "heartbeat", "receive-native", "receive-msg", "receive-mmsg" ]
+default = [ "command-line", "endpoint-unix", "hash", "heartbeat", "receive-native", "receive-msg", "receive-mmsg" ]
 command-line = [ "lidi-command-utils/command-line" ]
+endpoint-unix = [ ]
 hash = [ "lidi-command-utils/hash" ]
 heartbeat = [ ]
 receive-native = [ ]
