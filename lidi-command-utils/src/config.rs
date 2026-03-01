@@ -129,6 +129,7 @@ impl CommonConfig {
 #[serde(deny_unknown_fields)]
 pub struct SendConfig {
     pub log: Option<log::LevelFilter>,
+    pub log_file: Option<path::PathBuf>,
     pub from: Vec<Endpoint>,
     pub to: Option<net::IpAddr>,
     pub to_bind: Option<net::SocketAddr>,
@@ -139,6 +140,11 @@ impl SendConfig {
     #[must_use]
     pub fn log(&self) -> log::LevelFilter {
         self.log.unwrap_or(DEFAULT_LOG_LEVEL)
+    }
+
+    #[must_use]
+    pub fn log_file(&self) -> Option<path::PathBuf> {
+        self.log_file.clone()
     }
 
     #[must_use]
@@ -168,6 +174,7 @@ impl SendConfig {
 #[serde(deny_unknown_fields)]
 pub struct ReceiveConfig {
     pub log: Option<log::LevelFilter>,
+    pub log_file: Option<path::PathBuf>,
     pub to: Vec<Endpoint>,
     pub from: Option<net::IpAddr>,
     pub mode: Option<Mode>,
@@ -180,6 +187,11 @@ impl ReceiveConfig {
     #[must_use]
     pub fn log(&self) -> log::LevelFilter {
         self.log.unwrap_or(DEFAULT_LOG_LEVEL)
+    }
+
+    #[must_use]
+    pub fn log_file(&self) -> Option<path::PathBuf> {
+        self.log_file.clone()
     }
 
     #[must_use]

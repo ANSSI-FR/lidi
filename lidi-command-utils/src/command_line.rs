@@ -106,6 +106,8 @@ pub struct SendArgs {
     common: CommonArgs,
     #[clap(long, help = "Log level")]
     log: Option<log::LevelFilter>,
+    #[clap(long, help = "Log file")]
+    log_file: Option<path::PathBuf>,
     #[clap(long, help = "Add a client endpoint (tcp:<IP:PORT> or unix:<PATH>)", value_parser = endpoint_parser)]
     from: Option<Vec<config::Endpoint>>,
     #[clap(long, help = "IP address of receiver")]
@@ -126,6 +128,10 @@ impl TryFrom<SendArgs> for config::Config {
 
         if let Some(log) = args.log {
             config.send_mut().log = Some(log);
+        }
+
+        if let Some(log_file) = args.log_file {
+            config.send_mut().log_file = Some(log_file);
         }
 
         if let Some(from) = args.from {
@@ -154,6 +160,8 @@ pub struct ReceiveArgs {
     common: CommonArgs,
     #[clap(long, help = "Log level")]
     log: Option<log::LevelFilter>,
+    #[clap(long, help = "Log file")]
+    log_file: Option<path::PathBuf>,
     #[clap(long, help = "Add a client endpoint (tcp:<IP:PORT> or unix:<PATH>)", value_parser = endpoint_parser)]
     to: Option<Vec<config::Endpoint>>,
     #[clap(long, help = "IP address on which to listen from sender UDP packets")]
@@ -187,6 +195,10 @@ impl TryFrom<ReceiveArgs> for config::Config {
 
         if let Some(log) = args.log {
             config.receive_mut().log = Some(log);
+        }
+
+        if let Some(log_file) = args.log_file {
+            config.receive_mut().log_file = Some(log_file);
         }
 
         if let Some(to) = args.to {
