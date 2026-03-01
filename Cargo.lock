@@ -241,9 +241,23 @@ name = "lidi-clients"
 version = "2.1.1"
 dependencies = [
  "clap",
- "lidi-utils",
  "log",
  "rand",
+ "simplelog",
+ "twox-hash",
+]
+
+[[package]]
+name = "lidi-command-utils"
+version = "2.1.1"
+dependencies = [
+ "clap",
+ "libc",
+ "log",
+ "serde",
+ "simplelog",
+ "toml",
+ "twox-hash",
 ]
 
 [[package]]
@@ -259,8 +273,8 @@ version = "2.1.1"
 dependencies = [
  "crossbeam-channel",
  "libc",
+ "lidi-command-utils",
  "lidi-protocol",
- "lidi-utils",
  "log",
  "raptorq",
 ]
@@ -271,23 +285,10 @@ version = "2.1.1"
 dependencies = [
  "crossbeam-channel",
  "libc",
+ "lidi-command-utils",
  "lidi-protocol",
- "lidi-utils",
  "log",
  "raptorq",
-]
-
-[[package]]
-name = "lidi-utils"
-version = "2.1.1"
-dependencies = [
- "clap",
- "libc",
- "log",
- "serde",
- "simplelog",
- "toml",
- "twox-hash",
 ]
 
 [[package]]

@@ -18,8 +18,8 @@
 //! - heartbeat worker has been omitted from the representation for readability,
 //! - there are `max_clients` clients workers running in parallel,
 
+use lidi_command_utils::config;
 use lidi_protocol as protocol;
-use lidi_utils::config;
 #[cfg(feature = "heartbeat")]
 use std::time;
 use std::{

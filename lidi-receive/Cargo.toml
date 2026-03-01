@@ -13,14 +13,14 @@ crossbeam-channel = { version = "0", default-features = false, features = [
 ] }
 libc = { version = "0", default-features = false, features = ["std"] }
 lidi-protocol = { path = "../lidi-protocol", default-features = false }
-lidi-utils = { path = "../lidi-utils", default-features = false }
+lidi-command-utils = { path = "../lidi-command-utils", default-features = false }
 log = { version = "0", default-features = false, features = ["std"] }
 raptorq = { version = "2", default-features = false, features = ["std"] }
 
 [features]
 default = [ "command-line", "hash", "heartbeat", "receive-native", "receive-msg", "receive-mmsg" ]
-command-line = [ "lidi-utils/command-line" ]
-hash = [ "lidi-utils/hash" ]
+command-line = [ "lidi-command-utils/command-line" ]
+hash = [ "lidi-command-utils/hash" ]
 heartbeat = [ ]
 receive-native = [ ]
 receive-msg = [ ]

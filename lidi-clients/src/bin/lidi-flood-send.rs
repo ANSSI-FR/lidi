@@ -51,7 +51,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    if let Err(e) = lidi_utils::init_logger(args.log_level, false) {
+    if let Err(e) = lidi_clients::init_logger(args.log_level) {
         eprintln!("failed to initialize logger: {e}");
         return;
     }

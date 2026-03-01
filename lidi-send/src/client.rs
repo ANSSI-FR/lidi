@@ -34,7 +34,7 @@ where
 
     #[cfg(feature = "hash")]
     let mut hasher = if sender.config.hash {
-        Some(lidi_utils::hash::StreamHasher::default())
+        Some(lidi_command_utils::hash::StreamHasher::default())
     } else {
         None
     };

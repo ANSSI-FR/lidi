@@ -1,8 +1,8 @@
 //! Worker that acquires multiplex access and then becomes a `crate::receive::client` worker
 
 use crate::client;
+use lidi_command_utils::config;
 use lidi_protocol as protocol;
-use lidi_utils::config;
 use std::{io::Write, os::fd::AsRawFd, thread};
 
 pub fn start<C, ClientNew, ClientEnd, E>(

@@ -1,4 +1,4 @@
-use crate::file;
+use crate::{file, hash};
 use std::{
     fs,
     io::{Read, Write},
@@ -139,7 +139,7 @@ where
 
     #[cfg(feature = "hash")]
     let mut hasher = if config.hash {
-        Some(lidi_utils::hash::StreamHasher::default())
+        Some(hash::StreamHasher::default())
     } else {
         None
     };

@@ -1,5 +1,5 @@
 [workspace]
-members = [ "lidi-protocol", "lidi-send", "lidi-receive", "lidi-bindings", "lidi-clients", "lidi-utils" ]
+members = [ "lidi-protocol", "lidi-send", "lidi-receive", "lidi-bindings", "lidi-clients", "lidi-command-utils" ]
 default-members = [ "lidi-send", "lidi-receive", "lidi-bindings", "lidi-clients" ]
 resolver = "3"
 

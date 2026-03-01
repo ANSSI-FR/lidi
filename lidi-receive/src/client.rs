@@ -1,7 +1,7 @@
 //! Worker that writes decoded and reordered messages to client
 
+use lidi_command_utils::config;
 use lidi_protocol as protocol;
-use lidi_utils::config;
 use std::{
     io::{self, Write},
     os::fd::AsRawFd,
@@ -36,7 +36,7 @@ where
 
     #[cfg(feature = "hash")]
     let mut hasher = if receiver.config.hash {
-        Some(lidi_utils::hash::StreamHasher::default())
+        Some(lidi_command_utils::hash::StreamHasher::default())
     } else {
         None
     };

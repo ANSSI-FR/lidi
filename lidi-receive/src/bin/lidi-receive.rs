@@ -36,16 +36,16 @@ impl AsRawFd for Client {
     }
 }
 
-impl TryFrom<&lidi_utils::config::Endpoint> for Client {
+impl TryFrom<&lidi_command_utils::config::Endpoint> for Client {
     type Error = io::Error;
 
-    fn try_from(endpoint: &lidi_utils::config::Endpoint) -> Result<Self, Self::Error> {
+    fn try_from(endpoint: &lidi_command_utils::config::Endpoint) -> Result<Self, Self::Error> {
         match endpoint {
-            lidi_utils::config::Endpoint::Tcp(to_tcp) => {
+            lidi_command_utils::config::Endpoint::Tcp(to_tcp) => {
                 let client = net::TcpStream::connect(to_tcp)?;
                 Ok(Self::Tcp(client))
             }
-            lidi_utils::config::Endpoint::Unix(to_unix) => {
+            lidi_command_utils::config::Endpoint::Unix(to_unix) => {
                 let client = unix::net::UnixStream::connect(to_unix)?;
                 Ok(Self::Unix(client))
             }
@@ -54,13 +54,14 @@ impl TryFrom<&lidi_utils::config::Endpoint> for Client {
 }
 
 fn main() {
-    let config = match lidi_utils::command_arguments(lidi_utils::Role::Receive, false) {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("{e}");
-            return;
-        }
-    };
+    let config =
+        match lidi_command_utils::command_arguments(lidi_command_utils::Role::Receive, false) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("{e}");
+                return;
+            }
+        };
 
     let common = config.common();
 
