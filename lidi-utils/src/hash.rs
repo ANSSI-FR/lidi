@@ -1,8 +1,7 @@
-use std::hash::Hasher;
-use twox_hash::xxh3::{self, HasherExt};
+use twox_hash::xxhash3_128;
 
 #[derive(Default)]
-pub struct StreamHasher(xxh3::Hash128);
+pub struct StreamHasher(xxhash3_128::Hasher);
 
 impl StreamHasher {
     pub fn update(&mut self, buf: &[u8]) {
@@ -11,6 +10,6 @@ impl StreamHasher {
 
     #[must_use]
     pub fn finalize(&self) -> u128 {
-        self.0.finish_ext()
+        self.0.finish_128()
     }
 }
