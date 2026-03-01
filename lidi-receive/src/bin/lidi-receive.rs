@@ -1,14 +1,16 @@
 use lidi_protocol as protocol;
+#[cfg(feature = "endpoint-tcp")]
+use std::net;
 #[cfg(feature = "endpoint-unix")]
 use std::os::unix;
 use std::{
     io::{self, Write},
-    net,
     os::fd::AsRawFd,
     thread,
 };
 
 enum Client {
+    #[cfg(feature = "endpoint-tcp")]
     Tcp(net::TcpStream),
     #[cfg(feature = "endpoint-unix")]
     Unix(unix::net::UnixStream),
@@ -17,6 +19,7 @@ enum Client {
 impl Write for Client {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
         match self {
+            #[cfg(feature = "endpoint-tcp")]
             Self::Tcp(socket) => socket.write(buf),
             #[cfg(feature = "endpoint-unix")]
             Self::Unix(socket) => socket.write(buf),
@@ -25,6 +28,7 @@ impl Write for Client {
 
     fn flush(&mut self) -> Result<(), io::Error> {
         match self {
+            #[cfg(feature = "endpoint-tcp")]
             Self::Tcp(socket) => socket.flush(),
             #[cfg(feature = "endpoint-unix")]
             Self::Unix(socket) => socket.flush(),
@@ -35,6 +39,7 @@ impl Write for Client {
 impl AsRawFd for Client {
     fn as_raw_fd(&self) -> i32 {
         match self {
+            #[cfg(feature = "endpoint-tcp")]
             Self::Tcp(socket) => socket.as_raw_fd(),
             #[cfg(feature = "endpoint-unix")]
             Self::Unix(socket) => socket.as_raw_fd(),
@@ -48,8 +53,19 @@ impl TryFrom<&lidi_command_utils::config::Endpoint> for Client {
     fn try_from(endpoint: &lidi_command_utils::config::Endpoint) -> Result<Self, Self::Error> {
         match endpoint {
             lidi_command_utils::config::Endpoint::Tcp(to_tcp) => {
-                let client = net::TcpStream::connect(to_tcp)?;
-                Ok(Self::Tcp(client))
+                #[cfg(not(feature = "endpoint-tcp"))]
+                {
+                    let _ = to_tcp;
+                    Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        "TCP endpoint not available (was not enabled at compilation)",
+                    ))
+                }
+                #[cfg(feature = "endpoint-tcp")]
+                {
+                    let client = net::TcpStream::connect(to_tcp)?;
+                    Ok(Self::Tcp(client))
+                }
             }
             lidi_command_utils::config::Endpoint::Unix(to_unix) => {
                 #[cfg(not(feature = "endpoint-unix"))]

@@ -1,15 +1,17 @@
 use lidi_protocol as protocol;
 use lidi_send as send;
+#[cfg(feature = "endpoint-tcp")]
+use std::net;
 #[cfg(feature = "endpoint-unix")]
 use std::os::unix;
 use std::{
     io::{self, Read},
-    net,
     os::fd::AsRawFd,
     sync, thread,
 };
 
 enum Client {
+    #[cfg(feature = "endpoint-tcp")]
     Tcp(net::TcpStream),
     #[cfg(feature = "endpoint-unix")]
     Unix(unix::net::UnixStream),
@@ -18,6 +20,7 @@ enum Client {
 impl Read for Client {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
         match self {
+            #[cfg(feature = "endpoint-tcp")]
             Self::Tcp(stream) => stream.read(buf),
             #[cfg(feature = "endpoint-unix")]
             Self::Unix(stream) => stream.read(buf),
@@ -28,6 +31,7 @@ impl Read for Client {
 impl AsRawFd for Client {
     fn as_raw_fd(&self) -> i32 {
         match self {
+            #[cfg(feature = "endpoint-tcp")]
             Self::Tcp(stream) => stream.as_raw_fd(),
             #[cfg(feature = "endpoint-unix")]
             Self::Unix(stream) => stream.as_raw_fd(),
@@ -56,6 +60,7 @@ fn unix_listener_loop(
     }
 }
 
+#[cfg(feature = "endpoint-tcp")]
 fn tcp_listener_loop(
     listener: &net::TcpListener,
     sender: &send::Sender<Client>,
@@ -120,19 +125,28 @@ fn main() {
 
             match from {
                 lidi_command_utils::config::Endpoint::Tcp(from_tcp) => {
-                    match net::TcpListener::bind(from_tcp) {
-                        Err(e) => {
-                            log::error!("failed to bind TCP {from_tcp}: {e}");
-                            return;
-                        }
-                        Ok(listener) => {
-                            log::info!("endpoint {endpoint} accepts TCP clients on {from_tcp}");
-                            thread::Builder::new()
-                                .name(format!("endpoint_{endpoint}"))
-                                .spawn_scoped(scope, move || {
-                                    tcp_listener_loop(&listener, &lsender, endpoint);
-                                })
-                                .expect("thread spawn");
+                    #[cfg(not(feature = "endpoint-tcp"))]
+                    {
+                        let _ = from_tcp;
+                        log::error!("TP endpoint not available (was not enabled at compilation)");
+                        return;
+                    }
+                    #[cfg(feature = "endpoint-tcp")]
+                    {
+                        match net::TcpListener::bind(from_tcp) {
+                            Err(e) => {
+                                log::error!("failed to bind TCP {from_tcp}: {e}");
+                                return;
+                            }
+                            Ok(listener) => {
+                                log::info!("endpoint {endpoint} accepts TCP clients on {from_tcp}");
+                                thread::Builder::new()
+                                    .name(format!("endpoint_{endpoint}"))
+                                    .spawn_scoped(scope, move || {
+                                        tcp_listener_loop(&listener, &lsender, endpoint);
+                                    })
+                                    .expect("thread spawn");
+                            }
                         }
                     }
                 }
