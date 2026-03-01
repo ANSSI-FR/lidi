@@ -47,7 +47,7 @@ pub enum Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::SendPackets => write!(fmt, "crossbeam send packets error"),

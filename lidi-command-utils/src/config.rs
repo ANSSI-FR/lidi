@@ -34,7 +34,7 @@ impl From<toml::de::Error> for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::Parsing(e) => write!(fmt, "parsing error: {e}"),
@@ -52,7 +52,7 @@ pub enum Mode {
 }
 
 impl fmt::Display for Mode {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::Native => write!(fmt, "native"),
             Self::Msg => write!(fmt, "msg"),

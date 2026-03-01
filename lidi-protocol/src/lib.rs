@@ -45,7 +45,7 @@ pub enum Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::DataTooLarge(s) => write!(fmt, "data too large: {s}"),
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
