@@ -1,13 +1,16 @@
 use lidi_protocol as protocol;
+#[cfg(feature = "endpoint-unix")]
+use std::os::unix;
 use std::{
     io::{self, Write},
     net,
-    os::{fd::AsRawFd, unix},
+    os::fd::AsRawFd,
     thread,
 };
 
 enum Client {
     Tcp(net::TcpStream),
+    #[cfg(feature = "endpoint-unix")]
     Unix(unix::net::UnixStream),
 }
 
@@ -15,6 +18,7 @@ impl Write for Client {
     fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
         match self {
             Self::Tcp(socket) => socket.write(buf),
+            #[cfg(feature = "endpoint-unix")]
             Self::Unix(socket) => socket.write(buf),
         }
     }
@@ -22,6 +26,7 @@ impl Write for Client {
     fn flush(&mut self) -> Result<(), io::Error> {
         match self {
             Self::Tcp(socket) => socket.flush(),
+            #[cfg(feature = "endpoint-unix")]
             Self::Unix(socket) => socket.flush(),
         }
     }
@@ -31,6 +36,7 @@ impl AsRawFd for Client {
     fn as_raw_fd(&self) -> i32 {
         match self {
             Self::Tcp(socket) => socket.as_raw_fd(),
+            #[cfg(feature = "endpoint-unix")]
             Self::Unix(socket) => socket.as_raw_fd(),
         }
     }
@@ -46,8 +52,19 @@ impl TryFrom<&lidi_command_utils::config::Endpoint> for Client {
                 Ok(Self::Tcp(client))
             }
             lidi_command_utils::config::Endpoint::Unix(to_unix) => {
-                let client = unix::net::UnixStream::connect(to_unix)?;
-                Ok(Self::Unix(client))
+                #[cfg(not(feature = "endpoint-unix"))]
+                {
+                    let _ = to_unix;
+                    Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        "Unix endpoint not available (was not enabled at compilation)",
+                    ))
+                }
+                #[cfg(feature = "endpoint-unix")]
+                {
+                    let client = unix::net::UnixStream::connect(to_unix)?;
+                    Ok(Self::Unix(client))
+                }
             }
         }
     }
