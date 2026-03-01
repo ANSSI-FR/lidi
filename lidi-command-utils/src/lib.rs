@@ -22,7 +22,7 @@ impl From<config::Error> for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::Arguments(e) => write!(fmt, "argument(s) error: {e}"),
             Self::Config(e) => write!(fmt, "configuration error: {e}"),
@@ -94,7 +94,7 @@ impl Role {
 }
 
 impl fmt::Display for Role {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             Self::Send => write!(fmt, "send"),
             Self::Receive => write!(fmt, "receive"),
