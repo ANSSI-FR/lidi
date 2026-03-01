@@ -21,7 +21,9 @@ where
     E: Into<crate::Error>,
 {
     let Some(endpoint) = receiver.config.to.get(usize::from(endpoint_id.value())) else {
-        return Err(crate::Error::Protocol(protocol::Error::InvalidEndpoint(endpoint_id)));
+        return Err(crate::Error::Protocol(protocol::Error::InvalidEndpoint(
+            endpoint_id,
+        )));
     };
 
     log::info!("client {client_id:x}: starting transfer to endpoint {endpoint_id}");
