@@ -54,7 +54,7 @@ impl TryFrom<&lidi_utils::config::Endpoint> for Client {
 }
 
 fn main() {
-    let config = match lidi_utils::command_arguments(false) {
+    let config = match lidi_utils::command_arguments(lidi_utils::Role::Receive, false) {
         Ok(config) => config,
         Err(e) => {
             eprintln!("{e}");

@@ -281,6 +281,7 @@ dependencies = [
 name = "lidi-utils"
 version = "2.1.1"
 dependencies = [
+ "clap",
  "libc",
  "log",
  "serde",

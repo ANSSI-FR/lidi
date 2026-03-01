@@ -3,7 +3,7 @@ use lidi_send as send;
 use std::{io, process, sync, thread};
 
 fn main() {
-    let mut config = match lidi_utils::command_arguments(false) {
+    let mut config = match lidi_utils::command_arguments(lidi_utils::Role::Send, false) {
         Ok(config) => config,
         Err(e) => {
             eprintln!("{e}");
@@ -21,8 +21,8 @@ fn main() {
         }
     };
 
-    config.set_max_clients(1);
-    config.set_heartbeat(None);
+    config.common_mut().max_clients = Some(1);
+    config.common_mut().heartbeat = None;
 
     let sender = match send::Sender::new(&config, raptorq) {
         Ok(sender) => sender,

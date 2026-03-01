@@ -2,7 +2,7 @@ use lidi_protocol as protocol;
 use std::{io, process, thread};
 
 fn main() {
-    let config = match lidi_utils::command_arguments(true) {
+    let mut config = match lidi_utils::command_arguments(lidi_utils::Role::Receive, true) {
         Ok(config) => config,
         Err(e) => {
             eprintln!("{e}");
@@ -19,6 +19,9 @@ fn main() {
             return;
         }
     };
+
+    config.common_mut().max_clients = Some(1);
+    config.common_mut().heartbeat = None;
 
     let receiver = match lidi_receive::Receiver::new(
         &config,

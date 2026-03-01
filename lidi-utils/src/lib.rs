@@ -1,5 +1,11 @@
-use std::{env, fmt, path};
+#[cfg(feature = "command-line")]
+use command_line::Args;
+#[cfg(not(feature = "command-line"))]
+use std::path;
+use std::{env, fmt};
 
+#[cfg(feature = "command-line")]
+mod command_line;
 pub mod config;
 #[cfg(feature = "hash")]
 pub mod hash;
@@ -57,7 +63,33 @@ pub fn init_logger(level_filter: log::LevelFilter, stderr_only: bool) -> Result<
     .map_err(|e| e.to_string())
 }
 
-pub fn command_arguments(stderr_only: bool) -> Result<config::Config, Error> {
+#[derive(Clone, Copy)]
+pub enum Role {
+    Send,
+    Receive,
+}
+
+impl Role {
+    #[cfg(feature = "command-line")]
+    fn parse_command_line(self) -> Result<config::Config, Error> {
+        match self {
+            Self::Send => command_line::SendArgs::parse_command_line(),
+            Self::Receive => command_line::ReceiveArgs::parse_command_line(),
+        }
+    }
+}
+
+impl fmt::Display for Role {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::Send => write!(fmt, "send"),
+            Self::Receive => write!(fmt, "receive"),
+        }
+    }
+}
+
+#[cfg(not(feature = "command-line"))]
+fn no_command_line() -> Result<config::Config, Error> {
     let args: Vec<String> = env::args().skip(1).collect();
 
     if args.len() > 1 {
@@ -73,6 +105,17 @@ pub fn command_arguments(stderr_only: bool) -> Result<config::Config, Error> {
     };
 
     let config = config::parse(path::PathBuf::from(file))?;
+
+    Ok(config)
+}
+
+#[allow(unused)]
+pub fn command_arguments(role: Role, stderr_only: bool) -> Result<config::Config, Error> {
+    #[cfg(not(feature = "command-line"))]
+    let config = no_command_line()?;
+
+    #[cfg(feature = "command-line")]
+    let config = role.parse_command_line()?;
 
     if let Err(e) = init_logger(config.send().log(), stderr_only) {
         return Err(Error::Logger(e));
