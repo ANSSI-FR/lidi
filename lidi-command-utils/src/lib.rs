@@ -1,8 +1,6 @@
 #[cfg(feature = "command-line")]
 use command_line::Args;
-#[cfg(not(feature = "command-line"))]
-use std::path;
-use std::{env, fmt};
+use std::{env, fmt, fs, path};
 
 #[cfg(feature = "command-line")]
 mod command_line;
@@ -37,7 +35,11 @@ impl fmt::Display for Error {
 ///
 /// Will return `Err` if `file` cannot be opened
 /// or logger cannot be set (Term or file mode).
-pub fn init_logger(level_filter: log::LevelFilter, stderr_only: bool) -> Result<(), String> {
+pub fn init_logger(
+    level_filter: log::LevelFilter,
+    log_file: Option<path::PathBuf>,
+    stderr_only: bool,
+) -> Result<(), String> {
     let terminal_mode = if stderr_only {
         simplelog::TerminalMode::Stderr
     } else {
@@ -54,13 +56,25 @@ pub fn init_logger(level_filter: log::LevelFilter, stderr_only: bool) -> Result<
         .unwrap_or_else(|e| e)
         .build();
 
-    simplelog::TermLogger::init(
-        level_filter,
-        config,
-        terminal_mode,
-        simplelog::ColorChoice::Auto,
-    )
-    .map_err(|e| e.to_string())
+    match log_file {
+        Some(file) => fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .truncate(false)
+            .read(false)
+            .open(file)
+            .map_err(|e| e.to_string())
+            .and_then(|file| {
+                simplelog::WriteLogger::init(level_filter, config, file).map_err(|e| e.to_string())
+            }),
+        None => simplelog::TermLogger::init(
+            level_filter,
+            config,
+            terminal_mode,
+            simplelog::ColorChoice::Auto,
+        )
+        .map_err(|e| e.to_string()),
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -117,7 +131,12 @@ pub fn command_arguments(role: Role, stderr_only: bool) -> Result<config::Config
     #[cfg(feature = "command-line")]
     let config = role.parse_command_line()?;
 
-    if let Err(e) = init_logger(config.send().log(), stderr_only) {
+    let (log, log_file) = match role {
+        Role::Send => (config.send().log(), config.send().log_file()),
+        Role::Receive => (config.receive().log(), config.receive().log_file()),
+    };
+
+    if let Err(e) = init_logger(log, log_file, stderr_only) {
         return Err(Error::Logger(e));
     }
 
