@@ -39,8 +39,8 @@ pub enum Error {
     DataTooLarge(String),
     Io(io::Error),
     InvalidBlockType(Option<u8>),
+    InvalidEndpoint(EndpointId),
     SymbolCountTooLarge(String),
-    TooManyRepairPackets(String),
     TransferLengthTooLarge(String),
 }
 
@@ -50,8 +50,8 @@ impl fmt::Display for Error {
             Self::DataTooLarge(s) => write!(fmt, "data too large: {s}"),
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::InvalidBlockType(b) => write!(fmt, "invalid block type: {b:?}"),
+            Self::InvalidEndpoint(e) => write!(fmt, "invalid endpoint: {e}"),
             Self::SymbolCountTooLarge(s) => write!(fmt, "symbol count too large: {s}"),
-            Self::TooManyRepairPackets(s) => write!(fmt, "too many repair packets: {s}"),
             Self::TransferLengthTooLarge(s) => write!(fmt, "transfer length too large: {s}"),
         }
     }

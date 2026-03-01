@@ -39,8 +39,7 @@ mod udp;
 
 pub enum Error {
     Io(io::Error),
-    SendBlock,
-    SendUdp,
+    SendToUdp,
     Receive(crossbeam_channel::RecvError),
     Protocol(protocol::Error),
     Internal(String),
@@ -50,8 +49,7 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::SendBlock => write!(fmt, "crossbeam send block error"),
-            Self::SendUdp => write!(fmt, "crossbeam send UDP error"),
+            Self::SendToUdp => write!(fmt, "crossbeam send to UDP error"),
             Self::Receive(e) => write!(fmt, "crossbeam receive error: {e}"),
             Self::Protocol(e) => write!(fmt, "diode protocol error: {e}"),
             Self::Internal(e) => write!(fmt, "internal error: {e}"),
@@ -65,27 +63,9 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<crossbeam_channel::SendError<Option<protocol::Block>>> for Error {
-    fn from(_: crossbeam_channel::SendError<Option<protocol::Block>>) -> Self {
-        Self::SendBlock
-    }
-}
-
 impl From<crossbeam_channel::SendError<Option<(u8, protocol::Block)>>> for Error {
     fn from(_: crossbeam_channel::SendError<Option<(u8, protocol::Block)>>) -> Self {
-        Self::SendBlock
-    }
-}
-
-impl From<crossbeam_channel::SendError<Option<(u8, Vec<raptorq::EncodingPacket>)>>> for Error {
-    fn from(_: crossbeam_channel::SendError<Option<(u8, Vec<raptorq::EncodingPacket>)>>) -> Self {
-        Self::SendUdp
-    }
-}
-
-impl From<crossbeam_channel::SendError<Option<Vec<raptorq::EncodingPacket>>>> for Error {
-    fn from(_: crossbeam_channel::SendError<Option<Vec<raptorq::EncodingPacket>>>) -> Self {
-        Self::SendUdp
+        Self::SendToUdp
     }
 }
 

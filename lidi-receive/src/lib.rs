@@ -36,7 +36,6 @@ mod udp;
 
 pub enum Error {
     Io(io::Error),
-    InvalidEndpoint(protocol::EndpointId),
     SendPackets,
     SendBlockPackets,
     SendBlock,
@@ -51,7 +50,6 @@ impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
-            Self::InvalidEndpoint(e) => write!(fmt, "invalid endpoint: {e}"),
             Self::SendPackets => write!(fmt, "crossbeam send packets error"),
             Self::SendBlockPackets => write!(fmt, "crossbeam send block packets error"),
             Self::SendBlock => write!(fmt, "crossbeam send block error"),
