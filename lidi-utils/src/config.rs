@@ -14,6 +14,7 @@ const DEFAULT_MTU: u16 = 1500;
 const DEFAULT_BLOCK: u32 = 200_000;
 const DEFAULT_REPAIR: u16 = 2;
 const DEFAULT_RESET_TIMEOUT_SECONDS: u64 = 2;
+const DEFAULT_CLIENT_QUEUE_SIZE: usize = 0;
 
 pub enum Error {
     Io(io::Error),
@@ -167,8 +168,9 @@ pub struct ReceiveConfig {
     to: Vec<Endpoint>,
     from: Option<net::IpAddr>,
     mode: Option<Mode>,
-    abort_timeout: Option<u64>,
+    client_queue_size: Option<usize>,
     reset_timeout: Option<u64>,
+    abort_timeout: Option<u64>,
 }
 
 impl ReceiveConfig {
@@ -193,13 +195,18 @@ impl ReceiveConfig {
     }
 
     #[must_use]
-    pub fn abort_timeout(&self) -> Option<time::Duration> {
-        self.abort_timeout.map(time::Duration::from_secs)
+    pub fn client_queue_size(&self) -> usize {
+        self.client_queue_size.unwrap_or(DEFAULT_CLIENT_QUEUE_SIZE)
     }
 
     #[must_use]
     pub fn reset_timeout(&self) -> time::Duration {
         time::Duration::from_secs(self.reset_timeout.unwrap_or(DEFAULT_RESET_TIMEOUT_SECONDS))
+    }
+
+    #[must_use]
+    pub fn abort_timeout(&self) -> Option<time::Duration> {
+        self.abort_timeout.map(time::Duration::from_secs)
     }
 }
 
