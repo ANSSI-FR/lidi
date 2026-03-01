@@ -1,10 +1,9 @@
 use lidi_protocol as protocol;
 use std::{
-    env,
     io::{self, Write},
     net,
     os::{fd::AsRawFd, unix},
-    path, thread,
+    thread,
 };
 
 enum Client {
@@ -55,36 +54,13 @@ impl TryFrom<&lidi_utils::config::Endpoint> for Client {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
-
-    if args.len() > 1 {
-        eprintln!("too many arguments: expecting only configuration file");
-        return;
-    }
-
-    let Some(file) = args.first() else {
-        eprintln!("missing argument: <config_file>");
-        return;
-    };
-
-    let config = match lidi_utils::config::parse(path::PathBuf::from(file)) {
+    let config = match lidi_utils::command_arguments(false) {
         Ok(config) => config,
         Err(e) => {
             eprintln!("{e}");
             return;
         }
     };
-
-    if let Err(e) = lidi_utils::init_logger(config.send().log(), false) {
-        eprintln!("failed to initialize logger: {e}");
-        return;
-    }
-
-    log::info!(
-        "{} version {}",
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION")
-    );
 
     let common = config.common();
 
