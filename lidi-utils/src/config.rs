@@ -14,7 +14,7 @@ const DEFAULT_MTU: u16 = 1500;
 const DEFAULT_BLOCK: u32 = 200_000;
 const DEFAULT_REPAIR: u16 = 2;
 const DEFAULT_RESET_TIMEOUT_SECONDS: u64 = 2;
-const DEFAULT_CLIENT_QUEUE_SIZE: usize = 0;
+const DEFAULT_QUEUE_SIZE: usize = 0;
 
 pub enum Error {
     Io(io::Error),
@@ -43,6 +43,7 @@ impl fmt::Display for Error {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "command-line", derive(clap::ValueEnum))]
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum Mode {
     Native,
@@ -70,14 +71,14 @@ pub enum Endpoint {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CommonConfig {
-    mtu: Option<u16>,
-    ports: Vec<u16>,
-    block: Option<u32>,
-    repair: Option<u16>,
-    max_clients: Option<u32>,
-    hash: Option<bool>,
-    flush: Option<bool>,
-    heartbeat: Option<u64>,
+    pub mtu: Option<u16>,
+    pub ports: Vec<u16>,
+    pub block: Option<u32>,
+    pub repair: Option<u16>,
+    pub max_clients: Option<u32>,
+    pub hash: Option<bool>,
+    pub flush: Option<bool>,
+    pub heartbeat: Option<u64>,
 }
 
 impl CommonConfig {
@@ -118,18 +119,20 @@ impl CommonConfig {
 
     #[must_use]
     pub fn heartbeat(&self) -> Option<time::Duration> {
-        self.heartbeat.map(time::Duration::from_secs)
+        self.heartbeat
+            .filter(|heartbeat| 0 < *heartbeat)
+            .map(time::Duration::from_secs)
     }
 }
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SendConfig {
-    log: Option<log::LevelFilter>,
-    from: Vec<Endpoint>,
-    to: Option<net::IpAddr>,
-    to_bind: Option<net::SocketAddr>,
-    mode: Option<Mode>,
+    pub log: Option<log::LevelFilter>,
+    pub from: Vec<Endpoint>,
+    pub to: Option<net::IpAddr>,
+    pub to_bind: Option<net::SocketAddr>,
+    pub mode: Option<Mode>,
 }
 
 impl SendConfig {
@@ -164,13 +167,13 @@ impl SendConfig {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReceiveConfig {
-    log: Option<log::LevelFilter>,
-    to: Vec<Endpoint>,
-    from: Option<net::IpAddr>,
-    mode: Option<Mode>,
-    client_queue_size: Option<usize>,
-    reset_timeout: Option<u64>,
-    abort_timeout: Option<u64>,
+    pub log: Option<log::LevelFilter>,
+    pub to: Vec<Endpoint>,
+    pub from: Option<net::IpAddr>,
+    pub mode: Option<Mode>,
+    pub queue_size: Option<usize>,
+    pub reset_timeout: Option<u64>,
+    pub abort_timeout: Option<u64>,
 }
 
 impl ReceiveConfig {
@@ -195,8 +198,8 @@ impl ReceiveConfig {
     }
 
     #[must_use]
-    pub fn client_queue_size(&self) -> usize {
-        self.client_queue_size.unwrap_or(DEFAULT_CLIENT_QUEUE_SIZE)
+    pub fn queue_size(&self) -> usize {
+        self.queue_size.unwrap_or(DEFAULT_QUEUE_SIZE)
     }
 
     #[must_use]
@@ -210,7 +213,7 @@ impl ReceiveConfig {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     common: Option<CommonConfig>,
@@ -219,21 +222,17 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn set_max_clients(&mut self, max_clients: u32) {
-        let mut common = self.common.take().unwrap_or_default();
-        common.max_clients = Some(max_clients);
-        self.common.replace(common);
-    }
-
-    pub fn set_heartbeat(&mut self, heartbeat: Option<u64>) {
-        let mut common = self.common.take().unwrap_or_default();
-        common.heartbeat = heartbeat;
-        self.common.replace(common);
-    }
-
     #[must_use]
     pub fn common(&self) -> CommonConfig {
         self.common.clone().unwrap_or_default()
+    }
+
+    #[allow(clippy::missing_panics_doc)] // cannot panic
+    pub fn common_mut(&mut self) -> &mut CommonConfig {
+        if self.common.is_none() {
+            self.common = Some(CommonConfig::default());
+        }
+        self.common.as_mut().unwrap()
     }
 
     #[must_use]
@@ -241,9 +240,25 @@ impl Config {
         self.send.clone().unwrap_or_default()
     }
 
+    #[allow(clippy::missing_panics_doc)] // cannot panic
+    pub fn send_mut(&mut self) -> &mut SendConfig {
+        if self.send.is_none() {
+            self.send = Some(SendConfig::default());
+        }
+        self.send.as_mut().unwrap()
+    }
+
     #[must_use]
     pub fn receive(&self) -> ReceiveConfig {
         self.receive.clone().unwrap_or_default()
+    }
+
+    #[allow(clippy::missing_panics_doc)] // cannot panic
+    pub fn receive_mut(&mut self) -> &mut ReceiveConfig {
+        if self.receive.is_none() {
+            self.receive = Some(ReceiveConfig::default());
+        }
+        self.receive.as_mut().unwrap()
     }
 }
 

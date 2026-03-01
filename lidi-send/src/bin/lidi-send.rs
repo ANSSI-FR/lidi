@@ -71,7 +71,7 @@ fn tcp_listener_loop(
 }
 
 fn main() {
-    let config = match lidi_utils::command_arguments(false) {
+    let config = match lidi_utils::command_arguments(lidi_utils::Role::Send, false) {
         Ok(config) => config,
         Err(e) => {
             eprintln!("{e}");
@@ -119,7 +119,7 @@ fn main() {
                             return;
                         }
                         Ok(listener) => {
-                            log::info!("accepting TCP clients on {from_tcp}");
+                            log::info!("endpoint {endpoint} accepts TCP clients on {from_tcp}");
                             thread::Builder::new()
                                 .name(format!("endpoint_{endpoint}"))
                                 .spawn_scoped(scope, move || {

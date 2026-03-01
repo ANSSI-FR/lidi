@@ -92,10 +92,9 @@ pub fn start<ClientNew, ClientEnd>(
                         continue;
                     }
                     Some(endpoint) => {
-                        let (client_sendq, client_recvq) = if 0 < receiver.config.client_queue_size
-                        {
+                        let (client_sendq, client_recvq) = if 0 < receiver.config.queue_size {
                             crossbeam_channel::bounded::<protocol::Block>(
-                                receiver.config.client_queue_size,
+                                receiver.config.queue_size,
                             )
                         } else {
                             crossbeam_channel::unbounded::<protocol::Block>()
