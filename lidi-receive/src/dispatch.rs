@@ -53,7 +53,7 @@ pub fn start<ClientNew, ClientEnd>(
                     None,
                 )?;
 
-                if let Err(e) = client_sendq.send(block) {
+                if let Err(e) = client_sendq.try_send(block) {
                     log::error!("failed to send payload to client {client_id:x}: {e}");
                 }
             }
@@ -92,8 +92,14 @@ pub fn start<ClientNew, ClientEnd>(
                         continue;
                     }
                     Some(endpoint) => {
-                        let (client_sendq, client_recvq) =
-                            crossbeam_channel::unbounded::<protocol::Block>();
+                        let (client_sendq, client_recvq) = if 0 < receiver.config.client_queue_size
+                        {
+                            crossbeam_channel::bounded::<protocol::Block>(
+                                receiver.config.client_queue_size,
+                            )
+                        } else {
+                            crossbeam_channel::unbounded::<protocol::Block>()
+                        };
                         active_transfers.insert(client_id, client_sendq);
                         receiver
                             .to_clients
@@ -110,7 +116,7 @@ pub fn start<ClientNew, ClientEnd>(
             continue;
         };
 
-        if let Err(e) = client_sendq.send(block) {
+        if let Err(e) = client_sendq.try_send(block) {
             log::error!("failed to send block to client {client_id:x}: {e}");
             active_transfers.remove(&client_id);
             continue;

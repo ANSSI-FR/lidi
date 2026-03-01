@@ -155,6 +155,7 @@ struct Config {
     to: Vec<config::Endpoint>,
     reset_timeout: time::Duration,
     abort_timeout: Option<time::Duration>,
+    client_queue_size: usize,
     mode: config::Mode,
 }
 
@@ -207,6 +208,7 @@ impl From<&config::Config> for Config {
             to: receive.to(),
             reset_timeout: receive.reset_timeout(),
             abort_timeout: receive.abort_timeout(),
+            client_queue_size: receive.client_queue_size(),
             mode,
         }
     }
