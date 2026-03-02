@@ -19,6 +19,8 @@
 //! - there are `max_clients` clients workers running in parallel,
 
 use lidi_command_utils::config;
+#[cfg(feature = "from-tls")]
+use lidi_command_utils::tls;
 use lidi_protocol as protocol;
 #[cfg(feature = "heartbeat")]
 use std::time;
@@ -43,6 +45,8 @@ pub enum Error {
     Receive(crossbeam_channel::RecvError),
     Protocol(protocol::Error),
     Internal(String),
+    #[cfg(feature = "from-tls")]
+    Tls(tls::Error),
 }
 
 impl fmt::Display for Error {
@@ -53,6 +57,8 @@ impl fmt::Display for Error {
             Self::Receive(e) => write!(fmt, "crossbeam receive error: {e}"),
             Self::Protocol(e) => write!(fmt, "diode protocol error: {e}"),
             Self::Internal(e) => write!(fmt, "internal error: {e}"),
+            #[cfg(feature = "from-tls")]
+            Self::Tls(e) => write!(fmt, "TLS error: {e}"),
         }
     }
 }
@@ -81,6 +87,13 @@ impl From<protocol::Error> for Error {
     }
 }
 
+#[cfg(feature = "from-tls")]
+impl From<tls::Error> for Error {
+    fn from(e: tls::Error) -> Self {
+        Self::Tls(e)
+    }
+}
+
 struct Config {
     mtu: u16,
     ports: Vec<u16>,
@@ -93,6 +106,8 @@ struct Config {
     to: net::IpAddr,
     to_bind: net::SocketAddr,
     mode: config::Mode,
+    #[cfg(feature = "from-tls")]
+    tls: config::TlsConfig,
 }
 
 impl From<&config::Config> for Config {
@@ -143,6 +158,8 @@ impl From<&config::Config> for Config {
             to: send.to(),
             to_bind: send.to_bind(),
             mode,
+            #[cfg(feature = "from-tls")]
+            tls: config.send().tls(),
         }
     }
 }
@@ -169,6 +186,10 @@ where
     pub fn new(config: &config::Config, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
         let config = Config::from(config);
 
+        if config.ports.is_empty() {
+            return Err(Error::Internal(String::from("no ports configured")));
+        }
+
         let next_block = sync::atomic::AtomicU8::new(0);
         let (to_server, for_server) = crossbeam_channel::bounded(1);
         let (to_udp, for_udp) = crossbeam_channel::bounded(config.ports.len());
@@ -182,6 +203,11 @@ where
             to_udp,
             for_udp,
         })
+    }
+
+    #[cfg(feature = "from-tls")]
+    pub const fn tls(&self) -> &config::TlsConfig {
+        &self.config.tls
     }
 
     /// # Errors
@@ -244,6 +270,7 @@ where
 
         Ok(())
     }
+
     /// # Errors
     ///
     /// Will return `Err` if the `send` returns a `SendError<T>`.
@@ -253,6 +280,7 @@ where
         }
         Ok(())
     }
+
     /// # Errors
     ///
     /// Will return `Err` if the `send` returns a `SendError<T>`.

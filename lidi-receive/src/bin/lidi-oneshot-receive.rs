@@ -3,7 +3,8 @@ use std::{io, process, thread};
 
 fn main() {
     let mut config =
-        match lidi_command_utils::command_arguments(lidi_command_utils::Role::Receive, true) {
+        match lidi_command_utils::command_arguments(lidi_command_utils::Role::Receive, true, false)
+        {
             Ok(config) => config,
             Err(e) => {
                 eprintln!("{e}");

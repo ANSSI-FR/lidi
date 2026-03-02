@@ -63,7 +63,7 @@ impl TryFrom<CommonArgs> for config::Config {
         }
 
         if let Some(ports) = args.ports {
-            config.common_mut().ports = ports;
+            config.common_mut().ports = Some(ports);
         }
 
         if let Some(block) = args.block {

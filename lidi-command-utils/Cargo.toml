@@ -11,6 +11,7 @@ workspace = true
 clap = { version = "4", optional = true, default-features = false, features = [ "color", "derive", "std", "usage", "suggestions" ] }
 libc = { version = "0", default-features = false, features = ["std"] }
 log = { version = "0", default-features = false, features = [ "std", "serde" ] }
+openssl = { version = "0", optional = true, default-features = false }
 serde = { version = "1", default-features = false, features = [ "std", "derive" ] }
 simplelog = { version = "0", default-features = false, features = [
     "termcolor",
@@ -21,5 +22,6 @@ twox-hash = { version = "2", optional = true, default-features = false, features
 
 [features]
 default = [ ]
-hash = [ "dep:twox-hash" ]
 command-line = [ "dep:clap" ]
+hash = [ "dep:twox-hash" ]
+tls = [ "dep:openssl" ]

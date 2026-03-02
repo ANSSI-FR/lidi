@@ -5,16 +5,21 @@ use std::{
     net, path, time,
 };
 
+const DEFAULT_RECEIVER: net::IpAddr = net::IpAddr::V4(net::Ipv4Addr::LOCALHOST);
+const DEFAULT_PORTS: &[u16] = &[5000];
+
 const DEFAULT_HASH: bool = false;
 const DEFAULT_FLUSH: bool = false;
 const DEFAULT_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Info;
 const DEFAULT_MAX_CLIENTS: u32 = 2;
-const DEFAULT_RECEIVER: net::IpAddr = net::IpAddr::V4(net::Ipv4Addr::LOCALHOST);
 const DEFAULT_MTU: u16 = 1500;
 const DEFAULT_BLOCK: u32 = 200_000;
 const DEFAULT_REPAIR: u16 = 2;
 const DEFAULT_RESET_TIMEOUT_SECONDS: u64 = 2;
 const DEFAULT_QUEUE_SIZE: usize = 0;
+
+const DEFAULT_TLS_MIN: TlsVersion = TlsVersion::Tls1_3;
+const DEFAULT_TLS_METHOD: TlsMethod = TlsMethod::Mozilla_Modern_v5;
 
 pub enum Error {
     Io(io::Error),
@@ -65,6 +70,7 @@ impl fmt::Display for Mode {
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum Endpoint {
     Tcp(net::SocketAddr),
+    Tls(net::SocketAddr),
     Unix(path::PathBuf),
 }
 
@@ -72,7 +78,7 @@ pub enum Endpoint {
 #[serde(deny_unknown_fields)]
 pub struct CommonConfig {
     pub mtu: Option<u16>,
-    pub ports: Vec<u16>,
+    pub ports: Option<Vec<u16>>,
     pub block: Option<u32>,
     pub repair: Option<u16>,
     pub max_clients: Option<u32>,
@@ -89,7 +95,9 @@ impl CommonConfig {
 
     #[must_use]
     pub fn ports(&self) -> Vec<u16> {
-        self.ports.clone()
+        self.ports
+            .clone()
+            .unwrap_or_else(|| Vec::from(DEFAULT_PORTS))
     }
 
     #[must_use]
@@ -125,6 +133,73 @@ impl CommonConfig {
     }
 }
 
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase", deny_unknown_fields)]
+pub enum TlsVersion {
+    Tls1_1,
+    Tls1_2,
+    Tls1_3,
+}
+
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase", deny_unknown_fields)]
+#[allow(non_camel_case_types)]
+pub enum TlsMethod {
+    Mozilla_Intermediate_v4,
+    Mozilla_Intermediate_v5,
+    Mozilla_Modern_v4,
+    Mozilla_Modern_v5,
+}
+
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TlsConfig {
+    pub key: Option<path::PathBuf>,
+    pub certificate: Option<path::PathBuf>,
+    pub ca: Option<path::PathBuf>,
+    pub tls_min: Option<TlsVersion>,
+    pub tls_method: Option<TlsMethod>,
+    pub ciphers: Option<String>,
+    pub groups: Option<String>,
+}
+
+impl TlsConfig {
+    #[must_use]
+    pub const fn key(&self) -> Option<&path::PathBuf> {
+        self.key.as_ref()
+    }
+
+    #[must_use]
+    pub const fn certificate(&self) -> Option<&path::PathBuf> {
+        self.certificate.as_ref()
+    }
+
+    #[must_use]
+    pub const fn ca(&self) -> Option<&path::PathBuf> {
+        self.ca.as_ref()
+    }
+
+    #[must_use]
+    pub const fn ciphers(&self) -> Option<&String> {
+        self.ciphers.as_ref()
+    }
+
+    #[must_use]
+    pub const fn groups(&self) -> Option<&String> {
+        self.groups.as_ref()
+    }
+
+    #[must_use]
+    pub fn tls_min(&self) -> TlsVersion {
+        self.tls_min.unwrap_or(DEFAULT_TLS_MIN)
+    }
+
+    #[must_use]
+    pub fn tls_method(&self) -> TlsMethod {
+        self.tls_method.unwrap_or(DEFAULT_TLS_METHOD)
+    }
+}
+
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SendConfig {
@@ -134,6 +209,7 @@ pub struct SendConfig {
     pub to: Option<net::IpAddr>,
     pub to_bind: Option<net::SocketAddr>,
     pub mode: Option<Mode>,
+    pub tls: Option<TlsConfig>,
 }
 
 impl SendConfig {
@@ -168,6 +244,11 @@ impl SendConfig {
     pub const fn mode(&self) -> Option<Mode> {
         self.mode
     }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
 }
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -181,6 +262,7 @@ pub struct ReceiveConfig {
     pub queue_size: Option<usize>,
     pub reset_timeout: Option<u64>,
     pub abort_timeout: Option<u64>,
+    pub tls: Option<TlsConfig>,
 }
 
 impl ReceiveConfig {
@@ -223,14 +305,20 @@ impl ReceiveConfig {
     pub fn abort_timeout(&self) -> Option<time::Duration> {
         self.abort_timeout.map(time::Duration::from_secs)
     }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
 }
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(flatten)]
     common: Option<CommonConfig>,
-    send: Option<SendConfig>,
-    receive: Option<ReceiveConfig>,
+    pub(crate) send: Option<SendConfig>,
+    pub(crate) receive: Option<ReceiveConfig>,
 }
 
 impl Config {
