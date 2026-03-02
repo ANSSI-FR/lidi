@@ -8,16 +8,27 @@ pub mod config;
 #[cfg(feature = "hash")]
 pub mod hash;
 pub mod socket;
+#[cfg(feature = "tls")]
+pub mod tls;
 
 pub enum Error {
     Arguments(String),
     Config(config::Error),
     Logger(String),
+    #[cfg(feature = "tls")]
+    Tls(tls::Error),
 }
 
 impl From<config::Error> for Error {
     fn from(e: config::Error) -> Self {
         Self::Config(e)
+    }
+}
+
+#[cfg(feature = "tls")]
+impl From<tls::Error> for Error {
+    fn from(e: tls::Error) -> Self {
+        Self::Tls(e)
     }
 }
 
@@ -27,6 +38,8 @@ impl fmt::Display for Error {
             Self::Arguments(e) => write!(fmt, "argument(s) error: {e}"),
             Self::Config(e) => write!(fmt, "configuration error: {e}"),
             Self::Logger(e) => write!(fmt, "logger error: {e}"),
+            #[cfg(feature = "tls")]
+            Self::Tls(e) => write!(fmt, "TLS error: {e}"),
         }
     }
 }
@@ -124,7 +137,11 @@ fn no_command_line() -> Result<config::Config, Error> {
 }
 
 #[allow(unused)]
-pub fn command_arguments(role: Role, stderr_only: bool) -> Result<config::Config, Error> {
+pub fn command_arguments(
+    role: Role,
+    stderr_only: bool,
+    tls_init: bool,
+) -> Result<config::Config, Error> {
     #[cfg(not(feature = "command-line"))]
     let config = no_command_line()?;
 
@@ -145,6 +162,11 @@ pub fn command_arguments(role: Role, stderr_only: bool) -> Result<config::Config
         env!("CARGO_PKG_NAME"),
         env!("CARGO_PKG_VERSION")
     );
+
+    #[cfg(feature = "tls")]
+    if tls_init {
+        tls::init();
+    }
 
     Ok(config)
 }

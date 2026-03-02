@@ -17,6 +17,8 @@
 //! - there are `nb_decode_threads` decode workers running in parallel.
 
 use lidi_command_utils::config;
+#[cfg(feature = "to-tls")]
+use lidi_command_utils::tls;
 use lidi_protocol as protocol;
 use std::{
     fmt,
@@ -44,6 +46,8 @@ pub enum Error {
     ReceiveTimeout(crossbeam_channel::RecvTimeoutError),
     Protocol(protocol::Error),
     Internal(String),
+    #[cfg(feature = "to-tls")]
+    Tls(lidi_command_utils::tls::Error),
 }
 
 impl fmt::Display for Error {
@@ -58,6 +62,8 @@ impl fmt::Display for Error {
             Self::ReceiveTimeout(e) => write!(fmt, "crossbeam receive timeout error: {e}"),
             Self::Protocol(e) => write!(fmt, "diode protocol error: {e}"),
             Self::Internal(e) => write!(fmt, "internal error: {e}"),
+            #[cfg(feature = "to-tls")]
+            Self::Tls(e) => write!(fmt, "TLS error: {e}"),
         }
     }
 }
@@ -129,6 +135,13 @@ impl From<crossbeam_channel::RecvTimeoutError> for Error {
 impl From<protocol::Error> for Error {
     fn from(e: protocol::Error) -> Self {
         Self::Protocol(e)
+    }
+}
+
+#[cfg(feature = "to-tls")]
+impl From<tls::Error> for Error {
+    fn from(e: tls::Error) -> Self {
+        Self::Tls(e)
     }
 }
 
@@ -348,6 +361,10 @@ where
                     log::error!("fatal reblock error: {e}");
                 }
             })?;
+
+        if self.config.ports.is_empty() {
+            return Err(Error::Internal(String::from("no ports configured")));
+        }
 
         for port in &self.config.ports {
             thread::Builder::new()

@@ -18,6 +18,7 @@ clap = { version = "4", default-features = false, features = [
     "usage",
 ] }
 log = { version = "0", default-features = false, features = ["std"] }
+openssl = { version = "0", optional = true, default-features = false }
 rand = { version = "0", default-features = false, features = [
     "std",
     "sys_rng",
@@ -29,4 +30,6 @@ simplelog = { version = "0", default-features = false, features = [
 twox-hash = { version = "2", optional = true, default-features = false, features = [ "std", "xxhash3_128" ] }
 
 [features]
+default = [ "hash", "tls" ]
 hash = [ "dep:twox-hash" ]
+tls = [ "dep:openssl" ]
