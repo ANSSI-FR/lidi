@@ -108,6 +108,8 @@ pub struct SendArgs {
     log: Option<log::LevelFilter>,
     #[clap(long, help = "Log file")]
     log_file: Option<path::PathBuf>,
+    #[clap(long, help = "IP:port where to listen for Prometheus connections")]
+    prometheus_listen: Option<net::SocketAddr>,
     #[clap(long, help = "Add a client endpoint (tcp:<IP:PORT> or unix:<PATH>)", value_parser = endpoint_parser)]
     from: Option<Vec<config::Endpoint>>,
     #[clap(long, help = "IP address of receiver")]
@@ -132,6 +134,10 @@ impl TryFrom<SendArgs> for config::Config {
 
         if let Some(log_file) = args.log_file {
             config.send_mut().log_file = Some(log_file);
+        }
+
+        if let Some(prometheus_listen) = args.prometheus_listen {
+            config.send_mut().prometheus_listen = Some(prometheus_listen);
         }
 
         if let Some(from) = args.from {
@@ -162,6 +168,8 @@ pub struct ReceiveArgs {
     log: Option<log::LevelFilter>,
     #[clap(long, help = "Log file")]
     log_file: Option<path::PathBuf>,
+    #[clap(long, help = "IP:port where to listen for Prometheus connections")]
+    prometheus_listen: Option<net::SocketAddr>,
     #[clap(long, help = "Add a client endpoint (tcp:<IP:PORT> or unix:<PATH>)", value_parser = endpoint_parser)]
     to: Option<Vec<config::Endpoint>>,
     #[clap(long, help = "IP address on which to listen from sender UDP packets")]
@@ -199,6 +207,10 @@ impl TryFrom<ReceiveArgs> for config::Config {
 
         if let Some(log_file) = args.log_file {
             config.receive_mut().log_file = Some(log_file);
+        }
+
+        if let Some(prometheus_listen) = args.prometheus_listen {
+            config.receive_mut().prometheus_listen = Some(prometheus_listen);
         }
 
         if let Some(to) = args.to {

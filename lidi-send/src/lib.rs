@@ -22,7 +22,7 @@ use lidi_command_utils::config;
 #[cfg(feature = "from-tls")]
 use lidi_command_utils::tls;
 use lidi_protocol as protocol;
-#[cfg(feature = "heartbeat")]
+#[cfg(any(feature = "heartbeat", feature = "prometheus"))]
 use std::time;
 use std::{
     fmt,
@@ -108,6 +108,8 @@ struct Config {
     mode: config::Mode,
     #[cfg(feature = "from-tls")]
     tls: config::TlsConfig,
+    #[cfg(feature = "prometheus")]
+    prometheus_listen: Option<net::SocketAddr>,
 }
 
 impl From<&config::Config> for Config {
@@ -160,6 +162,8 @@ impl From<&config::Config> for Config {
             mode,
             #[cfg(feature = "from-tls")]
             tls: config.send().tls(),
+            #[cfg(feature = "prometheus")]
+            prometheus_listen: config.send().prometheus_listen(),
         }
     }
 }
@@ -183,6 +187,18 @@ impl<C> Sender<C>
 where
     C: Read + AsRawFd + Send,
 {
+    #[cfg(feature = "prometheus")]
+    #[allow(clippy::cast_precision_loss)]
+    fn metrics_loop(&self) {
+        let timer = time::Duration::from_secs(1);
+
+        loop {
+            thread::sleep(timer);
+
+            metrics::gauge!("lidi_send_udp_queue_len").set(self.for_udp.len() as f64);
+        }
+    }
+
     pub fn new(config: &config::Config, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
         let config = Config::from(config);
 
@@ -246,6 +262,19 @@ where
                 })?;
         } else {
             log::info!("heartbeat is disabled");
+        }
+
+        #[cfg(feature = "prometheus")]
+        if let Some(prometheus) = self.config.prometheus_listen {
+            log::info!("Prometheus is set to {prometheus}");
+
+            thread::Builder::new()
+                .name(String::from("metrics"))
+                .spawn_scoped(scope, move || {
+                    self.metrics_loop();
+                })?;
+        } else {
+            log::info!("Prometheus is disabled");
         }
 
         for i in 0..self.config.max_clients {

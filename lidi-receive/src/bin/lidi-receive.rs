@@ -116,15 +116,18 @@ impl Client {
 }
 
 fn main() {
-    let config =
-        match lidi_command_utils::command_arguments(lidi_command_utils::Role::Receive, false, true)
-        {
-            Ok(config) => config,
-            Err(e) => {
-                eprintln!("{e}");
-                return;
-            }
-        };
+    let config = match lidi_command_utils::command_arguments(
+        lidi_command_utils::Role::Receive,
+        false,
+        true,
+        true,
+    ) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("{e}");
+            return;
+        }
+    };
 
     let common = config.common();
 

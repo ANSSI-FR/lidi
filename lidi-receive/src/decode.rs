@@ -13,13 +13,23 @@ pub fn start<ClientNew, ClientEnd>(
 
                 log::debug!("received block {id} to decode ({nb_packets} packets)");
 
+                #[cfg(feature = "prometheus")]
+                #[allow(clippy::cast_precision_loss)]
+                metrics::histogram!("lidi_receive_decode_with_n_packets")
+                    .record(packets.len() as f64);
+
                 match receiver.raptorq.decode(id, packets) {
                     None => {
+                        #[cfg(feature = "prometheus")]
+                        metrics::counter!("lidi_receive_blocks_decode_failed").increment(1);
                         log::error!("lost block {id} (failed to decode with {nb_packets} packets)");
                         receiver.to_dispatch.send(None)?;
                     }
                     Some(block) => {
                         log::debug!("block {id} decoded ({} bytes)", block.len());
+
+                        #[cfg(feature = "prometheus")]
+                        metrics::counter!("lidi_receive_blocks_decoded").increment(1);
 
                         receiver
                             .to_dispatch

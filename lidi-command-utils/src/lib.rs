@@ -1,6 +1,6 @@
 #[cfg(feature = "command-line")]
 use command_line::Args;
-use std::{env, fmt, fs, path};
+use std::{env, fmt, fs, net, path};
 
 #[cfg(feature = "command-line")]
 mod command_line;
@@ -17,6 +17,8 @@ pub enum Error {
     Logger(String),
     #[cfg(feature = "tls")]
     Tls(tls::Error),
+    #[cfg(feature = "prometheus")]
+    Prometheus(metrics_exporter_prometheus::BuildError),
 }
 
 impl From<config::Error> for Error {
@@ -40,6 +42,8 @@ impl fmt::Display for Error {
             Self::Logger(e) => write!(fmt, "logger error: {e}"),
             #[cfg(feature = "tls")]
             Self::Tls(e) => write!(fmt, "TLS error: {e}"),
+            #[cfg(feature = "prometheus")]
+            Self::Prometheus(e) => write!(fmt, "Prometheus error: {e}"),
         }
     }
 }
@@ -48,7 +52,7 @@ impl fmt::Display for Error {
 ///
 /// Will return `Err` if `file` cannot be opened
 /// or logger cannot be set (Term or file mode).
-pub fn init_logger(
+fn init_logger(
     level_filter: log::LevelFilter,
     log_file: Option<path::PathBuf>,
     stderr_only: bool,
@@ -88,6 +92,23 @@ pub fn init_logger(
         )
         .map_err(|e| e.to_string()),
     }
+}
+
+#[allow(clippy::unnecessary_wraps)]
+fn init_prometheus(prometheus_listen: Option<net::SocketAddr>) -> Result<(), Error> {
+    #[allow(unused)]
+    if let Some(prometheus_listen) = prometheus_listen {
+        #[cfg(not(feature = "prometheus"))]
+        log::warn!("Prometheus is configured, but Prometheus was not enabled at compilation");
+
+        #[cfg(feature = "prometheus")]
+        metrics_exporter_prometheus::PrometheusBuilder::new()
+            .with_http_listener(prometheus_listen)
+            .install()
+            .map_err(Error::Prometheus)?;
+    }
+
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -141,6 +162,7 @@ pub fn command_arguments(
     role: Role,
     stderr_only: bool,
     tls_init: bool,
+    prometheus_init: bool,
 ) -> Result<config::Config, Error> {
     #[cfg(not(feature = "command-line"))]
     let config = no_command_line()?;
@@ -148,9 +170,17 @@ pub fn command_arguments(
     #[cfg(feature = "command-line")]
     let config = role.parse_command_line()?;
 
-    let (log, log_file) = match role {
-        Role::Send => (config.send().log(), config.send().log_file()),
-        Role::Receive => (config.receive().log(), config.receive().log_file()),
+    let (log, log_file, prometheus_listen) = match role {
+        Role::Send => (
+            config.send().log(),
+            config.send().log_file(),
+            config.send().prometheus_listen(),
+        ),
+        Role::Receive => (
+            config.receive().log(),
+            config.receive().log_file(),
+            config.receive().prometheus_listen(),
+        ),
     };
 
     if let Err(e) = init_logger(log, log_file, stderr_only) {
@@ -166,6 +196,10 @@ pub fn command_arguments(
     #[cfg(feature = "tls")]
     if tls_init {
         tls::init();
+    }
+
+    if prometheus_init {
+        init_prometheus(prometheus_listen)?;
     }
 
     Ok(config)

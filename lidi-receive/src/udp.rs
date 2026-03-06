@@ -27,7 +27,7 @@ pub fn start<ClientNew, ClientEnd>(
     let sock_buffer_size = socket::get_socket_recv_buffer_size(&socket)?;
     log::info!("UDP socket receive buffer size set to {sock_buffer_size}");
 
-    if (sock_buffer_size as i32) < buffer_size {
+    if sock_buffer_size < buffer_size {
         log::warn!(
             "UDP socket recv buffer may be too small ({sock_buffer_size} < {buffer_size}) to achieve optimal performances"
         );
@@ -40,6 +40,8 @@ pub fn start<ClientNew, ClientEnd>(
         match udp.recv()? {
             #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
             socket::ReceiveDatagrams::Single(datagram) => {
+                #[cfg(feature = "prometheus")]
+                metrics::counter!("lidi_receive_udp_packets").increment(1);
                 let packet = raptorq::EncodingPacket::deserialize(&datagram);
                 #[cfg(not(feature = "receive-mmsg"))]
                 receiver.to_reblock.send(packet)?;
@@ -48,6 +50,8 @@ pub fn start<ClientNew, ClientEnd>(
             }
             #[cfg(feature = "receive-mmsg")]
             socket::ReceiveDatagrams::Multiple(datagrams) => {
+                #[cfg(feature = "prometheus")]
+                metrics::counter!("lidi_receive_udp_packets").increment(datagrams.len() as u64);
                 receiver.to_reblock.send(
                     datagrams
                         .into_iter()

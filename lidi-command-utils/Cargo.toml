@@ -7,21 +7,57 @@ license.workspace = true
 [lints]
 workspace = true
 
-[dependencies]
-clap = { version = "4", optional = true, default-features = false, features = [ "color", "derive", "std", "usage", "suggestions" ] }
-libc = { version = "0", default-features = false, features = ["std"] }
-log = { version = "0", default-features = false, features = [ "std", "serde" ] }
-openssl = { version = "0", optional = true, default-features = false }
-serde = { version = "1", default-features = false, features = [ "std", "derive" ] }
-simplelog = { version = "0", default-features = false, features = [
-    "termcolor",
-    "local-offset",
-] }
-toml = { version = "1", default-features = false, features = [ "std", "parse", "serde" ] }
-twox-hash = { version = "2", optional = true, default-features = false, features = [ "std", "xxhash3_128" ] }
+[dependencies.clap]
+version = "4"
+optional = true
+default-features = false
+features = [ "color", "derive", "std", "usage", "suggestions" ]
+
+[dependencies.libc]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.log]
+version = "0"
+default-features = false
+features = [ "std", "serde" ]
+
+[dependencies.openssl]
+version = "0"
+optional = true
+default-features = false
+
+[dependencies.metrics-exporter-prometheus]
+version = "0"
+optional = true
+default-features = false
+features = [ "http-listener" ]
+
+[dependencies.serde]
+version = "1"
+default-features = false
+features = [ "std", "derive" ]
+
+[dependencies.simplelog]
+version = "0"
+default-features = false
+features = [ "local-offset", "termcolor" ]
+
+[dependencies.toml]
+version = "1"
+default-features = false
+features = [ "std", "parse", "serde" ]
+
+[dependencies.twox-hash]
+version = "2"
+optional = true
+default-features = false
+features = [ "std", "xxhash3_128" ]
 
 [features]
 default = [ ]
 command-line = [ "dep:clap" ]
 hash = [ "dep:twox-hash" ]
+prometheus = [ "dep:metrics-exporter-prometheus" ]
 tls = [ "dep:openssl" ]

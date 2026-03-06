@@ -183,14 +183,18 @@ fn unix_listener_start<'a>(
 
 #[allow(clippy::too_many_lines)]
 fn main() {
-    let config =
-        match lidi_command_utils::command_arguments(lidi_command_utils::Role::Send, false, true) {
-            Ok(config) => config,
-            Err(e) => {
-                eprintln!("{e}");
-                return;
-            }
-        };
+    let config = match lidi_command_utils::command_arguments(
+        lidi_command_utils::Role::Send,
+        false,
+        true,
+        true,
+    ) {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("{e}");
+            return;
+        }
+    };
 
     let common = config.common();
 
