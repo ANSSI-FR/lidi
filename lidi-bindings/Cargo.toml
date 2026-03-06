@@ -9,5 +9,7 @@ workspace = true
 [lib]
 crate-type = ["dylib"]
 
-[dependencies]
-lidi-clients = { path = "../lidi-clients", default-features = false, features = [ "hash" ] }
+[dependencies.lidi-clients]
+path = "../lidi-clients"
+default-features = false
+features = [ "hash" ]

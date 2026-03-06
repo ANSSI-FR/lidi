@@ -7,27 +7,36 @@ license.workspace = true
 [lints]
 workspace = true
 
-[dependencies]
-clap = { version = "4", default-features = false, features = [
-    "color",
-    "derive",
-    "error-context",
-    "help",
-    "std",
-    "suggestions",
-    "usage",
-] }
-log = { version = "0", default-features = false, features = ["std"] }
-openssl = { version = "0", optional = true, default-features = false }
-rand = { version = "0", default-features = false, features = [
-    "std",
-    "sys_rng",
-] }
-simplelog = { version = "0", default-features = false, features = [
-    "termcolor",
-    "local-offset",
-] }
-twox-hash = { version = "2", optional = true, default-features = false, features = [ "std", "xxhash3_128" ] }
+[dependencies.clap]
+version = "4"
+default-features = false
+features = [ "color", "derive", "error-context", "help", "std", "suggestions", "usage" ]
+
+[dependencies.log]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.openssl]
+version = "0"
+optional = true
+default-features = false
+
+[dependencies.rand]
+version = "0"
+default-features = false
+features = [ "std", "sys_rng" ]
+
+[dependencies.simplelog]
+version = "0"
+default-features = false
+features = [ "termcolor", "local-offset" ]
+
+[dependencies.twox-hash]
+version = "2"
+optional = true
+default-features = false
+features = [ "std", "xxhash3_128" ]
 
 [features]
 default = [ "hash", "tls" ]

@@ -168,6 +168,8 @@ struct Config {
     abort_timeout: Option<time::Duration>,
     queue_size: usize,
     mode: config::Mode,
+    #[cfg(feature = "prometheus")]
+    prometheus_listen: Option<net::SocketAddr>,
 }
 
 impl From<&config::Config> for Config {
@@ -221,6 +223,8 @@ impl From<&config::Config> for Config {
             abort_timeout: receive.abort_timeout(),
             queue_size: receive.queue_size(),
             mode,
+            #[cfg(feature = "prometheus")]
+            prometheus_listen: receive.prometheus_listen(),
         }
     }
 }
@@ -263,6 +267,20 @@ where
     ClientEnd: Send + Sync + Fn(C, bool),
     E: Into<Error>,
 {
+    #[cfg(feature = "prometheus")]
+    #[allow(clippy::cast_precision_loss)]
+    fn metrics_loop(&self) {
+        let timer = time::Duration::from_secs(1);
+
+        loop {
+            thread::sleep(timer);
+
+            metrics::gauge!("lidi_receive_reblock_queue_len").set(self.for_reblock.len() as f64);
+            metrics::gauge!("lidi_receive_decode_queue_len").set(self.for_decode.len() as f64);
+            metrics::gauge!("lidi_receive_dispatch_queue_len").set(self.for_dispatch.len() as f64);
+        }
+    }
+
     pub fn new(
         config: &config::Config,
         raptorq: protocol::RaptorQ,
@@ -326,6 +344,19 @@ where
             );
         } else {
             log::info!("heartbeat is disabled");
+        }
+
+        #[cfg(feature = "prometheus")]
+        if let Some(prometheus) = self.config.prometheus_listen {
+            log::info!("Prometheus is set to {prometheus}");
+
+            thread::Builder::new()
+                .name(String::from("metrics"))
+                .spawn_scoped(scope, move || {
+                    self.metrics_loop();
+                })?;
+        } else {
+            log::info!("Prometheus is disabled");
         }
 
         for i in 0..self.config.max_clients {

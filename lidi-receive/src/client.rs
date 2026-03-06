@@ -73,7 +73,7 @@ where
                 log::warn!("client {client_id:x}: aborting transfer");
                 (receiver.client_end)(
                     client.into_inner().map_err(|e| {
-                        crate::Error::Internal(format!("failed to retrieve client inner: {e}",))
+                        crate::Error::Internal(format!("failed to retrieve client inner: {e}"))
                     })?,
                     false,
                 );
@@ -100,7 +100,7 @@ where
                 client.flush()?;
                 (receiver.client_end)(
                     client.into_inner().map_err(|e| {
-                        crate::Error::Internal(format!("failed to retrieve client inner: {e}",))
+                        crate::Error::Internal(format!("failed to retrieve client inner: {e}"))
                     })?,
                     true,
                 );

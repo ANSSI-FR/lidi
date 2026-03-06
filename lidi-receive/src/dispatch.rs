@@ -31,6 +31,8 @@ pub fn start<ClientNew, ClientEnd>(
             Some(hb_interval) => match receiver.for_dispatch.recv_timeout(*hb_interval) {
                 Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
                     if last_heartbeat.elapsed() > *hb_interval {
+                        #[cfg(feature = "prometheus")]
+                        metrics::counter!("lidi_receive_heartbeat_missed").increment(1);
                         log::warn!(
                             "no heartbeat block received for {} second(s)",
                             hb_interval.as_secs()
@@ -54,6 +56,8 @@ pub fn start<ClientNew, ClientEnd>(
                 )?;
 
                 if let Err(e) = client_sendq.try_send(block) {
+                    #[cfg(feature = "prometheus")]
+                    metrics::counter!("lidi_receive_client_queue_full").increment(1);
                     log::error!("failed to send payload to client {client_id:x}: {e}");
                 }
             }
@@ -111,11 +115,15 @@ pub fn start<ClientNew, ClientEnd>(
         }
 
         let Some(client_sendq) = active_transfers.get(&client_id) else {
+            #[cfg(feature = "prometheus")]
+            metrics::counter!("lidi_receive_blocks_for_inactive_client").increment(1);
             log::debug!("receive data for inactive transfer {client_id:x}");
             continue;
         };
 
         if let Err(e) = client_sendq.try_send(block) {
+            #[cfg(feature = "prometheus")]
+            metrics::counter!("lidi_receive_client_queue_full").increment(1);
             log::error!("failed to send block to client {client_id:x}: {e}");
             active_transfers.remove(&client_id);
             continue;
@@ -135,6 +143,11 @@ pub fn start<ClientNew, ClientEnd>(
             });
 
             ended_transfers.insert(client_id, client_sendq);
+
+            #[cfg(feature = "prometheus")]
+            #[allow(clippy::cast_precision_loss)]
+            metrics::gauge!("lidi_receive_ended_transfers_retained")
+                .set(ended_transfers.len() as f64);
         }
 
         thread::yield_now();

@@ -22,7 +22,7 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
     let sock_buffer_size = socket::get_socket_send_buffer_size(&socket)?;
     log::info!("UDP socket send buffer size set to {sock_buffer_size}");
 
-    if (sock_buffer_size as i32) < buffer_size {
+    if sock_buffer_size < buffer_size {
         log::warn!(
             "UDP socket send buffer may be too small ({sock_buffer_size} < {buffer_size}) to achieve optimal performances"
         );
@@ -49,5 +49,8 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
         log::debug!("sending block {id}");
 
         udp.send(&packets)?;
+
+        #[cfg(feature = "prometheus")]
+        metrics::counter!("lidi_send_udp_packets").increment(packets.len() as u64);
     }
 }

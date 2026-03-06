@@ -37,9 +37,13 @@ pub fn start<ClientNew, ClientEnd>(
 
                 let damaged = blocks
                     .iter()
-                    .any(|block| block.ignore && !block.packets.is_empty());
+                    .filter(|block| !block.ignore)
+                    .map(|block| block.packets.len() as u64)
+                    .sum();
 
-                if damaged {
+                if 0u64 < damaged {
+                    #[cfg(feature = "prometheus")]
+                    metrics::counter!("lidi_receive_blocks_damaged").increment(damaged);
                     log::error!("non empty block after timeout");
                     receiver.to_decode.send(super::Reassembled::Error)?;
                 }
@@ -77,7 +81,10 @@ pub fn start<ClientNew, ClientEnd>(
         {
             let id = packets.payload_id().source_block_number() as usize;
 
-            if !blocks[id].ignore {
+            if blocks[id].ignore {
+                #[cfg(feature = "prometheus")]
+                metrics::counter!("lidi_receive_packets_ignored").increment(1);
+            } else {
                 blocks[id].packets.push(packets);
             }
         }
@@ -85,7 +92,10 @@ pub fn start<ClientNew, ClientEnd>(
         for packet in packets {
             let id = packet.payload_id().source_block_number() as usize;
 
-            if !blocks[id].ignore {
+            if blocks[id].ignore {
+                #[cfg(feature = "prometheus")]
+                metrics::counter!("lidi_receive_packets_ignored").increment(1);
+            } else {
                 blocks[id].packets.push(packet);
             }
         }
@@ -98,6 +108,9 @@ pub fn start<ClientNew, ClientEnd>(
                 Vec::with_capacity(nb_packets),
             );
 
+            #[cfg(feature = "prometheus")]
+            metrics::counter!("lidi_receive_blocks_reassembled").increment(1);
+
             log::trace!("reassembled block {cur_id}");
 
             receiver.to_decode.send(super::Reassembled::Block {
@@ -108,6 +121,8 @@ pub fn start<ClientNew, ClientEnd>(
             let opposite = cur_id.wrapping_add(WINDOW_WIDTH) as usize;
 
             if !blocks[opposite].packets.is_empty() {
+                #[cfg(feature = "prometheus")]
+                metrics::counter!("lidi_receive_blocks_lost").increment(1);
                 log::error!("lost block {opposite} (too far)");
                 receiver.to_decode.send(super::Reassembled::Error)?;
                 reset = true;

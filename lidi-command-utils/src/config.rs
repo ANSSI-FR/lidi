@@ -18,7 +18,9 @@ const DEFAULT_REPAIR: u16 = 2;
 const DEFAULT_RESET_TIMEOUT_SECONDS: u64 = 2;
 const DEFAULT_QUEUE_SIZE: usize = 0;
 
+#[allow(unused)]
 const DEFAULT_TLS_MIN: TlsVersion = TlsVersion::Tls1_3;
+#[allow(unused)]
 const DEFAULT_TLS_METHOD: TlsMethod = TlsMethod::Mozilla_Modern_v5;
 
 pub enum Error {
@@ -77,13 +79,13 @@ pub enum Endpoint {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CommonConfig {
-    pub mtu: Option<u16>,
-    pub ports: Option<Vec<u16>>,
-    pub block: Option<u32>,
-    pub repair: Option<u16>,
+    pub(crate) mtu: Option<u16>,
+    pub(crate) ports: Option<Vec<u16>>,
+    pub(crate) block: Option<u32>,
+    pub(crate) repair: Option<u16>,
     pub max_clients: Option<u32>,
-    pub hash: Option<bool>,
-    pub flush: Option<bool>,
+    pub(crate) hash: Option<bool>,
+    pub(crate) flush: Option<bool>,
     pub heartbeat: Option<u64>,
 }
 
@@ -154,48 +156,49 @@ pub enum TlsMethod {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TlsConfig {
-    pub key: Option<path::PathBuf>,
-    pub certificate: Option<path::PathBuf>,
-    pub ca: Option<path::PathBuf>,
-    pub tls_min: Option<TlsVersion>,
-    pub tls_method: Option<TlsMethod>,
-    pub ciphers: Option<String>,
-    pub groups: Option<String>,
+    key: Option<path::PathBuf>,
+    certificate: Option<path::PathBuf>,
+    ca: Option<path::PathBuf>,
+    tls_min: Option<TlsVersion>,
+    tls_method: Option<TlsMethod>,
+    ciphers: Option<String>,
+    groups: Option<String>,
 }
 
+#[allow(unused)]
 impl TlsConfig {
     #[must_use]
-    pub const fn key(&self) -> Option<&path::PathBuf> {
+    pub(crate) const fn key(&self) -> Option<&path::PathBuf> {
         self.key.as_ref()
     }
 
     #[must_use]
-    pub const fn certificate(&self) -> Option<&path::PathBuf> {
+    pub(crate) const fn certificate(&self) -> Option<&path::PathBuf> {
         self.certificate.as_ref()
     }
 
     #[must_use]
-    pub const fn ca(&self) -> Option<&path::PathBuf> {
+    pub(crate) const fn ca(&self) -> Option<&path::PathBuf> {
         self.ca.as_ref()
     }
 
     #[must_use]
-    pub const fn ciphers(&self) -> Option<&String> {
+    pub(crate) const fn ciphers(&self) -> Option<&String> {
         self.ciphers.as_ref()
     }
 
     #[must_use]
-    pub const fn groups(&self) -> Option<&String> {
+    pub(crate) const fn groups(&self) -> Option<&String> {
         self.groups.as_ref()
     }
 
     #[must_use]
-    pub fn tls_min(&self) -> TlsVersion {
+    pub(crate) fn tls_min(&self) -> TlsVersion {
         self.tls_min.unwrap_or(DEFAULT_TLS_MIN)
     }
 
     #[must_use]
-    pub fn tls_method(&self) -> TlsMethod {
+    pub(crate) fn tls_method(&self) -> TlsMethod {
         self.tls_method.unwrap_or(DEFAULT_TLS_METHOD)
     }
 }
@@ -203,24 +206,35 @@ impl TlsConfig {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SendConfig {
-    pub log: Option<log::LevelFilter>,
-    pub log_file: Option<path::PathBuf>,
-    pub from: Vec<Endpoint>,
-    pub to: Option<net::IpAddr>,
-    pub to_bind: Option<net::SocketAddr>,
-    pub mode: Option<Mode>,
-    pub tls: Option<TlsConfig>,
+    pub(crate) log: Option<log::LevelFilter>,
+    pub(crate) log_file: Option<path::PathBuf>,
+    tls: Option<TlsConfig>,
+    pub(crate) prometheus_listen: Option<net::SocketAddr>,
+    pub(crate) from: Vec<Endpoint>,
+    pub(crate) to: Option<net::IpAddr>,
+    pub(crate) to_bind: Option<net::SocketAddr>,
+    pub(crate) mode: Option<Mode>,
 }
 
 impl SendConfig {
     #[must_use]
-    pub fn log(&self) -> log::LevelFilter {
+    pub(crate) fn log(&self) -> log::LevelFilter {
         self.log.unwrap_or(DEFAULT_LOG_LEVEL)
     }
 
     #[must_use]
-    pub fn log_file(&self) -> Option<path::PathBuf> {
+    pub(crate) fn log_file(&self) -> Option<path::PathBuf> {
         self.log_file.clone()
+    }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
+
+    #[must_use]
+    pub const fn prometheus_listen(&self) -> Option<net::SocketAddr> {
+        self.prometheus_listen
     }
 
     #[must_use]
@@ -244,36 +258,42 @@ impl SendConfig {
     pub const fn mode(&self) -> Option<Mode> {
         self.mode
     }
-
-    #[must_use]
-    pub fn tls(&self) -> TlsConfig {
-        self.tls.clone().unwrap_or_default()
-    }
 }
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReceiveConfig {
-    pub log: Option<log::LevelFilter>,
-    pub log_file: Option<path::PathBuf>,
-    pub to: Vec<Endpoint>,
-    pub from: Option<net::IpAddr>,
-    pub mode: Option<Mode>,
-    pub queue_size: Option<usize>,
-    pub reset_timeout: Option<u64>,
-    pub abort_timeout: Option<u64>,
-    pub tls: Option<TlsConfig>,
+    pub(crate) log: Option<log::LevelFilter>,
+    pub(crate) log_file: Option<path::PathBuf>,
+    tls: Option<TlsConfig>,
+    pub(crate) prometheus_listen: Option<net::SocketAddr>,
+    pub(crate) to: Vec<Endpoint>,
+    pub(crate) from: Option<net::IpAddr>,
+    pub(crate) mode: Option<Mode>,
+    pub(crate) queue_size: Option<usize>,
+    pub(crate) reset_timeout: Option<u64>,
+    pub(crate) abort_timeout: Option<u64>,
 }
 
 impl ReceiveConfig {
     #[must_use]
-    pub fn log(&self) -> log::LevelFilter {
+    pub(crate) fn log(&self) -> log::LevelFilter {
         self.log.unwrap_or(DEFAULT_LOG_LEVEL)
     }
 
     #[must_use]
-    pub fn log_file(&self) -> Option<path::PathBuf> {
+    pub(crate) fn log_file(&self) -> Option<path::PathBuf> {
         self.log_file.clone()
+    }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
+
+    #[must_use]
+    pub const fn prometheus_listen(&self) -> Option<net::SocketAddr> {
+        self.prometheus_listen
     }
 
     #[must_use]
@@ -304,11 +324,6 @@ impl ReceiveConfig {
     #[must_use]
     pub fn abort_timeout(&self) -> Option<time::Duration> {
         self.abort_timeout.map(time::Duration::from_secs)
-    }
-
-    #[must_use]
-    pub fn tls(&self) -> TlsConfig {
-        self.tls.clone().unwrap_or_default()
     }
 }
 
@@ -362,7 +377,7 @@ impl Config {
     }
 }
 
-pub fn parse(file: path::PathBuf) -> Result<Config, Error> {
+pub(crate) fn parse(file: path::PathBuf) -> Result<Config, Error> {
     let mut file = fs::OpenOptions::new().read(true).write(false).open(file)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;

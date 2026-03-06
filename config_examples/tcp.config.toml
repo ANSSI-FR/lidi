@@ -12,6 +12,7 @@ log = "INFO"
 to = "127.0.0.1"
 to_bind = "0.0.0.0:0"
 mode = "mmsg"
+prometheus_listen = "127.0.0.1:9001"
 
 [[send.from]]
 tcp = "127.0.0.1:4000"
@@ -23,6 +24,7 @@ mode = "mmsg"
 queue_size = 4096
 reset_timeout = 2
 abort_timeout = 60
+prometheus_listen = "127.0.0.1:9002"
 
 [[receive.to]]
 tcp = "127.0.0.1:6000"

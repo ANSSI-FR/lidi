@@ -7,24 +7,48 @@ license.workspace = true
 [lints]
 workspace = true
 
-[dependencies]
-crossbeam-channel = { version = "0", default-features = false, features = [
-    "std",
-] }
-libc = { version = "0", default-features = false, features = ["std"] }
-lidi-protocol = { path = "../lidi-protocol", default-features = false }
-lidi-command-utils = { path = "../lidi-command-utils", default-features = false }
-log = { version = "0", default-features = false, features = ["std"] }
-raptorq = { version = "2", default-features = false, features = ["std"] }
+[dependencies.crossbeam-channel]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.libc]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.lidi-protocol]
+path = "../lidi-protocol"
+default-features = false
+
+[dependencies.lidi-command-utils]
+path = "../lidi-command-utils"
+default-features = false
+
+[dependencies.log]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.metrics]
+version = "0"
+optional = true
+default-features = false
+
+[dependencies.raptorq]
+version = "2"
+default-features = false
+features = [ "std" ]
 
 [features]
-default = [ "command-line", "from-tcp", "from-tls", "from-unix", "hash", "heartbeat", "send-native", "send-msg", "send-mmsg" ]
+default = [ "command-line", "from-tcp", "from-tls", "from-unix", "hash", "heartbeat", "prometheus", "send-native", "send-msg", "send-mmsg" ]
 command-line = [ "lidi-command-utils/command-line" ]
 from-tcp = [ ]
 from-tls = [ "lidi-command-utils/tls" ]
 from-unix = [ ]
 hash = [ "lidi-command-utils/hash" ]
 heartbeat = [ ]
+prometheus = [ "dep:metrics", "lidi-command-utils/prometheus" ]
 send-native = [ ]
 send-msg = [ ]
 send-mmsg = [ ]
