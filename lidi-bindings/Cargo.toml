@@ -1,0 +1,15 @@
+[package]
+name = "lidi-bindings"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies.lidi-clients]
+path = "../lidi-clients"
+default-features = false
+features = [ "hash" ]

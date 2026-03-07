@@ -24,7 +24,9 @@ services:
       - "--from-tcp"
       - "172.16.0.2:5000"
       - "--to"
-      - "172.16.0.3:6000"
+      - "172.16.0.3"
+      - "--to-ports"
+      - "6000"
 
   receive:
     image: diode:receive
@@ -37,7 +39,9 @@ services:
         ipv4_address: 172.16.0.3
     command:
       - "--from"
-      - "172.16.0.3:6000"
+      - "172.16.0.3"
+      - "--from-ports"
+      - "6000"
       - "--to-tcp"
       - "172.16.0.1:7000"
 

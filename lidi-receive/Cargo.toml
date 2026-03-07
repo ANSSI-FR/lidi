@@ -1,0 +1,55 @@
+[package]
+name = "lidi-receive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies.crossbeam-channel]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.libc]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.lidi-protocol]
+path = "../lidi-protocol"
+default-features = false
+
+[dependencies.lidi-command-utils]
+path = "../lidi-command-utils"
+default-features = false
+
+[dependencies.log]
+version = "0"
+default-features = false
+features = [ "std" ]
+
+[dependencies.metrics]
+version = "0"
+optional = true
+default-features = false
+
+[dependencies.raptorq]
+version = "2"
+default-features = false
+features = [ "std" ]
+
+[features]
+default = [ "command-line", "to-tcp", "to-tls", "to-unix", "hash", "heartbeat", "log4rs", "prometheus", "receive-native", "receive-msg", "receive-mmsg" ]
+command-line = [ "lidi-command-utils/command-line" ]
+to-tcp = [ ]
+to-tls = [ "lidi-command-utils/tls" ]
+to-unix = [ ]
+hash = [ "lidi-command-utils/hash" ]
+heartbeat = [ ]
+log4rs = [ "lidi-command-utils/log4rs" ]
+prometheus = [ "dep:metrics", "lidi-command-utils/prometheus" ]
+receive-native = [ ]
+receive-msg = [ ]
+receive-mmsg = [ ]
