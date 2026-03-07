@@ -106,8 +106,8 @@ pub struct SendArgs {
     common: CommonArgs,
     #[clap(long, help = "Log level")]
     log: Option<log::LevelFilter>,
-    #[clap(long, help = "Log file")]
-    log_file: Option<path::PathBuf>,
+    #[clap(long, help = "Path to log4rs config file")]
+    log4rs_config: Option<path::PathBuf>,
     #[clap(long, help = "IP:port where to listen for Prometheus connections")]
     prometheus_listen: Option<net::SocketAddr>,
     #[clap(long, help = "Add a client endpoint (tcp:<IP:PORT> or unix:<PATH>)", value_parser = endpoint_parser)]
@@ -132,8 +132,8 @@ impl TryFrom<SendArgs> for config::Config {
             config.send_mut().log = Some(log);
         }
 
-        if let Some(log_file) = args.log_file {
-            config.send_mut().log_file = Some(log_file);
+        if let Some(log4rs_config) = args.log4rs_config {
+            config.send_mut().log4rs_config = Some(log4rs_config);
         }
 
         if let Some(prometheus_listen) = args.prometheus_listen {
@@ -166,8 +166,8 @@ pub struct ReceiveArgs {
     common: CommonArgs,
     #[clap(long, help = "Log level")]
     log: Option<log::LevelFilter>,
-    #[clap(long, help = "Log file")]
-    log_file: Option<path::PathBuf>,
+    #[clap(long, help = "Path to log4rs config file")]
+    log4rs_config: Option<path::PathBuf>,
     #[clap(long, help = "IP:port where to listen for Prometheus connections")]
     prometheus_listen: Option<net::SocketAddr>,
     #[clap(long, help = "Add a client endpoint (tcp:<IP:PORT> or unix:<PATH>)", value_parser = endpoint_parser)]
@@ -205,8 +205,8 @@ impl TryFrom<ReceiveArgs> for config::Config {
             config.receive_mut().log = Some(log);
         }
 
-        if let Some(log_file) = args.log_file {
-            config.receive_mut().log_file = Some(log_file);
+        if let Some(log4rs_config) = args.log4rs_config {
+            config.send_mut().log4rs_config = Some(log4rs_config);
         }
 
         if let Some(prometheus_listen) = args.prometheus_listen {

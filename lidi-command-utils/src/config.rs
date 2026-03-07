@@ -207,7 +207,7 @@ impl TlsConfig {
 #[serde(deny_unknown_fields)]
 pub struct SendConfig {
     pub(crate) log: Option<log::LevelFilter>,
-    pub(crate) log_file: Option<path::PathBuf>,
+    pub(crate) log4rs_config: Option<path::PathBuf>,
     tls: Option<TlsConfig>,
     pub(crate) prometheus_listen: Option<net::SocketAddr>,
     pub(crate) from: Vec<Endpoint>,
@@ -223,8 +223,8 @@ impl SendConfig {
     }
 
     #[must_use]
-    pub(crate) fn log_file(&self) -> Option<path::PathBuf> {
-        self.log_file.clone()
+    pub(crate) fn log4rs_config(&self) -> Option<path::PathBuf> {
+        self.log4rs_config.clone()
     }
 
     #[must_use]
@@ -264,7 +264,7 @@ impl SendConfig {
 #[serde(deny_unknown_fields)]
 pub struct ReceiveConfig {
     pub(crate) log: Option<log::LevelFilter>,
-    pub(crate) log_file: Option<path::PathBuf>,
+    pub(crate) log4rs_config: Option<path::PathBuf>,
     tls: Option<TlsConfig>,
     pub(crate) prometheus_listen: Option<net::SocketAddr>,
     pub(crate) to: Vec<Endpoint>,
@@ -282,8 +282,8 @@ impl ReceiveConfig {
     }
 
     #[must_use]
-    pub(crate) fn log_file(&self) -> Option<path::PathBuf> {
-        self.log_file.clone()
+    pub(crate) fn log4rs_config(&self) -> Option<path::PathBuf> {
+        self.log4rs_config.clone()
     }
 
     #[must_use]

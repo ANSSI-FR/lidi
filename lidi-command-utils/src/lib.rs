@@ -1,6 +1,6 @@
 #[cfg(feature = "command-line")]
 use command_line::Args;
-use std::{env, fmt, fs, net, path};
+use std::{env, fmt, net, path};
 
 #[cfg(feature = "command-line")]
 mod command_line;
@@ -48,21 +48,7 @@ impl fmt::Display for Error {
     }
 }
 
-/// # Errors
-///
-/// Will return `Err` if `file` cannot be opened
-/// or logger cannot be set (Term or file mode).
-fn init_logger(
-    level_filter: log::LevelFilter,
-    log_file: Option<path::PathBuf>,
-    stderr_only: bool,
-) -> Result<(), String> {
-    let terminal_mode = if stderr_only {
-        simplelog::TerminalMode::Stderr
-    } else {
-        simplelog::TerminalMode::Mixed
-    };
-
+fn init_logger_simplelog(level_filter: log::LevelFilter, stderr_only: bool) -> Result<(), Error> {
     let config = simplelog::ConfigBuilder::new()
         .set_level_padding(simplelog::LevelPadding::Right)
         .set_target_level(simplelog::LevelFilter::Off)
@@ -73,25 +59,42 @@ fn init_logger(
         .unwrap_or_else(|e| e)
         .build();
 
-    match log_file {
-        Some(file) => fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .truncate(false)
-            .read(false)
-            .open(file)
-            .map_err(|e| e.to_string())
-            .and_then(|file| {
-                simplelog::WriteLogger::init(level_filter, config, file).map_err(|e| e.to_string())
-            }),
-        None => simplelog::TermLogger::init(
-            level_filter,
-            config,
-            terminal_mode,
-            simplelog::ColorChoice::Auto,
-        )
-        .map_err(|e| e.to_string()),
+    let terminal = if stderr_only {
+        simplelog::TerminalMode::Stderr
+    } else {
+        simplelog::TerminalMode::Mixed
+    };
+
+    simplelog::TermLogger::init(level_filter, config, terminal, simplelog::ColorChoice::Auto)
+        .map_err(|e| Error::Logger(format!("failed to initialize simplelog: {e}")))
+}
+
+fn init_logger(
+    level_filter: log::LevelFilter,
+    log4rs_config: Option<&path::PathBuf>,
+    stderr_only: bool,
+) -> Result<(), Error> {
+    #[cfg(not(feature = "log4rs"))]
+    {
+        if log4rs_config.is_some() {
+            eprintln!("log4rs configuration is enabled, but log4rs was not enabled at compilation");
+        }
+        init_logger_simplelog(level_filter, stderr_only)
     }
+
+    #[cfg(feature = "log4rs")]
+    log4rs_config.map_or_else(
+        || init_logger_simplelog(level_filter, stderr_only),
+        |log4rs_config| {
+            log4rs::config::init_file(log4rs_config, log4rs::config::Deserializers::default())
+                .map_err(|e| {
+                    Error::Logger(format!(
+                        "failed to configure log4rs with {}: {e}",
+                        log4rs_config.display()
+                    ))
+                })
+        },
+    )
 }
 
 #[allow(clippy::unnecessary_wraps)]
@@ -173,19 +176,17 @@ pub fn command_arguments(
     let (log, log_file, prometheus_listen) = match role {
         Role::Send => (
             config.send().log(),
-            config.send().log_file(),
+            config.send().log4rs_config(),
             config.send().prometheus_listen(),
         ),
         Role::Receive => (
             config.receive().log(),
-            config.receive().log_file(),
+            config.receive().log4rs_config(),
             config.receive().prometheus_listen(),
         ),
     };
 
-    if let Err(e) = init_logger(log, log_file, stderr_only) {
-        return Err(Error::Logger(e));
-    }
+    init_logger(log, log_file.as_ref(), stderr_only)?;
 
     log::info!(
         "{} version {}",
