@@ -1,0 +1,9 @@
+appenders:
+  # An appender named "stdout" that writes to stdout
+  stdout:
+    kind: console
+
+root:
+  level: info
+  appenders:
+    - stdout
