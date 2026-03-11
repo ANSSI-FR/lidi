@@ -48,9 +48,13 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
 
         log::debug!("sending block {id}");
 
-        udp.send(&packets)?;
-
-        #[cfg(feature = "prometheus")]
-        metrics::counter!("lidi_send_udp_packets").increment(packets.len() as u64);
+        if let Err(e) = udp.send(&packets) {
+            log::error!("failed to send UDP packet: {e}");
+            #[cfg(feature = "prometheus")]
+            metrics::counter!("lidi_error_udp_packets").increment(packets.len() as u64);
+        } else {
+            #[cfg(feature = "prometheus")]
+            metrics::counter!("lidi_send_udp_packets").increment(packets.len() as u64);
+        }
     }
 }
