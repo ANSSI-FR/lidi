@@ -3,23 +3,30 @@ use std::{net, path};
 
 #[derive(clap::Args)]
 #[group(required = true, multiple = false)]
+#[allow(clippy::struct_field_names)]
 struct Clients {
     #[clap(
         value_name = "ip:port",
         long,
-        help = "TCP address and port to connect to diode-send"
+        help = "TCP address and port to connect to lidi-send"
     )]
     to_tcp: Option<net::SocketAddr>,
     #[clap(
+        value_name = "ip:port",
+        long,
+        help = "TLS address and port to connect to lidi-send"
+    )]
+    to_tls: Option<net::SocketAddr>,
+    #[clap(
         value_name = "path",
         long,
-        help = "Path to Unix socket to connect to diode-send"
+        help = "Path to Unix socket to connect to lidi-send"
     )]
     to_unix: Option<path::PathBuf>,
 }
 
 #[derive(Parser)]
-#[clap(about = "Send UDP datagrams to diode-receive-udp.")]
+#[clap(about = "Send UDP datagrams to lidi-receive-udp.")]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -36,6 +43,8 @@ struct Args {
         help = "IP address and port to receive UDP packets"
     )]
     from: net::SocketAddr,
+    #[clap(flatten)]
+    tls: lidi_clients::Tls,
 }
 
 fn main() {
@@ -54,6 +63,8 @@ fn main() {
 
     let diode = if let Some(to_tcp) = args.to.to_tcp {
         lidi_clients::DiodeSend::Tcp(to_tcp)
+    } else if let Some(to_tls) = args.to.to_tls {
+        lidi_clients::DiodeSend::Tls(to_tls)
     } else if let Some(to_unix) = args.to.to_unix {
         lidi_clients::DiodeSend::Unix(to_unix)
     } else {
@@ -63,6 +74,7 @@ fn main() {
     let config = lidi_clients::udp::Config {
         diode,
         buffer_size: u16::MAX as usize,
+        tls: args.tls,
     };
 
     if let Err(e) = lidi_clients::udp::send::send(&config, args.from) {

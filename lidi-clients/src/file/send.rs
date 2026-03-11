@@ -1,9 +1,14 @@
+#[cfg(feature = "tls")]
+use crate::tls;
 use crate::{file, hash};
+#[cfg(feature = "tcp")]
+use std::net;
+#[cfg(feature = "unix")]
+use std::os::unix;
 use std::{
     fs,
     io::{Read, Write},
-    net,
-    os::unix::{self, fs::PermissionsExt},
+    os::unix::fs::PermissionsExt,
     path,
 };
 
@@ -37,12 +42,44 @@ pub fn send_file(
 
     match &config.diode {
         crate::DiodeSend::Tcp(socket_addr) => {
-            let diode = net::TcpStream::connect(socket_addr)?;
-            send_file_aux(config, diode, file_path)
+            #[cfg(not(feature = "tcp"))]
+            {
+                let _ = socket_addr;
+                log::error!("TCP was not enable at compilation");
+                Ok(0)
+            }
+            #[cfg(feature = "tcp")]
+            {
+                let diode = net::TcpStream::connect(socket_addr)?;
+                send_file_aux(config, diode, file_path)
+            }
+        }
+        crate::DiodeSend::Tls(socket_addr) => {
+            #[cfg(not(feature = "tls"))]
+            {
+                let _ = socket_addr;
+                log::error!("TLS was not enable at compilation");
+                Ok(0)
+            }
+            #[cfg(feature = "tls")]
+            {
+                let context = tls::ClientContext::try_from(&config.tls)?;
+                let diode = tls::TcpStream::connect(&context, socket_addr)?;
+                send_file_aux(config, diode, file_path)
+            }
         }
         crate::DiodeSend::Unix(path) => {
-            let diode = unix::net::UnixStream::connect(path)?;
-            send_file_aux(config, diode, file_path)
+            #[cfg(not(feature = "unix"))]
+            {
+                let _ = path;
+                log::error!("Unix was not enable at compilation");
+                Ok(0)
+            }
+            #[cfg(feature = "unix")]
+            {
+                let diode = unix::net::UnixStream::connect(path)?;
+                send_file_aux(config, diode, file_path)
+            }
         }
     }
 }

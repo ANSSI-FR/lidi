@@ -3,23 +3,30 @@ use std::{net, path};
 
 #[derive(clap::Args)]
 #[group(required = true, multiple = false)]
+#[allow(clippy::struct_field_names)]
 struct Listeners {
     #[clap(
         value_name = "ip:port",
         long,
-        help = "IP address and port to accept TCP connections from diode-receive"
+        help = "IP address and port to accept TCP connections from lidi-receive"
     )]
     from_tcp: Option<net::SocketAddr>,
     #[clap(
+        value_name = "ip:port",
+        long,
+        help = "IP address and port to accept TLS connections from lidi-receive"
+    )]
+    from_tls: Option<net::SocketAddr>,
+    #[clap(
         value_name = "path",
         long,
-        help = "Path of Unix socket to accept Unix connections from diode-receive"
+        help = "Path of Unix socket to accept Unix connections from lidi-receive"
     )]
     from_unix: Option<path::PathBuf>,
 }
 
 #[derive(Parser)]
-#[clap(about = "Receive file(s) sent by diode-send-file through lidi.")]
+#[clap(about = "Receive file(s) sent by lidi-send-file through lidi.")]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -47,6 +54,8 @@ struct Args {
         help = "Exits after receiving max_files files"
     )]
     max_files: usize,
+    #[clap(flatten)]
+    tls: lidi_clients::Tls,
     #[clap(default_value = ".", help = "Output directory")]
     output_directory: path::PathBuf,
 }
@@ -67,6 +76,7 @@ fn main() {
 
     let diode = lidi_clients::DiodeReceive {
         from_tcp: args.from.from_tcp,
+        from_tls: args.from.from_tls,
         from_unix: args.from.from_unix,
     };
 
@@ -76,6 +86,7 @@ fn main() {
         #[cfg(feature = "hash")]
         hash: args.hash,
         max_files: args.max_files,
+        tls: args.tls,
     };
 
     if let Err(e) = lidi_clients::file::receive::receive_files(&config, &args.output_directory) {

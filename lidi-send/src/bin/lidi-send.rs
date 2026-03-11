@@ -105,9 +105,9 @@ fn tls_listener_loop(
                 Err(e) => {
                     log::error!("failed to accept TLS client: {e}");
                 }
-                Ok(stream) => {
+                Ok((stream, client_addr)) => {
                     if let Err(e) = sender.new_client(endpoint, Client::Tls(stream)) {
-                        log::error!("failed to send TLS client to connect queue: {e}");
+                        log::error!("failed to send TLS client {client_addr} to connect queue: {e}");
                     }
                 }
             },

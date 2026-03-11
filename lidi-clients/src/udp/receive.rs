@@ -1,8 +1,11 @@
+#[cfg(feature = "tls")]
+use crate::tls;
 use crate::udp;
+#[cfg(feature = "unix")]
+use std::os::unix;
 use std::{
     io::{Read, Write},
     net,
-    os::unix,
 };
 
 fn receive_udp<D>(
@@ -36,6 +39,41 @@ where
     }
 }
 
+#[cfg(feature = "tcp")]
+fn receive_tcp_loop(
+    config: &udp::Config<crate::DiodeReceive>,
+    to_udp_bind: net::SocketAddr,
+    to_udp: net::SocketAddr,
+    server: &net::TcpListener,
+) -> Result<(), udp::Error> {
+    loop {
+        let (client, client_addr) = server.accept()?;
+        log::info!("new TCP client ({client_addr}) connected");
+        match receive_udp(config, client, to_udp_bind, to_udp) {
+            Ok(total) => log::info!("UDP received, {total} bytes received"),
+            Err(e) => log::error!("failed to receive UDP: {e}"),
+        }
+    }
+}
+
+#[cfg(feature = "tls")]
+fn receive_tls_loop(
+    config: &udp::Config<crate::DiodeReceive>,
+    to_udp_bind: net::SocketAddr,
+    to_udp: net::SocketAddr,
+    server: &tls::TcpListener,
+) -> Result<(), udp::Error> {
+    loop {
+        let (client, client_addr) = server.accept()??;
+        log::info!("new TLS client ({client_addr}) connected");
+        match receive_udp(config, client, to_udp_bind, to_udp) {
+            Ok(total) => log::info!("UDP received, {total} bytes received"),
+            Err(e) => log::error!("failed to receive UDP: {e}"),
+        }
+    }
+}
+
+#[cfg(feature = "unix")]
 fn receive_unix_loop(
     config: &udp::Config<crate::DiodeReceive>,
     to_udp_bind: net::SocketAddr,
@@ -57,22 +95,6 @@ fn receive_unix_loop(
     }
 }
 
-fn receive_tcp_loop(
-    config: &udp::Config<crate::DiodeReceive>,
-    to_udp_bind: net::SocketAddr,
-    to_udp: net::SocketAddr,
-    server: &net::TcpListener,
-) -> Result<(), udp::Error> {
-    loop {
-        let (client, client_addr) = server.accept()?;
-        log::info!("new Unix client ({client_addr}) connected");
-        match receive_udp(config, client, to_udp_bind, to_udp) {
-            Ok(total) => log::info!("UDP received, {total} bytes received"),
-            Err(e) => log::error!("failed to receive UDP: {e}"),
-        }
-    }
-}
-
 /// # Errors
 ///
 /// Will return `Err` if `from_unix` `PathBuf`
@@ -82,6 +104,19 @@ pub fn receive(
     to_udp_bind: net::SocketAddr,
     to_udp: net::SocketAddr,
 ) -> Result<(), udp::Error> {
+    #[cfg(feature = "tcp")]
+    if let Some(from_tcp) = &config.diode.from_tcp {
+        let server = net::TcpListener::bind(from_tcp)?;
+        receive_tcp_loop(config, to_udp_bind, to_udp, &server)?;
+    }
+
+    #[cfg(feature = "tls")]
+    if let Some(from_tls) = &config.diode.from_tls {
+        let server = tls::TcpListener::bind(&config.tls, from_tls)?;
+        receive_tls_loop(config, to_udp_bind, to_udp, &server)?;
+    }
+
+    #[cfg(feature = "unix")]
     if let Some(from_unix) = &config.diode.from_unix {
         if from_unix.exists() {
             return Err(udp::Error::Other(format!(
@@ -92,11 +127,6 @@ pub fn receive(
 
         let server = unix::net::UnixListener::bind(from_unix)?;
         receive_unix_loop(config, to_udp_bind, to_udp, &server)?;
-    }
-
-    if let Some(from_tcp) = &config.diode.from_tcp {
-        let server = net::TcpListener::bind(from_tcp)?;
-        receive_tcp_loop(config, to_udp_bind, to_udp, &server)?;
     }
 
     Ok(())

@@ -39,6 +39,8 @@ default-features = false
 features = [ "std", "xxhash3_128" ]
 
 [features]
-default = [ "hash", "tls" ]
+default = [ "hash", "tcp", "tls", "unix" ]
 hash = [ "dep:twox-hash" ]
+tcp = [ ]
 tls = [ "dep:openssl" ]
+unix = [ ]

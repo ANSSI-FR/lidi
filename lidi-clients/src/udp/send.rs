@@ -1,8 +1,11 @@
+#[cfg(feature = "tls")]
+use crate::tls;
 use crate::udp;
+#[cfg(feature = "unix")]
+use std::os::unix;
 use std::{
     io::{Read, Write},
     net,
-    os::unix,
 };
 
 fn send_udp_aux<D>(
@@ -45,12 +48,44 @@ pub fn send(
 
     match &config.diode {
         crate::DiodeSend::Tcp(socket_addr) => {
-            let diode = net::TcpStream::connect(socket_addr)?;
-            send_udp_aux(config, diode, from_udp)
+            #[cfg(not(feature = "tcp"))]
+            {
+                let _ = socket_addr;
+                log::error!("TCP was not enable at compilation");
+                Ok(())
+            }
+            #[cfg(feature = "tcp")]
+            {
+                let diode = net::TcpStream::connect(socket_addr)?;
+                send_udp_aux(config, diode, from_udp)
+            }
+        }
+        crate::DiodeSend::Tls(socket_addr) => {
+            #[cfg(not(feature = "tls"))]
+            {
+                let _ = socket_addr;
+                log::error!("TLS was not enable at compilation");
+                Ok(())
+            }
+            #[cfg(feature = "tls")]
+            {
+                let context = tls::ClientContext::try_from(&config.tls)?;
+                let diode = tls::TcpStream::connect(&context, socket_addr)?;
+                send_udp_aux(config, diode, from_udp)
+            }
         }
         crate::DiodeSend::Unix(path) => {
-            let diode = unix::net::UnixStream::connect(path)?;
-            send_udp_aux(config, diode, from_udp)
+            #[cfg(not(feature = "unix"))]
+            {
+                let _ = path;
+                log::error!("Unix was not enable at compilation");
+                Ok(())
+            }
+            #[cfg(feature = "unix")]
+            {
+                let diode = unix::net::UnixStream::connect(path)?;
+                send_udp_aux(config, diode, from_udp)
+            }
         }
     }
 }

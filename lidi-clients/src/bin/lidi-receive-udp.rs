@@ -3,23 +3,30 @@ use std::{net, path};
 
 #[derive(clap::Args)]
 #[group(required = true, multiple = false)]
+#[allow(clippy::struct_field_names)]
 struct Listeners {
     #[clap(
         value_name = "ip:port",
         long,
-        help = "IP address and port to accept TCP connections from diode-receive"
+        help = "IP address and port to accept TCP connections from lidi-receive"
     )]
     from_tcp: Option<net::SocketAddr>,
     #[clap(
+        value_name = "ip:port",
+        long,
+        help = "IP address and port to accept TLS connections from lidi-receive"
+    )]
+    from_tls: Option<net::SocketAddr>,
+    #[clap(
         value_name = "path",
         long,
-        help = "Path of Unix socket to accept Unix connections from diode-receive"
+        help = "Path of Unix socket to accept Unix connections from lidi-receive"
     )]
     from_unix: Option<path::PathBuf>,
 }
 
 #[derive(Parser)]
-#[clap(about = "Receive UDP packets sent by diode-send-udp.")]
+#[clap(about = "Receive UDP packets sent by lidi-send-udp.")]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -42,6 +49,8 @@ struct Args {
         help = "IP address and port to send UDP packets to"
     )]
     to: net::SocketAddr,
+    #[clap(flatten)]
+    tls: lidi_clients::Tls,
 }
 
 fn main() {
@@ -60,12 +69,14 @@ fn main() {
 
     let diode = lidi_clients::DiodeReceive {
         from_tcp: args.from.from_tcp,
+        from_tls: args.from.from_tls,
         from_unix: args.from.from_unix,
     };
 
     let config = lidi_clients::udp::Config {
         diode,
         buffer_size: u16::MAX as usize,
+        tls: args.tls,
     };
 
     if let Err(e) = lidi_clients::udp::receive::receive(&config, args.to_bind, args.to) {

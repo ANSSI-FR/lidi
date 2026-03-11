@@ -1,9 +1,14 @@
+#[cfg(feature = "tls")]
+use crate::tls;
 use crate::{file, hash};
+#[cfg(feature = "tcp")]
+use std::net;
+#[cfg(feature = "unix")]
+use std::os::unix;
 use std::{
     fs,
     io::{Read, Write},
-    net,
-    os::unix::{self, fs::PermissionsExt},
+    os::unix::fs::PermissionsExt,
     path, thread,
 };
 
@@ -21,6 +26,23 @@ pub fn receive_files(
     }
 
     thread::scope(|scope| -> Result<(), file::Error> {
+        #[cfg(feature = "tcp")]
+        if let Some(from_tcp) = &config.diode.from_tcp {
+            let server = net::TcpListener::bind(from_tcp)?;
+            thread::Builder::new().spawn_scoped(scope, move || {
+                receive_tcp_loop(config, output_dir, scope, &server)
+            })?;
+        }
+
+        #[cfg(feature = "tls")]
+        if let Some(from_tls) = &config.diode.from_tls {
+            let server = tls::TcpListener::bind(&config.tls, from_tls)?;
+            thread::Builder::new().spawn_scoped(scope, move || {
+                receive_tls_loop(config, output_dir, scope, &server)
+            })?;
+        }
+
+        #[cfg(feature = "unix")]
         if let Some(from_unix) = &config.diode.from_unix {
             if from_unix.exists() {
                 return Err(file::Error::Other(format!(
@@ -35,17 +57,11 @@ pub fn receive_files(
             })?;
         }
 
-        if let Some(from_tcp) = &config.diode.from_tcp {
-            let server = net::TcpListener::bind(from_tcp)?;
-            thread::Builder::new().spawn_scoped(scope, move || {
-                receive_tcp_loop(config, output_dir, scope, &server)
-            })?;
-        }
-
         Ok(())
     })
 }
 
+#[cfg(feature = "tcp")]
 fn receive_tcp_loop<'a>(
     config: &'a file::Config<crate::DiodeReceive>,
     output_dir: &'a path::Path,
@@ -68,6 +84,30 @@ fn receive_tcp_loop<'a>(
     }
 }
 
+#[cfg(feature = "tls")]
+fn receive_tls_loop<'a>(
+    config: &'a file::Config<crate::DiodeReceive>,
+    output_dir: &'a path::Path,
+    scope: &'a thread::Scope<'a, '_>,
+    server: &tls::TcpListener,
+) -> Result<(), file::Error> {
+    let mut count = 0;
+
+    loop {
+        if config.max_files != 0 && count >= config.max_files {
+            return Ok(());
+        }
+        count += 1;
+        let (client, client_addr) = server.accept()??;
+        log::info!("new TLS client ({client_addr}) connected");
+        scope.spawn(|| match receive_file(config, client, output_dir) {
+            Ok(total) => log::info!("file received, {total} bytes received"),
+            Err(e) => log::error!("failed to receive file: {e}"),
+        });
+    }
+}
+
+#[cfg(feature = "unix")]
 fn receive_unix_loop<'a>(
     config: &'a file::Config<crate::DiodeReceive>,
     output_dir: &'a path::Path,
