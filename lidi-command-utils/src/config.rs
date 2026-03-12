@@ -87,6 +87,7 @@ pub struct CommonConfig {
     pub(crate) hash: Option<bool>,
     pub(crate) flush: Option<bool>,
     pub heartbeat: Option<u64>,
+    pub(crate) tls: TlsConfig,
 }
 
 impl CommonConfig {
@@ -133,6 +134,11 @@ impl CommonConfig {
             .filter(|heartbeat| 0 < *heartbeat)
             .map(time::Duration::from_secs)
     }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone()
+    }
 }
 
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
@@ -156,13 +162,13 @@ pub enum TlsMethod {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TlsConfig {
-    key: Option<path::PathBuf>,
-    certificate: Option<path::PathBuf>,
-    ca: Option<path::PathBuf>,
-    tls_min: Option<TlsVersion>,
-    tls_method: Option<TlsMethod>,
-    ciphers: Option<String>,
-    groups: Option<String>,
+    pub(crate) key: Option<path::PathBuf>,
+    pub(crate) certificate: Option<path::PathBuf>,
+    pub(crate) ca: Option<path::PathBuf>,
+    pub(crate) tls_min: Option<TlsVersion>,
+    pub(crate) tls_method: Option<TlsMethod>,
+    pub(crate) ciphers: Option<String>,
+    pub(crate) groups: Option<String>,
 }
 
 #[allow(unused)]
@@ -208,7 +214,6 @@ impl TlsConfig {
 pub struct SendConfig {
     pub(crate) log: Option<log::LevelFilter>,
     pub(crate) log4rs_config: Option<path::PathBuf>,
-    tls: Option<TlsConfig>,
     pub(crate) prometheus_listen: Option<net::SocketAddr>,
     pub(crate) from: Vec<Endpoint>,
     pub(crate) to: Option<net::IpAddr>,
@@ -225,11 +230,6 @@ impl SendConfig {
     #[must_use]
     pub(crate) fn log4rs_config(&self) -> Option<path::PathBuf> {
         self.log4rs_config.clone()
-    }
-
-    #[must_use]
-    pub fn tls(&self) -> TlsConfig {
-        self.tls.clone().unwrap_or_default()
     }
 
     #[must_use]
@@ -265,7 +265,6 @@ impl SendConfig {
 pub struct ReceiveConfig {
     pub(crate) log: Option<log::LevelFilter>,
     pub(crate) log4rs_config: Option<path::PathBuf>,
-    tls: Option<TlsConfig>,
     pub(crate) prometheus_listen: Option<net::SocketAddr>,
     pub(crate) to: Vec<Endpoint>,
     pub(crate) from: Option<net::IpAddr>,
@@ -284,11 +283,6 @@ impl ReceiveConfig {
     #[must_use]
     pub(crate) fn log4rs_config(&self) -> Option<path::PathBuf> {
         self.log4rs_config.clone()
-    }
-
-    #[must_use]
-    pub fn tls(&self) -> TlsConfig {
-        self.tls.clone().unwrap_or_default()
     }
 
     #[must_use]

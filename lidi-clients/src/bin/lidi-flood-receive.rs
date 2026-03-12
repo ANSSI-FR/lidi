@@ -142,7 +142,9 @@ where
 
     log::info!("client {id}: accepted connection");
     loop {
-        let read = client.read(&mut buffer).unwrap_or_else(|e| panic!("client {id} read: {e}"));
+        let read = client
+            .read(&mut buffer)
+            .unwrap_or_else(|e| panic!("client {id} read: {e}"));
         log::debug!("client {id}: received {read} bytes");
         if read == 0 {
             log::info!("client {id}: end of connection");
