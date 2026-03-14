@@ -95,7 +95,6 @@ pub fn start<ClientNew, ClientEnd>(
                 match protocol::EndpointId::deserialize(payload) {
                     None => {
                         log::error!("client {client_id:x} for invalid endpoint");
-                        continue;
                     }
                     Some(endpoint) => {
                         let (client_sendq, client_recvq) = if 0 < receiver.config.queue_size {
@@ -111,6 +110,7 @@ pub fn start<ClientNew, ClientEnd>(
                             .send((endpoint, client_id, client_recvq))?;
                     }
                 }
+                continue;
             }
             protocol::BlockType::Abort | protocol::BlockType::End => will_end = true,
             protocol::BlockType::Data => (),
