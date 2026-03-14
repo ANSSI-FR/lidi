@@ -49,6 +49,7 @@ pub fn start<ClientNew, ClientEnd>(
             // Marking all active transfers as failed
             for (client_id, client_sendq) in active_transfers {
                 let block = protocol::Block::new(
+                    None,
                     protocol::BlockType::Abort,
                     &receiver.raptorq,
                     client_id,

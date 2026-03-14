@@ -266,28 +266,36 @@ impl Block {
     /// - if `block` is `BlockType::Heartbeat` then `client_id` should be equal to 0,
     /// - if there is some `data`, its length must be lower than `Messsage::max_data_len()`.
     pub fn new(
+        recycle: Option<Self>,
         block: BlockType,
         raptorq: &RaptorQ,
         client_id: ClientId,
         data: Option<&[u8]>,
     ) -> Result<Self, Error> {
-        let mut content = vec![
-            0u8;
-            usize::try_from(raptorq.transfer_length)
-                .map_err(|e| Error::TransferLengthTooLarge(e.to_string()))?
-        ];
-        content[0..4].copy_from_slice(&client_id.to_le_bytes());
-        content[4] = block.serialized();
+        let mut res = match recycle {
+            Some(mut res) => {
+                res.0[5..9].copy_from_slice(&0u32.to_le_bytes());
+                res
+            }
+            None => Self(vec![
+                0u8;
+                usize::try_from(raptorq.transfer_length).map_err(
+                    |e| Error::TransferLengthTooLarge(e.to_string())
+                )?
+            ]),
+        };
+        res.0[0..4].copy_from_slice(&client_id.to_le_bytes());
+        res.0[4] = block.serialized();
 
         if let Some(data) = data {
             let data_len = data.len();
-            content[5..9].copy_from_slice(&u32::to_le_bytes(
+            res.0[5..9].copy_from_slice(&u32::to_le_bytes(
                 u32::try_from(data_len).map_err(|e| Error::DataTooLarge(e.to_string()))?,
             ));
-            content[9..9 + data_len].copy_from_slice(data);
+            res.0[9..9 + data_len].copy_from_slice(data);
         }
 
-        Ok(Self(content))
+        Ok(res)
     }
 
     #[must_use]

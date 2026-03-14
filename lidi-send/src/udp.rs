@@ -46,6 +46,8 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
 
         let packets = sender.raptorq.encode(id, block.serialized());
 
+        sender.block_recycler.push(block);
+
         log::debug!("sending block {id}");
 
         if let Err(e) = udp.send(&packets) {

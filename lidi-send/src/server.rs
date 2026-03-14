@@ -35,7 +35,13 @@ where
 
             if let Err(e) = sender.to_udp.send(Some((
                 block_id,
-                protocol::Block::new(protocol::BlockType::Abort, &sender.raptorq, client_id, None)?,
+                protocol::Block::new(
+                    sender.block_recycler.steal().success(),
+                    protocol::BlockType::Abort,
+                    &sender.raptorq,
+                    client_id,
+                    None,
+                )?,
             ))) {
                 log::error!("client {client_id:x}: failed to abort : {e}");
             }

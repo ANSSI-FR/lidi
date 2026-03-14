@@ -21,6 +21,7 @@ where
     sender.to_udp.send(Some((
         block_id,
         protocol::Block::new(
+            sender.block_recycler.steal().success(),
             protocol::BlockType::Start,
             &sender.raptorq,
             client_id,
@@ -73,6 +74,7 @@ where
         sender.to_udp.send(Some((
             block_id,
             protocol::Block::new(
+                sender.block_recycler.steal().success(),
                 block_type,
                 &sender.raptorq,
                 client_id,

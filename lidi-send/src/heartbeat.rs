@@ -19,7 +19,13 @@ pub fn start<C>(sender: &crate::Sender<C>) -> Result<(), crate::Error> {
 
         sender.to_udp.send(Some((
             block_id,
-            protocol::Block::new(protocol::BlockType::Heartbeat, &sender.raptorq, 0, None)?,
+            protocol::Block::new(
+                sender.block_recycler.steal().success(),
+                protocol::BlockType::Heartbeat,
+                &sender.raptorq,
+                0,
+                None,
+            )?,
         )))?;
 
         thread::sleep(duration);
