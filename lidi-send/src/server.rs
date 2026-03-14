@@ -4,7 +4,7 @@ use crate::client;
 use lidi_protocol as protocol;
 use std::{io::Read, os::fd::AsRawFd, sync};
 
-static CLIENT_ID_COUNTER: sync::atomic::AtomicU32 = sync::atomic::AtomicU32::new(0);
+static CLIENT_ID_COUNTER: sync::atomic::AtomicU16 = sync::atomic::AtomicU16::new(0);
 
 fn new_client_id() -> protocol::ClientId {
     CLIENT_ID_COUNTER.fetch_add(1, sync::atomic::Ordering::Relaxed)
