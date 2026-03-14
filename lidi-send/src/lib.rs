@@ -69,8 +69,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<crossbeam_channel::SendError<Option<(u8, protocol::Block)>>> for Error {
-    fn from(_: crossbeam_channel::SendError<Option<(u8, protocol::Block)>>) -> Self {
+impl From<crossbeam_channel::SendError<Option<protocol::Block>>> for Error {
+    fn from(_: crossbeam_channel::SendError<Option<protocol::Block>>) -> Self {
         Self::SendToUdp
     }
 }
@@ -180,8 +180,8 @@ pub struct Sender<C> {
     block_recycler: crossbeam_deque::Injector<protocol::Block>,
     to_server: crossbeam_channel::Sender<Option<(protocol::EndpointId, C)>>,
     for_server: crossbeam_channel::Receiver<Option<(protocol::EndpointId, C)>>,
-    to_udp: crossbeam_channel::Sender<Option<(u8, protocol::Block)>>,
-    for_udp: crossbeam_channel::Receiver<Option<(u8, protocol::Block)>>,
+    to_udp: crossbeam_channel::Sender<Option<protocol::Block>>,
+    for_udp: crossbeam_channel::Receiver<Option<protocol::Block>>,
 }
 
 impl<C> Sender<C>

@@ -33,7 +33,7 @@ pub fn start<ClientNew, ClientEnd>(
 
                         receiver
                             .to_dispatch
-                            .send(Some(protocol::Block::deserialize(block)))?;
+                            .send(Some(protocol::Block::deserialize(id, block)))?;
                     }
                 }
             }

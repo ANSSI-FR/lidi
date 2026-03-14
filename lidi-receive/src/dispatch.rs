@@ -50,6 +50,7 @@ pub fn start<ClientNew, ClientEnd>(
             for (client_id, client_sendq) in active_transfers {
                 let block = protocol::Block::new(
                     None,
+                    0,
                     protocol::BlockType::Abort,
                     &receiver.raptorq,
                     client_id,
