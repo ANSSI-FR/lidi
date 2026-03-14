@@ -87,7 +87,6 @@ pub struct CommonConfig {
     pub(crate) hash: Option<bool>,
     pub(crate) flush: Option<bool>,
     pub heartbeat: Option<u64>,
-    pub(crate) tls: TlsConfig,
 }
 
 impl CommonConfig {
@@ -133,11 +132,6 @@ impl CommonConfig {
         self.heartbeat
             .filter(|heartbeat| 0 < *heartbeat)
             .map(time::Duration::from_secs)
-    }
-
-    #[must_use]
-    pub fn tls(&self) -> TlsConfig {
-        self.tls.clone()
     }
 }
 
@@ -219,6 +213,7 @@ pub struct SendConfig {
     pub(crate) to: Option<net::IpAddr>,
     pub(crate) to_bind: Option<net::SocketAddr>,
     pub(crate) mode: Option<Mode>,
+    pub(crate) tls: Option<TlsConfig>,
 }
 
 impl SendConfig {
@@ -258,6 +253,20 @@ impl SendConfig {
     pub const fn mode(&self) -> Option<Mode> {
         self.mode
     }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
+
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn tls_mut(&mut self) -> &mut TlsConfig {
+        if self.tls.is_none() {
+            self.tls = Some(TlsConfig::default());
+        }
+        self.tls.as_mut().unwrap()
+    }
 }
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -272,6 +281,7 @@ pub struct ReceiveConfig {
     pub(crate) queue_size: Option<usize>,
     pub(crate) reset_timeout: Option<u64>,
     pub(crate) abort_timeout: Option<u64>,
+    pub(crate) tls: Option<TlsConfig>,
 }
 
 impl ReceiveConfig {
@@ -319,13 +329,27 @@ impl ReceiveConfig {
     pub fn abort_timeout(&self) -> Option<time::Duration> {
         self.abort_timeout.map(time::Duration::from_secs)
     }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
+
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn tls_mut(&mut self) -> &mut TlsConfig {
+        if self.tls.is_none() {
+            self.tls = Some(TlsConfig::default());
+        }
+        self.tls.as_mut().unwrap()
+    }
 }
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(flatten)]
-    common: Option<CommonConfig>,
+    common: CommonConfig,
     pub(crate) send: Option<SendConfig>,
     pub(crate) receive: Option<ReceiveConfig>,
 }
@@ -333,15 +357,12 @@ pub struct Config {
 impl Config {
     #[must_use]
     pub fn common(&self) -> CommonConfig {
-        self.common.clone().unwrap_or_default()
+        self.common.clone()
     }
 
     #[allow(clippy::missing_panics_doc)] // cannot panic
-    pub fn common_mut(&mut self) -> &mut CommonConfig {
-        if self.common.is_none() {
-            self.common = Some(CommonConfig::default());
-        }
-        self.common.as_mut().unwrap()
+    pub const fn common_mut(&mut self) -> &mut CommonConfig {
+        &mut self.common
     }
 
     #[must_use]

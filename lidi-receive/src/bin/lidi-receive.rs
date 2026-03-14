@@ -140,7 +140,7 @@ fn main() {
     };
 
     #[cfg(feature = "to-tls")]
-    let tls = match lidi_command_utils::tls::ClientContext::try_from(&common.tls()) {
+    let tls = match lidi_command_utils::tls::ClientContext::try_from(&config.receive().tls()) {
         Ok(tls) => tls,
         Err(e) => {
             log::error!("{e}");

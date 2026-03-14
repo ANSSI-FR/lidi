@@ -91,8 +91,6 @@ struct CommonArgs {
         help = "Duration in seconds between sent/expected heartbeat message (0 to disable)"
     )]
     heartbeat: Option<u64>,
-    #[clap(flatten)]
-    tls: Tls,
 }
 
 impl TryFrom<CommonArgs> for config::Config {
@@ -137,45 +135,6 @@ impl TryFrom<CommonArgs> for config::Config {
             config.common_mut().heartbeat = Some(heartbeat);
         }
 
-        if let Some(key) = args.tls.key {
-            config.common_mut().tls.key = Some(key);
-        }
-
-        if let Some(certificate) = args.tls.certificate {
-            config.common_mut().tls.certificate = Some(certificate);
-        }
-
-        if let Some(ca) = args.tls.ca {
-            config.common_mut().tls.ca = Some(ca);
-        }
-
-        if let Some(tls_min) = args.tls.tls_min {
-            let tls_min = match tls_min {
-                TlsVersion::Tls1_1 => config::TlsVersion::Tls1_1,
-                TlsVersion::Tls1_2 => config::TlsVersion::Tls1_2,
-                TlsVersion::Tls1_3 => config::TlsVersion::Tls1_3,
-            };
-            config.common_mut().tls.tls_min = Some(tls_min);
-        }
-
-        if let Some(tls_method) = args.tls.tls_method {
-            let tls_method = match tls_method {
-                TlsMethod::Mozilla_Intermediate_v4 => config::TlsMethod::Mozilla_Intermediate_v4,
-                TlsMethod::Mozilla_Modern_v4 => config::TlsMethod::Mozilla_Modern_v4,
-                TlsMethod::Mozilla_Intermediate_v5 => config::TlsMethod::Mozilla_Intermediate_v5,
-                TlsMethod::Mozilla_Modern_v5 => config::TlsMethod::Mozilla_Modern_v5,
-            };
-            config.common_mut().tls.tls_method = Some(tls_method);
-        }
-
-        if let Some(ciphers) = args.tls.ciphers {
-            config.common_mut().tls.ciphers = Some(ciphers);
-        }
-
-        if let Some(groups) = args.tls.groups {
-            config.common_mut().tls.groups = Some(groups);
-        }
-
         Ok(config)
     }
 }
@@ -204,6 +163,8 @@ pub struct SendArgs {
     to_bind: Option<net::SocketAddr>,
     #[clap(long, help = "Mode used to send UDP packets")]
     mode: Option<config::Mode>,
+    #[clap(flatten)]
+    tls: Tls,
 }
 
 impl Args for SendArgs {}
@@ -242,6 +203,47 @@ impl TryFrom<SendArgs> for config::Config {
             config.send_mut().mode = Some(mode);
         }
 
+        let tls = config.send_mut().tls_mut();
+
+        if let Some(key) = args.tls.key {
+            tls.key = Some(key);
+        }
+
+        if let Some(certificate) = args.tls.certificate {
+            tls.certificate = Some(certificate);
+        }
+
+        if let Some(ca) = args.tls.ca {
+            tls.ca = Some(ca);
+        }
+
+        if let Some(tls_min) = args.tls.tls_min {
+            let tls_min = match tls_min {
+                TlsVersion::Tls1_1 => config::TlsVersion::Tls1_1,
+                TlsVersion::Tls1_2 => config::TlsVersion::Tls1_2,
+                TlsVersion::Tls1_3 => config::TlsVersion::Tls1_3,
+            };
+            tls.tls_min = Some(tls_min);
+        }
+
+        if let Some(tls_method) = args.tls.tls_method {
+            let tls_method = match tls_method {
+                TlsMethod::Mozilla_Intermediate_v4 => config::TlsMethod::Mozilla_Intermediate_v4,
+                TlsMethod::Mozilla_Modern_v4 => config::TlsMethod::Mozilla_Modern_v4,
+                TlsMethod::Mozilla_Intermediate_v5 => config::TlsMethod::Mozilla_Intermediate_v5,
+                TlsMethod::Mozilla_Modern_v5 => config::TlsMethod::Mozilla_Modern_v5,
+            };
+            tls.tls_method = Some(tls_method);
+        }
+
+        if let Some(ciphers) = args.tls.ciphers {
+            tls.ciphers = Some(ciphers);
+        }
+
+        if let Some(groups) = args.tls.groups {
+            tls.groups = Some(groups);
+        }
+
         Ok(config)
     }
 }
@@ -277,6 +279,8 @@ pub struct ReceiveArgs {
         help = "Duration in seconds without data for a client before closing the client connection"
     )]
     abort_timeout: Option<u64>,
+    #[clap(flatten)]
+    tls: Tls,
 }
 
 impl Args for ReceiveArgs {}
@@ -321,6 +325,47 @@ impl TryFrom<ReceiveArgs> for config::Config {
 
         if let Some(abort_timeout) = args.abort_timeout {
             config.receive_mut().abort_timeout = Some(abort_timeout);
+        }
+
+        let tls = config.receive_mut().tls_mut();
+
+        if let Some(key) = args.tls.key {
+            tls.key = Some(key);
+        }
+
+        if let Some(certificate) = args.tls.certificate {
+            tls.certificate = Some(certificate);
+        }
+
+        if let Some(ca) = args.tls.ca {
+            tls.ca = Some(ca);
+        }
+
+        if let Some(tls_min) = args.tls.tls_min {
+            let tls_min = match tls_min {
+                TlsVersion::Tls1_1 => config::TlsVersion::Tls1_1,
+                TlsVersion::Tls1_2 => config::TlsVersion::Tls1_2,
+                TlsVersion::Tls1_3 => config::TlsVersion::Tls1_3,
+            };
+            tls.tls_min = Some(tls_min);
+        }
+
+        if let Some(tls_method) = args.tls.tls_method {
+            let tls_method = match tls_method {
+                TlsMethod::Mozilla_Intermediate_v4 => config::TlsMethod::Mozilla_Intermediate_v4,
+                TlsMethod::Mozilla_Modern_v4 => config::TlsMethod::Mozilla_Modern_v4,
+                TlsMethod::Mozilla_Intermediate_v5 => config::TlsMethod::Mozilla_Intermediate_v5,
+                TlsMethod::Mozilla_Modern_v5 => config::TlsMethod::Mozilla_Modern_v5,
+            };
+            tls.tls_method = Some(tls_method);
+        }
+
+        if let Some(ciphers) = args.tls.ciphers {
+            tls.ciphers = Some(ciphers);
+        }
+
+        if let Some(groups) = args.tls.groups {
+            tls.groups = Some(groups);
         }
 
         Ok(config)

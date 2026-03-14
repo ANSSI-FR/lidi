@@ -161,7 +161,7 @@ impl From<&config::Config> for Config {
             to_bind: send.to_bind(),
             mode,
             #[cfg(feature = "from-tls")]
-            tls: common.tls(),
+            tls: send.tls(),
             #[cfg(feature = "prometheus")]
             prometheus_listen: config.send().prometheus_listen(),
         }
