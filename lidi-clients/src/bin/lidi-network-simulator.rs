@@ -107,10 +107,10 @@ impl NetworkDown {
         self.volume += len;
 
         // if we are up_after, packets are going
-        if let Some(up_after) = self.up_after {
-            if self.volume > up_after {
-                return true;
-            }
+        if let Some(up_after) = self.up_after
+            && self.volume > up_after
+        {
+            return true;
         }
 
         // drop this packet if we receive enough data
