@@ -26,14 +26,12 @@ Feature: Send simple (without ratelimit), will probably fail with high volume
     Then diode-file-receive file B in 5 seconds
     Then diode-file-receive file C in 5 seconds
 
-  @fail
   ### May fail because sending fast
   Scenario: Send a 1M file without drop
     Given diode is started
     When diode-file-send file A of size 1MB
     Then diode-file-receive file A in 5 seconds
 
-  @fail
   ### May fail because sending fast
   Scenario: Send multiple 1M files without drop
     Given diode is started
@@ -44,7 +42,6 @@ Feature: Send simple (without ratelimit), will probably fail with high volume
     Then diode-file-receive file B in 5 seconds
     Then diode-file-receive file C in 5 seconds
 
-  @fail
   ### Should fail, because sending too fast, many packets are lost
   Scenario: Send a 1G file without drop
     Given diode is started
