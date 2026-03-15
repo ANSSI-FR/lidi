@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Update rust
+        run: rustup update
+
+      - name: Run cargo tests
+        run: cargo test
+
+      - name: Install system dependencies
+        run: sudo apt install python3-pip python3-virtualenv libfuse2t64
+
+      - name: Create virtualenv
+        run: virtualenv venv
+
+      - name: Install python packages
+        run: |
+          source venv/bin/activate
+          pip install behave fusepy psutil
+
+      - name: Run simple integration tests
+        run: |
+          source venv/bin/activate
+          behave --tags=~fail features/simple.feature

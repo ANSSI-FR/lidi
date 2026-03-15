@@ -3,7 +3,7 @@
 import os
 import time
 import multiprocessing
-from fusepy import FUSE, Operations
+from fuse import FUSE, Operations
 
 class ThrottledFS(Operations):
     def __init__(self, root, read_rate_limit):
