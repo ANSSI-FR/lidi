@@ -36,7 +36,7 @@ from contextlib import contextmanager
 
 from features.steps.config import log_files, write_lidi_config
 from features.steps.file import create_file
-from throttle_fs import ThrottledFSProcess
+from features.steps.throttle_fs import ThrottledFSProcess
 
 def stop_process(context, process_attr):
     """Stop a process if it exists."""
