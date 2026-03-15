@@ -11,10 +11,14 @@ env:
 
 jobs:
   clippy-check:
-
+    name: Run clippy
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - run: rustup component add clippy
-    - run: cargo clippy --all-targets --all-features --workspace -- -Dwarnings
+      - uses: actions/checkout@v6
+
+      - name: Update rust
+        run: rustup update
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features --workspace
