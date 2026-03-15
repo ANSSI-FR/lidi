@@ -85,7 +85,7 @@ def step_impl(context, name, seconds):
 def step_impl(context, files, size):
     for i in range(int(files)):
         name = str(f"test_file_{i}")
-        create_file(context, name, size, 1)
+        create_file(context, name, size)
 
     # now send all of them at once
     send_multiple_files(context)
