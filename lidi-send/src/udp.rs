@@ -36,21 +36,28 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
     )?;
 
     loop {
-        let Some((id, block)) = sender.for_udp.recv()? else {
+        let Some(block) = sender.for_udp.recv()? else {
             return Ok(());
         };
 
+        let block_id = block.id();
         let client_id = block.client_id();
 
-        log::debug!("encoding block {id} for client {client_id:x}");
+        log::debug!("encoding block {block_id} for client {client_id:x}");
 
-        let packets = sender.raptorq.encode(id, block.serialized());
+        let packets = sender.raptorq.encode(block_id, block.serialized());
 
-        log::debug!("sending block {id}");
+        sender.block_recycler.push(block);
 
-        udp.send(&packets)?;
+        log::debug!("sending block {block_id}");
 
-        #[cfg(feature = "prometheus")]
-        metrics::counter!("lidi_send_udp_packets").increment(packets.len() as u64);
+        if let Err(e) = udp.send(&packets) {
+            log::error!("failed to send UDP packet: {e}");
+            #[cfg(feature = "prometheus")]
+            metrics::counter!("lidi_error_udp_packets").increment(packets.len() as u64);
+        } else {
+            #[cfg(feature = "prometheus")]
+            metrics::counter!("lidi_send_udp_packets").increment(packets.len() as u64);
+        }
     }
 }

@@ -17,10 +17,14 @@ pub fn start<C>(sender: &crate::Sender<C>) -> Result<(), crate::Error> {
             .next_block
             .fetch_add(1, sync::atomic::Ordering::SeqCst);
 
-        sender.to_udp.send(Some((
+        sender.to_udp.send(Some(protocol::Block::new(
+            sender.block_recycler.steal().success(),
             block_id,
-            protocol::Block::new(protocol::BlockType::Heartbeat, &sender.raptorq, 0, None)?,
-        )))?;
+            protocol::BlockType::Heartbeat,
+            &sender.raptorq,
+            0,
+            None,
+        )?))?;
 
         thread::sleep(duration);
     }

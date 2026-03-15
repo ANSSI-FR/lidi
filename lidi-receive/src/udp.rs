@@ -42,7 +42,7 @@ pub fn start<ClientNew, ClientEnd>(
             socket::ReceiveDatagrams::Single(datagram) => {
                 #[cfg(feature = "prometheus")]
                 metrics::counter!("lidi_receive_udp_packets").increment(1);
-                let packet = raptorq::EncodingPacket::deserialize(&datagram);
+                let packet = raptorq::EncodingPacket::deserialize(datagram);
                 #[cfg(not(feature = "receive-mmsg"))]
                 receiver.to_reblock.send(packet)?;
                 #[cfg(feature = "receive-mmsg")]
@@ -55,7 +55,7 @@ pub fn start<ClientNew, ClientEnd>(
                 receiver.to_reblock.send(
                     datagrams
                         .into_iter()
-                        .map(|datagram| raptorq::EncodingPacket::deserialize(&datagram))
+                        .map(raptorq::EncodingPacket::deserialize)
                         .collect(),
                 )?;
             }

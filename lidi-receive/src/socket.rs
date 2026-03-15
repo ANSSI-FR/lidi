@@ -13,11 +13,11 @@ pub fn set_socket_recv_buffer_size<S: AsRawFd>(socket: &S, size: i32) -> Result<
     socket::setsockopt_buffer_size(socket.as_raw_fd(), size, libc::SO_RCVBUF)
 }
 
-pub enum ReceiveDatagrams {
+pub enum ReceiveDatagrams<'a> {
     #[cfg(any(feature = "receive-native", feature = "receive-msg"))]
-    Single(Vec<u8>),
+    Single(&'a [u8]),
     #[cfg(feature = "receive-mmsg")]
-    Multiple(Vec<Vec<u8>>),
+    Multiple(Vec<&'a [u8]>),
 }
 
 #[cfg(feature = "receive-native")]
@@ -39,7 +39,7 @@ impl ReceiveNative {
         }
     }
 
-    fn recv(&mut self) -> Result<ReceiveDatagrams, io::Error> {
+    fn recv(&mut self) -> Result<ReceiveDatagrams<'_>, io::Error> {
         let recv = self.socket.recv(&mut self.buffer)?;
 
         if recv == 0 {
@@ -49,7 +49,7 @@ impl ReceiveNative {
             )));
         }
 
-        Ok(ReceiveDatagrams::Single(self.buffer[0..recv].to_vec()))
+        Ok(ReceiveDatagrams::Single(&self.buffer[0..recv]))
     }
 }
 
@@ -86,7 +86,7 @@ impl ReceiveMsg {
         }
     }
 
-    fn recv(&mut self) -> Result<ReceiveDatagrams, io::Error> {
+    fn recv(&mut self) -> Result<ReceiveDatagrams<'_>, io::Error> {
         let recv = unsafe { libc::recvmsg(self.socket.as_raw_fd(), &raw mut self.msghdr, 0) };
 
         if recv < 0 {
@@ -100,7 +100,7 @@ impl ReceiveMsg {
         let recv = usize::try_from(recv)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("recv: {e}")))?;
 
-        Ok(ReceiveDatagrams::Single(self.buffer[0..recv].to_vec()))
+        Ok(ReceiveDatagrams::Single(&self.buffer[0..recv]))
     }
 }
 
@@ -144,7 +144,7 @@ impl ReceiveMmsg {
         }
     }
 
-    fn recv(&mut self) -> Result<ReceiveDatagrams, io::Error> {
+    fn recv(&mut self) -> Result<ReceiveDatagrams<'_>, io::Error> {
         let nb_msg = unsafe {
             libc::recvmmsg(
                 self.socket.as_raw_fd(),
@@ -168,7 +168,7 @@ impl ReceiveMmsg {
                     let msg_len = usize::try_from(self.mmsghdr[i].msg_len).map_err(|e| {
                         io::Error::new(io::ErrorKind::InvalidData, format!("msg_len: {e}"))
                     })?;
-                    res.push(buffer[0..msg_len].to_vec());
+                    res.push(&buffer[0..msg_len]);
                     Ok::<_, io::Error>(res)
                 },
             )?;
@@ -228,7 +228,7 @@ impl Receive {
         }
     }
 
-    pub fn recv(&mut self) -> Result<ReceiveDatagrams, io::Error> {
+    pub fn recv(&mut self) -> Result<ReceiveDatagrams<'_>, io::Error> {
         match self {
             #[cfg(feature = "receive-native")]
             Self::Native(receiver) => receiver.recv(),

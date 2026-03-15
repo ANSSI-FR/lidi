@@ -156,13 +156,13 @@ pub enum TlsMethod {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TlsConfig {
-    key: Option<path::PathBuf>,
-    certificate: Option<path::PathBuf>,
-    ca: Option<path::PathBuf>,
-    tls_min: Option<TlsVersion>,
-    tls_method: Option<TlsMethod>,
-    ciphers: Option<String>,
-    groups: Option<String>,
+    pub(crate) key: Option<path::PathBuf>,
+    pub(crate) certificate: Option<path::PathBuf>,
+    pub(crate) ca: Option<path::PathBuf>,
+    pub(crate) tls_min: Option<TlsVersion>,
+    pub(crate) tls_method: Option<TlsMethod>,
+    pub(crate) ciphers: Option<String>,
+    pub(crate) groups: Option<String>,
 }
 
 #[allow(unused)]
@@ -208,12 +208,12 @@ impl TlsConfig {
 pub struct SendConfig {
     pub(crate) log: Option<log::LevelFilter>,
     pub(crate) log4rs_config: Option<path::PathBuf>,
-    tls: Option<TlsConfig>,
     pub(crate) prometheus_listen: Option<net::SocketAddr>,
     pub(crate) from: Vec<Endpoint>,
     pub(crate) to: Option<net::IpAddr>,
     pub(crate) to_bind: Option<net::SocketAddr>,
     pub(crate) mode: Option<Mode>,
+    pub(crate) tls: Option<TlsConfig>,
 }
 
 impl SendConfig {
@@ -225,11 +225,6 @@ impl SendConfig {
     #[must_use]
     pub(crate) fn log4rs_config(&self) -> Option<path::PathBuf> {
         self.log4rs_config.clone()
-    }
-
-    #[must_use]
-    pub fn tls(&self) -> TlsConfig {
-        self.tls.clone().unwrap_or_default()
     }
 
     #[must_use]
@@ -258,6 +253,20 @@ impl SendConfig {
     pub const fn mode(&self) -> Option<Mode> {
         self.mode
     }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
+
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn tls_mut(&mut self) -> &mut TlsConfig {
+        if self.tls.is_none() {
+            self.tls = Some(TlsConfig::default());
+        }
+        self.tls.as_mut().unwrap()
+    }
 }
 
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
@@ -265,7 +274,6 @@ impl SendConfig {
 pub struct ReceiveConfig {
     pub(crate) log: Option<log::LevelFilter>,
     pub(crate) log4rs_config: Option<path::PathBuf>,
-    tls: Option<TlsConfig>,
     pub(crate) prometheus_listen: Option<net::SocketAddr>,
     pub(crate) to: Vec<Endpoint>,
     pub(crate) from: Option<net::IpAddr>,
@@ -273,6 +281,7 @@ pub struct ReceiveConfig {
     pub(crate) queue_size: Option<usize>,
     pub(crate) reset_timeout: Option<u64>,
     pub(crate) abort_timeout: Option<u64>,
+    pub(crate) tls: Option<TlsConfig>,
 }
 
 impl ReceiveConfig {
@@ -284,11 +293,6 @@ impl ReceiveConfig {
     #[must_use]
     pub(crate) fn log4rs_config(&self) -> Option<path::PathBuf> {
         self.log4rs_config.clone()
-    }
-
-    #[must_use]
-    pub fn tls(&self) -> TlsConfig {
-        self.tls.clone().unwrap_or_default()
     }
 
     #[must_use]
@@ -325,13 +329,27 @@ impl ReceiveConfig {
     pub fn abort_timeout(&self) -> Option<time::Duration> {
         self.abort_timeout.map(time::Duration::from_secs)
     }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
+
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn tls_mut(&mut self) -> &mut TlsConfig {
+        if self.tls.is_none() {
+            self.tls = Some(TlsConfig::default());
+        }
+        self.tls.as_mut().unwrap()
+    }
 }
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(flatten)]
-    common: Option<CommonConfig>,
+    common: CommonConfig,
     pub(crate) send: Option<SendConfig>,
     pub(crate) receive: Option<ReceiveConfig>,
 }
@@ -339,15 +357,12 @@ pub struct Config {
 impl Config {
     #[must_use]
     pub fn common(&self) -> CommonConfig {
-        self.common.clone().unwrap_or_default()
+        self.common.clone()
     }
 
     #[allow(clippy::missing_panics_doc)] // cannot panic
-    pub fn common_mut(&mut self) -> &mut CommonConfig {
-        if self.common.is_none() {
-            self.common = Some(CommonConfig::default());
-        }
-        self.common.as_mut().unwrap()
+    pub const fn common_mut(&mut self) -> &mut CommonConfig {
+        &mut self.common
     }
 
     #[must_use]

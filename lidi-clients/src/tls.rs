@@ -1,5 +1,6 @@
 use std::{fmt, io, net, os};
 
+#[derive(Debug)]
 pub enum Error {
     Config(String),
     Io(io::Error),
@@ -38,18 +39,18 @@ impl From<openssl::ssl::HandshakeError<net::TcpStream>> for Error {
 
 pub struct ClientContext(openssl::ssl::SslContext);
 
-impl TryFrom<&crate::config::TlsConfig> for ClientContext {
+impl TryFrom<&crate::Tls> for ClientContext {
     type Error = Error;
 
-    fn try_from(config: &crate::config::TlsConfig) -> Result<Self, Self::Error> {
+    fn try_from(config: &crate::Tls) -> Result<Self, Self::Error> {
         let method = openssl::ssl::SslMethod::tls_client();
 
         let mut builder = openssl::ssl::SslContextBuilder::new(method)?;
 
         let tls_min = match config.tls_min() {
-            crate::config::TlsVersion::Tls1_1 => openssl::ssl::SslVersion::TLS1_1,
-            crate::config::TlsVersion::Tls1_2 => openssl::ssl::SslVersion::TLS1_2,
-            crate::config::TlsVersion::Tls1_3 => openssl::ssl::SslVersion::TLS1_3,
+            crate::TlsVersion::Tls1_1 => openssl::ssl::SslVersion::TLS1_1,
+            crate::TlsVersion::Tls1_2 => openssl::ssl::SslVersion::TLS1_2,
+            crate::TlsVersion::Tls1_3 => openssl::ssl::SslVersion::TLS1_3,
         };
         builder.set_min_proto_version(Some(tls_min))?;
 
@@ -129,31 +130,28 @@ pub struct TcpListener {
 }
 
 impl TcpListener {
-    pub fn bind(
-        config: &crate::config::TlsConfig,
-        sockaddr: &net::SocketAddr,
-    ) -> Result<Self, Error> {
+    pub fn bind(config: &crate::Tls, sockaddr: &net::SocketAddr) -> Result<Self, Error> {
         let method = openssl::ssl::SslMethod::tls_server();
 
         let mut builder = match config.tls_method() {
-            crate::config::TlsMethod::Mozilla_Intermediate_v4 => {
+            crate::TlsMethod::Mozilla_Intermediate_v4 => {
                 openssl::ssl::SslAcceptor::mozilla_intermediate(method)?
             }
-            crate::config::TlsMethod::Mozilla_Intermediate_v5 => {
+            crate::TlsMethod::Mozilla_Intermediate_v5 => {
                 openssl::ssl::SslAcceptor::mozilla_intermediate_v5(method)?
             }
-            crate::config::TlsMethod::Mozilla_Modern_v4 => {
+            crate::TlsMethod::Mozilla_Modern_v4 => {
                 openssl::ssl::SslAcceptor::mozilla_modern(method)?
             }
-            crate::config::TlsMethod::Mozilla_Modern_v5 => {
+            crate::TlsMethod::Mozilla_Modern_v5 => {
                 openssl::ssl::SslAcceptor::mozilla_modern_v5(method)?
             }
         };
 
         let tls_min = match config.tls_min() {
-            crate::config::TlsVersion::Tls1_1 => openssl::ssl::SslVersion::TLS1_1,
-            crate::config::TlsVersion::Tls1_2 => openssl::ssl::SslVersion::TLS1_2,
-            crate::config::TlsVersion::Tls1_3 => openssl::ssl::SslVersion::TLS1_3,
+            crate::TlsVersion::Tls1_1 => openssl::ssl::SslVersion::TLS1_1,
+            crate::TlsVersion::Tls1_2 => openssl::ssl::SslVersion::TLS1_2,
+            crate::TlsVersion::Tls1_3 => openssl::ssl::SslVersion::TLS1_3,
         };
         builder.set_min_proto_version(Some(tls_min))?;
 
@@ -203,7 +201,7 @@ impl TcpListener {
     }
 }
 
-pub(crate) fn init() {
+pub fn init() {
     log::debug!("{}", openssl::version::version());
     openssl::init();
 }

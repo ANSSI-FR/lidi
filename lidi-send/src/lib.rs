@@ -69,8 +69,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<crossbeam_channel::SendError<Option<(u8, protocol::Block)>>> for Error {
-    fn from(_: crossbeam_channel::SendError<Option<(u8, protocol::Block)>>) -> Self {
+impl From<crossbeam_channel::SendError<Option<protocol::Block>>> for Error {
+    fn from(_: crossbeam_channel::SendError<Option<protocol::Block>>) -> Self {
         Self::SendToUdp
     }
 }
@@ -161,7 +161,7 @@ impl From<&config::Config> for Config {
             to_bind: send.to_bind(),
             mode,
             #[cfg(feature = "from-tls")]
-            tls: config.send().tls(),
+            tls: send.tls(),
             #[cfg(feature = "prometheus")]
             prometheus_listen: config.send().prometheus_listen(),
         }
@@ -177,10 +177,11 @@ pub struct Sender<C> {
     config: Config,
     raptorq: protocol::RaptorQ,
     next_block: sync::atomic::AtomicU8,
+    block_recycler: crossbeam_deque::Injector<protocol::Block>,
     to_server: crossbeam_channel::Sender<Option<(protocol::EndpointId, C)>>,
     for_server: crossbeam_channel::Receiver<Option<(protocol::EndpointId, C)>>,
-    to_udp: crossbeam_channel::Sender<Option<(u8, protocol::Block)>>,
-    for_udp: crossbeam_channel::Receiver<Option<(u8, protocol::Block)>>,
+    to_udp: crossbeam_channel::Sender<Option<protocol::Block>>,
+    for_udp: crossbeam_channel::Receiver<Option<protocol::Block>>,
 }
 
 impl<C> Sender<C>
@@ -195,6 +196,7 @@ where
         loop {
             thread::sleep(timer);
 
+            metrics::gauge!("lidi_send_block_recycler_len").set(self.block_recycler.len() as f64);
             metrics::gauge!("lidi_send_udp_queue_len").set(self.for_udp.len() as f64);
         }
     }
@@ -206,6 +208,8 @@ where
             return Err(Error::Internal(String::from("no ports configured")));
         }
 
+        let block_recycler = crossbeam_deque::Injector::new();
+
         let next_block = sync::atomic::AtomicU8::new(0);
         let (to_server, for_server) = crossbeam_channel::bounded(1);
         let (to_udp, for_udp) = crossbeam_channel::bounded(config.ports.len());
@@ -214,6 +218,7 @@ where
             config,
             raptorq,
             next_block,
+            block_recycler,
             to_server,
             for_server,
             to_udp,

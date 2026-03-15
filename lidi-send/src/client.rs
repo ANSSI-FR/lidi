@@ -18,15 +18,14 @@ where
         .next_block
         .fetch_add(1, sync::atomic::Ordering::SeqCst);
 
-    sender.to_udp.send(Some((
+    sender.to_udp.send(Some(protocol::Block::new(
+        sender.block_recycler.steal().success(),
         block_id,
-        protocol::Block::new(
-            protocol::BlockType::Start,
-            &sender.raptorq,
-            client_id,
-            Some(&endpoint.serialize()),
-        )?,
-    )))?;
+        protocol::BlockType::Start,
+        &sender.raptorq,
+        client_id,
+        Some(&endpoint.serialize()),
+    )?))?;
 
     let mut buffer = vec![0; protocol::Block::max_data_len(&sender.raptorq)];
     let mut cursor = 0;
@@ -70,15 +69,14 @@ where
             .next_block
             .fetch_add(1, sync::atomic::Ordering::SeqCst);
 
-        sender.to_udp.send(Some((
+        sender.to_udp.send(Some(protocol::Block::new(
+            sender.block_recycler.steal().success(),
             block_id,
-            protocol::Block::new(
-                block_type,
-                &sender.raptorq,
-                client_id,
-                Some(&buffer[..cursor]),
-            )?,
-        )))?;
+            block_type,
+            &sender.raptorq,
+            client_id,
+            Some(&buffer[..cursor]),
+        )?))?;
 
         transmitted += cursor;
         cursor = 0;

@@ -4,7 +4,7 @@
 //! by the blocks structure. There are 5 block types:
 //! - `BlockType::Heartbeat` lets know the receiver that transfer can happen,
 //! - `BlockType::Start` informs the receiver that the sent data chunk represents the beginning of
-//!   a new transfer,
+//!   a new transfer, including as data the encoded `EndpointId`,
 //! - `BlockType::Data` is used to send a data chunk that is not the beginning nor the ending of
 //!   a transfer,
 //! - `BlockType::Abort` informs the receiver that the current transfer has been aborted on the
@@ -16,7 +16,7 @@
 //!
 //! ```text
 //!
-//! <-- 4 bytes -> <-- 1 byte --> <-- 4 bytes -->
+//! <-- 2 bytes -> <-- 1 byte --> <-- 4 bytes -->
 //! --------------+--------------+---------------+--------------------------------------
 //! |             |              |               |                                     |
 //! |  client_id  |  block_type  |  data_length  |  payload = data + optional padding  |
@@ -26,12 +26,11 @@
 //!
 //! ```
 //!
-//! 4-bytes values are encoded in little-endian byte order.
+//! byte values are encoded in little-endian byte order.
 //!
 //! In `Heartbeat` blocks, `client_id` is unused and should be set to 0 by the constructor
 //! caller. Also no data payload should be provided by the constructor caller in case the block
-//! is of type `Heartbeat`, `Abort` or `End`. Then the `data_length` will be set to 0 by the
-//! block constructor and the data chunk will be fully padded with zeros.
+//! is of type `Heartbeat`, `Abort` or `End`. For `Start`, it contains only the encoded `EndpointId`.
 
 use std::{fmt, io};
 
@@ -250,11 +249,18 @@ impl fmt::Display for EndpointId {
     }
 }
 
-pub type ClientId = u32;
+pub type ClientId = u16;
 
-const SERIALIZE_OVERHEAD: usize = 4 + 1 + 4;
+type DataLen = u32;
 
-pub struct Block(Vec<u8>);
+const BLOCK_TYPE_OFFSET: usize = size_of::<ClientId>();
+const DATA_LEN_OFFSET: usize = BLOCK_TYPE_OFFSET + 1;
+const SERIALIZE_OVERHEAD: usize = DATA_LEN_OFFSET + size_of::<DataLen>();
+
+pub struct Block {
+    id: u8,
+    data: Vec<u8>,
+}
 
 impl Block {
     /// Block constructor, craft a block according to the representation introduced in
@@ -266,53 +272,77 @@ impl Block {
     /// - if `block` is `BlockType::Heartbeat` then `client_id` should be equal to 0,
     /// - if there is some `data`, its length must be lower than `Messsage::max_data_len()`.
     pub fn new(
+        recycle: Option<Self>,
+        id: u8,
         block: BlockType,
         raptorq: &RaptorQ,
         client_id: ClientId,
         data: Option<&[u8]>,
     ) -> Result<Self, Error> {
-        let mut content = vec![
-            0u8;
-            usize::try_from(raptorq.transfer_length)
-                .map_err(|e| Error::TransferLengthTooLarge(e.to_string()))?
-        ];
-        content[0..4].copy_from_slice(&client_id.to_le_bytes());
-        content[4] = block.serialized();
+        let mut res = match recycle {
+            Some(mut res) => {
+                const DATA_LEN: DataLen = 0;
+                res.id = id;
+                res.data[DATA_LEN_OFFSET..DATA_LEN_OFFSET + size_of::<DataLen>()]
+                    .copy_from_slice(&DATA_LEN.to_le_bytes());
+                res
+            }
+            None => Self {
+                id,
+                data: vec![
+                    0u8;
+                    usize::try_from(raptorq.transfer_length)
+                        .map_err(|e| Error::TransferLengthTooLarge(e.to_string()))?
+                ],
+            },
+        };
+        res.data[0..size_of::<ClientId>()].copy_from_slice(&client_id.to_le_bytes());
+        res.data[BLOCK_TYPE_OFFSET] = block.serialized();
 
         if let Some(data) = data {
             let data_len = data.len();
-            content[5..9].copy_from_slice(&u32::to_le_bytes(
-                u32::try_from(data_len).map_err(|e| Error::DataTooLarge(e.to_string()))?,
-            ));
-            content[9..9 + data_len].copy_from_slice(data);
+            res.data[DATA_LEN_OFFSET..DATA_LEN_OFFSET + size_of::<DataLen>()].copy_from_slice(
+                &DataLen::to_le_bytes(
+                    DataLen::try_from(data_len).map_err(|e| Error::DataTooLarge(e.to_string()))?,
+                ),
+            );
+            res.data[SERIALIZE_OVERHEAD..SERIALIZE_OVERHEAD + data_len].copy_from_slice(data);
         }
 
-        Ok(Self(content))
+        Ok(res)
     }
 
     #[must_use]
     pub fn client_id(&self) -> ClientId {
-        u32::from_le_bytes([self.0[0], self.0[1], self.0[2], self.0[3]])
+        let mut client_id = [0u8; size_of::<ClientId>()];
+        client_id.copy_from_slice(&self.data[0..size_of::<ClientId>()]);
+        ClientId::from_le_bytes(client_id)
     }
 
     pub fn block_type(&self) -> Result<BlockType, Error> {
-        match self.0.get(4) {
-            Some(&ID_HEARTBEAT) => Ok(BlockType::Heartbeat),
-            Some(&ID_START) => Ok(BlockType::Start),
-            Some(&ID_DATA) => Ok(BlockType::Data),
-            Some(&ID_ABORT) => Ok(BlockType::Abort),
-            Some(&ID_END) => Ok(BlockType::End),
-            b => Err(Error::InvalidBlockType(b.copied())),
-        }
+        self.data
+            .get(BLOCK_TYPE_OFFSET)
+            .ok_or(Error::InvalidBlockType(None))
+            .and_then(|b| match *b {
+                ID_HEARTBEAT => Ok(BlockType::Heartbeat),
+                ID_START => Ok(BlockType::Start),
+                ID_DATA => Ok(BlockType::Data),
+                ID_ABORT => Ok(BlockType::Abort),
+                ID_END => Ok(BlockType::End),
+                b => Err(Error::InvalidBlockType(Some(b))),
+            })
     }
 
-    fn payload_len(&self) -> u32 {
-        u32::from_le_bytes([self.0[5], self.0[6], self.0[7], self.0[8]])
+    fn payload_len(&self) -> DataLen {
+        let mut data_len = [0u8; size_of::<DataLen>()];
+        data_len
+            .copy_from_slice(&self.data[DATA_LEN_OFFSET..DATA_LEN_OFFSET + size_of::<DataLen>()]);
+        DataLen::from_le_bytes(data_len)
     }
 
     #[must_use]
-    pub const fn deserialize(data: Vec<u8>) -> Self {
-        Self(data)
+    pub const fn deserialize(id: u8, data: Vec<u8>) -> Self {
+        Self { id, data }
     }
 
     #[must_use]
@@ -321,14 +351,19 @@ impl Block {
     }
 
     #[must_use]
-    pub fn payload(&self) -> &[u8] {
-        let len = self.payload_len();
-        &self.0[SERIALIZE_OVERHEAD..(SERIALIZE_OVERHEAD + len as usize)]
+    pub const fn id(&self) -> u8 {
+        self.id
     }
 
     #[must_use]
-    pub fn serialized(&self) -> &[u8] {
-        &self.0
+    pub fn payload(&self) -> &[u8] {
+        let len = self.payload_len();
+        &self.data[SERIALIZE_OVERHEAD..(SERIALIZE_OVERHEAD + len as usize)]
+    }
+
+    #[must_use]
+    pub const fn serialized(&self) -> &[u8] {
+        self.data.as_slice()
     }
 }
 
@@ -340,9 +375,10 @@ impl fmt::Display for Block {
         };
         write!(
             fmt,
-            "client {:x} block = {} data = {} byte(s)",
+            "client {:x} block = {} id = {} data = {} byte(s)",
             self.client_id(),
             msg_type,
+            self.id,
             self.payload_len()
         )
     }

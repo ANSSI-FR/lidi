@@ -4,7 +4,7 @@ use crate::client;
 use lidi_protocol as protocol;
 use std::{io::Read, os::fd::AsRawFd, sync};
 
-static CLIENT_ID_COUNTER: sync::atomic::AtomicU32 = sync::atomic::AtomicU32::new(0);
+static CLIENT_ID_COUNTER: sync::atomic::AtomicU16 = sync::atomic::AtomicU16::new(0);
 
 fn new_client_id() -> protocol::ClientId {
     CLIENT_ID_COUNTER.fetch_add(1, sync::atomic::Ordering::Relaxed)
@@ -33,10 +33,14 @@ where
                 .next_block
                 .fetch_add(1, sync::atomic::Ordering::SeqCst);
 
-            if let Err(e) = sender.to_udp.send(Some((
+            if let Err(e) = sender.to_udp.send(Some(protocol::Block::new(
+                sender.block_recycler.steal().success(),
                 block_id,
-                protocol::Block::new(protocol::BlockType::Abort, &sender.raptorq, client_id, None)?,
-            ))) {
+                protocol::BlockType::Abort,
+                &sender.raptorq,
+                client_id,
+                None,
+            )?)) {
                 log::error!("client {client_id:x}: failed to abort : {e}");
             }
         }

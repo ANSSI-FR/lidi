@@ -1,9 +1,12 @@
 //! Module for sending/receiving entire files into/from Lidi TCP or Unix sockets
+
+#[cfg(feature = "tls")]
+use crate::tls;
+use std::{fmt, io, num};
+
 pub mod protocol;
 pub mod receive;
 pub mod send;
-
-use std::{fmt, io, num};
 
 pub struct Config<D> {
     pub diode: D,
@@ -11,11 +14,14 @@ pub struct Config<D> {
     #[cfg(feature = "hash")]
     pub hash: bool,
     pub max_files: usize,
+    pub tls: crate::Tls,
 }
 
 pub enum Error {
     Io(io::Error),
     Diode(protocol::Error),
+    #[cfg(feature = "tls")]
+    Tls(tls::Error),
     Other(String),
 }
 
@@ -24,6 +30,8 @@ impl fmt::Display for Error {
         match self {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::Diode(e) => write!(fmt, "diode error: {e}"),
+            #[cfg(feature = "tls")]
+            Self::Tls(e) => write!(fmt, "TLS error: {e}"),
             Self::Other(e) => write!(fmt, "{e}"),
         }
     }
@@ -44,5 +52,12 @@ impl From<protocol::Error> for Error {
 impl From<num::TryFromIntError> for Error {
     fn from(e: num::TryFromIntError) -> Self {
         Self::Other(e.to_string())
+    }
+}
+
+#[cfg(feature = "tls")]
+impl From<tls::Error> for Error {
+    fn from(e: tls::Error) -> Self {
+        Self::Tls(e)
     }
 }

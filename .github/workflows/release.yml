@@ -2,57 +2,65 @@ name: Release
 
 on:
   push:
-    tags: [ v* ]
+    branches: [ master, dev ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
+  SUFFIX: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
 
 jobs:
-  create-release:
+  build-linux:
+    name: Build for Linux
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/create-gh-release-action@v1
+      - uses: actions/checkout@v6
+
+      - name: Update rust
+        run: rustup update
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Gather artifacts
+        run: |
+          mkdir -p artifacts/release/
+          cp target/release/lidi-{receive,send} artifacts/release/
+          cp target/release/lidi-{flood,oneshot}-{receive,send} artifacts/release/
+          cp target/release/lidi-{receive,send}-{file,udp} artifacts/release/
+          cp target/release/liblidi_bindings.so artifacts/release/
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-  upload:
-    runs-on: ubuntu-latest 
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/upload-rust-binary-action@v1
-        with:
-          bin: diode-send,diode-oneshot-send,diode-receive,diode-oneshot-receive,diode-send-file,diode-receive-file,diode-send-udp,diode-receive-udp
-          archive: lidi-$tag
-          token: ${{ secrets.GITHUB_TOKEN }}
-  build-and-push-docker-image:
-    name: Builds and pushes a tagged docker image
+          name: linux
+          path: artifacts
+          retention-days: 0
+
+  package:
+    name: Package artifacts
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        lidi_service:
-          - send
-          - receive
+    needs: [ build-linux ]
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
         with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: docker_meta
+          merge-multiple: true
+          path: artifacts
+
+      - name: Gathering artifacts
+        run: |
+          mkdir -p release/lidi-${{ env.SUFFIX }}
+          mv artifacts/release/* release/lidi-${{ env.SUFFIX }}/
+          cp -r LICENSE README.md release/lidi-${{ env.SUFFIX }}/
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
         with:
-          images: docker.io/anssi/lidi-${{ matrix.lidi_service }}
-          tags: |
-              type=semver,pattern={{version}}
-              type=semver,pattern={{major}}.{{minor}}
-              type=semver,pattern={{major}}
-      - uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          target: ${{ matrix.lidi_service }}
-          tags: ${{ steps.docker_meta.outputs.tags }}
-          labels: ${{ steps.docker_meta.outputs.labels }}
-      
+          name: lidi-${{ env.SUFFIX }}
+          path: release
 

@@ -1,7 +1,7 @@
 name: Doc
 on:
   push:
-    branches: [ master ]
+    tags: [ v* ]
 
 jobs:
   doc-build-and-deploy:
@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - uses: actions/setup-python@v4
     - name: Prepare
       run: pip install sphinx sphinx_rtd_theme

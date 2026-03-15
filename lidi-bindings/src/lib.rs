@@ -30,6 +30,7 @@ pub unsafe extern "C" fn diode_new_config(
         buffer_size: buffer_size as usize,
         hash: false,
         max_files: 0,
+        tls: lidi_clients::Tls::default(),
     });
     Box::into_raw(config)
 }
@@ -82,18 +83,23 @@ pub unsafe extern "C" fn diode_receive_files(
         return;
     }
     let config = unsafe { ptr.as_ref() }.expect("config");
-    let clients::DiodeSend::Tcp(socket_addr) = config.diode else {
-        return;
+
+    let (from_tcp, from_tls, from_unix) = match &config.diode {
+        clients::DiodeSend::Tcp(socket_addr) => (Some(*socket_addr), None, None),
+        clients::DiodeSend::Tls(socket_addr) => (None, Some(*socket_addr), None),
+        clients::DiodeSend::Unix(path) => (None, None, Some(path.clone())),
     };
 
     let config = clients::file::Config {
         diode: clients::DiodeReceive {
-            from_tcp: Some(socket_addr),
-            from_unix: None,
+            from_tcp,
+            from_tls,
+            from_unix,
         },
         buffer_size: config.buffer_size,
         hash: false,
         max_files: 0,
+        tls: config.tls.clone(),
     };
 
     if ptr_odir.is_null() {

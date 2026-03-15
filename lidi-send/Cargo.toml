@@ -12,6 +12,11 @@ version = "0"
 default-features = false
 features = [ "std" ]
 
+[dependencies.crossbeam-deque]
+version = "0"
+default-features = false
+features = [ "std" ]
+
 [dependencies.libc]
 version = "0"
 default-features = false

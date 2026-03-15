@@ -1,3 +1,10 @@
+mtu = 9000
+ports = [5001, 5002, 5003, 5004, 5005]
+block = 300_000
+repair = 1
+max_clients = 1
+
+
 [send.tls]
 key = "/tmp/ca/intermediate/private/server.key.pem"
 certificate = "/tmp/ca/intermediate/certs/server.cert.pem"
