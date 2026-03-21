@@ -1,6 +1,8 @@
 use serde::Deserialize;
+#[cfg(feature = "command-line")]
+use std::str::FromStr;
 use std::{
-    fmt, fs,
+    error, fmt, fs,
     io::{self, Read},
     net, path, time,
 };
@@ -18,12 +20,9 @@ const DEFAULT_REPAIR: u16 = 2;
 const DEFAULT_RESET_TIMEOUT_SECONDS: u64 = 2;
 const DEFAULT_QUEUE_SIZE: usize = 0;
 
-#[allow(unused)]
-const DEFAULT_TLS_MIN: TlsVersion = TlsVersion::Tls1_3;
-#[allow(unused)]
-const DEFAULT_TLS_METHOD: TlsMethod = TlsMethod::Mozilla_Modern_v5;
-
+#[derive(Debug)]
 pub enum Error {
+    Endpoint(String),
     Io(io::Error),
     Parsing(toml::de::Error),
 }
@@ -40,16 +39,19 @@ impl From<toml::de::Error> for Error {
     }
 }
 
+impl error::Error for Error {}
+
 impl fmt::Display for Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
+            Self::Endpoint(e) => write!(fmt, "invalid endpoint description: {e}"),
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::Parsing(e) => write!(fmt, "parsing error: {e}"),
         }
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Deserialize)]
 #[cfg_attr(feature = "command-line", derive(clap::ValueEnum))]
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum Mode {
@@ -68,7 +70,7 @@ impl fmt::Display for Mode {
     }
 }
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
 pub enum Endpoint {
     Tcp(net::SocketAddr),
@@ -76,16 +78,94 @@ pub enum Endpoint {
     Unix(path::PathBuf),
 }
 
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+impl FromStr for Endpoint {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.split_once(':') {
+            Some(("tcp", sockaddr)) => net::SocketAddr::from_str(sockaddr)
+                .map(Self::Tcp)
+                .map_err(|e| Error::Endpoint(format!("invalid socket addr for tcp endpoint: {e}"))),
+            Some(("tls", sockaddr)) => net::SocketAddr::from_str(sockaddr)
+                .map(Self::Tls)
+                .map_err(|e| Error::Endpoint(format!("invalid socket addr for tls endpoint: {e}"))),
+            Some(("unix", path)) => Ok(Self::Unix(path::PathBuf::from(path))),
+            Some((prefix, _)) => Err(Error::Endpoint(format!("unsupported prefix {prefix:?}"))),
+            None => Err(Error::Endpoint(String::from(
+                "invalid endpoint: missing prefix tcp: or tls: or unix:",
+            ))),
+        }
+    }
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[cfg_attr(feature = "command-line", derive(clap::Parser))]
 pub struct CommonConfig {
-    pub(crate) mtu: Option<u16>,
-    pub(crate) ports: Option<Vec<u16>>,
-    pub(crate) block: Option<u32>,
-    pub(crate) repair: Option<u16>,
+    #[serde(skip)]
+    #[cfg(feature = "command-line")]
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            value_name = "config_file_path",
+            help = "Path to configuration file (will be read before applying command line arguments)"
+        )
+    )]
+    pub(crate) config_file: Option<path::PathBuf>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "1280..9000",
+            help = "MTU of the link between sender and receiver"
+        )
+    )]
+    mtu: Option<u16>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "1..65535[, 1..65535]*",
+            value_delimiter = ',',
+            help = "Ports for UDP communications between sender and receiver",
+        )
+    )]
+    ports: Option<Vec<u16>>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long, help = "Size in bytes of RaptorQ block")
+    )]
+    block: Option<u32>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long, help = "Number of repair RaptorQ packets")
+    )]
+    repair: Option<u16>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "1..65535",
+            help = "Maximal number of simultaneous clients connections"
+        )
+    )]
     pub max_clients: Option<u32>,
-    pub(crate) hash: Option<bool>,
-    pub(crate) flush: Option<bool>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long, help = "Compute hash of data transmitted for each client")
+    )]
+    hash: Option<bool>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long, help = "Flush immediately data transmitted by each client")
+    )]
+    flush: Option<bool>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            help = "Duration in seconds between sent/expected heartbeat message (0 to disable)"
+        )
+    )]
     pub heartbeat: Option<u64>,
 }
 
@@ -135,156 +215,161 @@ impl CommonConfig {
     }
 }
 
-#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Default, Deserialize)]
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
+#[cfg_attr(
+    feature = "command-line",
+    derive(clap::ValueEnum),
+    clap(rename_all = "snake_case")
+)]
 pub enum TlsVersion {
     Tls1_1,
     Tls1_2,
+    #[default]
     Tls1_3,
 }
 
-#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Default, Deserialize)]
 #[serde(rename_all = "lowercase", deny_unknown_fields)]
+#[cfg_attr(
+    feature = "command-line",
+    derive(clap::ValueEnum),
+    clap(rename_all = "snake_case")
+)]
 #[allow(non_camel_case_types)]
 pub enum TlsMethod {
     Mozilla_Intermediate_v4,
     Mozilla_Intermediate_v5,
     Mozilla_Modern_v4,
+    #[default]
     Mozilla_Modern_v5,
 }
 
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[cfg_attr(feature = "command-line", derive(clap::Parser))]
 pub struct TlsConfig {
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            value_name = "key_file_path",
+            long = "tls-key",
+            help = "Path to PEM key file"
+        )
+    )]
     pub(crate) key: Option<path::PathBuf>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            value_name = "certificate_file_path",
+            long = "tls-certificate",
+            help = "Path to PEM certificate file"
+        )
+    )]
     pub(crate) certificate: Option<path::PathBuf>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            value_name = "ca_file_path",
+            long = "tls-ca",
+            help = "Path to PEM accepted CA file"
+        )
+    )]
     pub(crate) ca: Option<path::PathBuf>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long = "tls-min", help = "Minimum TLS accepted version")
+    )]
     pub(crate) tls_min: Option<TlsVersion>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long = "tls-method", help = "Minimum TLS accepted method")
+    )]
     pub(crate) tls_method: Option<TlsMethod>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long = "tls-ciphers", help = "Accepted TLS ciphers")
+    )]
     pub(crate) ciphers: Option<String>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long = "tls-groups", help = "Accepted TLS groups")
+    )]
     pub(crate) groups: Option<String>,
 }
 
-#[allow(unused)]
-impl TlsConfig {
-    #[must_use]
-    pub(crate) const fn key(&self) -> Option<&path::PathBuf> {
-        self.key.as_ref()
-    }
-
-    #[must_use]
-    pub(crate) const fn certificate(&self) -> Option<&path::PathBuf> {
-        self.certificate.as_ref()
-    }
-
-    #[must_use]
-    pub(crate) const fn ca(&self) -> Option<&path::PathBuf> {
-        self.ca.as_ref()
-    }
-
-    #[must_use]
-    pub(crate) const fn ciphers(&self) -> Option<&String> {
-        self.ciphers.as_ref()
-    }
-
-    #[must_use]
-    pub(crate) const fn groups(&self) -> Option<&String> {
-        self.groups.as_ref()
-    }
-
-    #[must_use]
-    pub(crate) fn tls_min(&self) -> TlsVersion {
-        self.tls_min.unwrap_or(DEFAULT_TLS_MIN)
-    }
-
-    #[must_use]
-    pub(crate) fn tls_method(&self) -> TlsMethod {
-        self.tls_method.unwrap_or(DEFAULT_TLS_METHOD)
-    }
+#[derive(Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[cfg_attr(feature = "command-line", derive(clap::Parser))]
+pub struct Receive {
+    #[cfg_attr(feature = "command-line", clap(long, help = "Log level"))]
+    log: Option<log::LevelFilter>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "log4rs_config_file_path",
+            help = "Path to log4rs config file"
+        )
+    )]
+    log4rs_config: Option<path::PathBuf>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "ip:port",
+            help = "Listen socket address for Prometheus connections"
+        )
+    )]
+    prometheus_listen: Option<net::SocketAddr>,
+    #[cfg_attr(feature = "command-line", clap(long,
+                                              value_name = "tcp:<ip:port>|tls:<ip:port>|unix:<socket_path>",
+                                              value_parser = Endpoint::from_str,
+                                              help = "Add a client endpoint"))]
+    to: Vec<Endpoint>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "ip",
+            help = "IP address on which to listen from sender UDP packets"
+        )
+    )]
+    from: Option<net::IpAddr>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long, help = "Mode used to receive UDP packets")
+    )]
+    mode: Option<Mode>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            help = "Maximum number of RaptorQ blocks to buffer for each client (0 means infinite)"
+        )
+    )]
+    queue_size: Option<usize>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            help = "Duration in seconds without UDP packets before resetting the internal state of the RaptorQ receiver"
+        )
+    )]
+    reset_timeout: Option<u64>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            help = "Duration in seconds without data for a client before closing the client connection"
+        )
+    )]
+    abort_timeout: Option<u64>,
+    #[cfg_attr(feature = "command-line", clap(flatten))]
+    tls: Option<TlsConfig>,
 }
 
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SendConfig {
-    pub(crate) log: Option<log::LevelFilter>,
-    pub(crate) log4rs_config: Option<path::PathBuf>,
-    pub(crate) prometheus_listen: Option<net::SocketAddr>,
-    pub(crate) from: Vec<Endpoint>,
-    pub(crate) to: Option<net::IpAddr>,
-    pub(crate) to_bind: Option<net::SocketAddr>,
-    pub(crate) mode: Option<Mode>,
-    pub(crate) tls: Option<TlsConfig>,
-}
-
-impl SendConfig {
-    #[must_use]
-    pub(crate) fn log(&self) -> log::LevelFilter {
-        self.log.unwrap_or(DEFAULT_LOG_LEVEL)
-    }
-
-    #[must_use]
-    pub(crate) fn log4rs_config(&self) -> Option<path::PathBuf> {
-        self.log4rs_config.clone()
-    }
-
-    #[must_use]
-    pub const fn prometheus_listen(&self) -> Option<net::SocketAddr> {
-        self.prometheus_listen
-    }
-
-    #[must_use]
-    pub fn from(&self) -> Vec<Endpoint> {
-        self.from.clone()
-    }
-
-    #[must_use]
-    pub fn to(&self) -> net::IpAddr {
-        self.to.unwrap_or(DEFAULT_RECEIVER)
-    }
-
-    #[must_use]
-    pub fn to_bind(&self) -> net::SocketAddr {
-        let ip4 = net::Ipv4Addr::UNSPECIFIED;
-        self.to_bind
-            .unwrap_or_else(|| net::SocketAddr::new(net::IpAddr::V4(ip4), 0))
-    }
-
-    #[must_use]
-    pub const fn mode(&self) -> Option<Mode> {
-        self.mode
-    }
-
-    #[must_use]
-    pub fn tls(&self) -> TlsConfig {
-        self.tls.clone().unwrap_or_default()
-    }
-
-    #[must_use]
-    #[allow(clippy::missing_panics_doc)]
-    pub fn tls_mut(&mut self) -> &mut TlsConfig {
-        if self.tls.is_none() {
-            self.tls = Some(TlsConfig::default());
-        }
-        self.tls.as_mut().unwrap()
-    }
-}
-
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ReceiveConfig {
-    pub(crate) log: Option<log::LevelFilter>,
-    pub(crate) log4rs_config: Option<path::PathBuf>,
-    pub(crate) prometheus_listen: Option<net::SocketAddr>,
-    pub(crate) to: Vec<Endpoint>,
-    pub(crate) from: Option<net::IpAddr>,
-    pub(crate) mode: Option<Mode>,
-    pub(crate) queue_size: Option<usize>,
-    pub(crate) reset_timeout: Option<u64>,
-    pub(crate) abort_timeout: Option<u64>,
-    pub(crate) tls: Option<TlsConfig>,
-}
-
-impl ReceiveConfig {
+impl Receive {
     #[must_use]
     pub(crate) fn log(&self) -> log::LevelFilter {
         self.log.unwrap_or(DEFAULT_LOG_LEVEL)
@@ -345,51 +430,154 @@ impl ReceiveConfig {
     }
 }
 
-#[derive(Default, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Config {
-    #[serde(flatten)]
-    common: CommonConfig,
-    pub(crate) send: Option<SendConfig>,
-    pub(crate) receive: Option<ReceiveConfig>,
+#[derive(Clone, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[cfg_attr(feature = "command-line", derive(clap::Parser))]
+pub struct Send {
+    #[cfg_attr(feature = "command-line", clap(long, help = "Log level"))]
+    log: Option<log::LevelFilter>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "log4rs_config_file_path",
+            help = "Path to log4rs config file"
+        )
+    )]
+    log4rs_config: Option<path::PathBuf>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "ip:port",
+            help = "Listen socket address for Prometheus connections"
+        )
+    )]
+    prometheus_listen: Option<net::SocketAddr>,
+    #[cfg_attr(feature = "command-line", clap(long,
+                                              value_name = "tcp:<ip:port>|tls:<ip:port>|unix:<socket_path>",
+                                              value_parser = Endpoint::from_str,
+                                              help = "Add a client TCP or TLS or UNIX endpoint"))]
+    from: Vec<Endpoint>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long, value_name = "ip", help = "IP address of receiver")
+    )]
+    to: Option<net::IpAddr>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(
+            long,
+            value_name = "ip:port",
+            help = "Binding address of UDP socket used to reach reaceiver"
+        )
+    )]
+    to_bind: Option<net::SocketAddr>,
+    #[cfg_attr(
+        feature = "command-line",
+        clap(long, help = "Mode used to send UDP packets")
+    )]
+    mode: Option<Mode>,
+    #[cfg_attr(feature = "command-line", clap(flatten))]
+    tls: Option<TlsConfig>,
 }
 
-impl Config {
+impl Send {
     #[must_use]
-    pub fn common(&self) -> CommonConfig {
-        self.common.clone()
-    }
-
-    #[allow(clippy::missing_panics_doc)] // cannot panic
-    pub const fn common_mut(&mut self) -> &mut CommonConfig {
-        &mut self.common
+    pub(crate) fn log(&self) -> log::LevelFilter {
+        self.log.unwrap_or(DEFAULT_LOG_LEVEL)
     }
 
     #[must_use]
-    pub fn send(&self) -> SendConfig {
-        self.send.clone().unwrap_or_default()
+    pub(crate) fn log4rs_config(&self) -> Option<path::PathBuf> {
+        self.log4rs_config.clone()
     }
 
-    #[allow(clippy::missing_panics_doc)] // cannot panic
-    pub fn send_mut(&mut self) -> &mut SendConfig {
-        if self.send.is_none() {
-            self.send = Some(SendConfig::default());
+    #[must_use]
+    pub const fn prometheus_listen(&self) -> Option<net::SocketAddr> {
+        self.prometheus_listen
+    }
+
+    #[must_use]
+    pub fn from(&self) -> Vec<Endpoint> {
+        self.from.clone()
+    }
+
+    #[must_use]
+    pub fn to(&self) -> net::IpAddr {
+        self.to.unwrap_or(DEFAULT_RECEIVER)
+    }
+
+    #[must_use]
+    pub fn to_bind(&self) -> net::SocketAddr {
+        let ip4 = net::Ipv4Addr::UNSPECIFIED;
+        self.to_bind
+            .unwrap_or_else(|| net::SocketAddr::new(net::IpAddr::V4(ip4), 0))
+    }
+
+    #[must_use]
+    pub const fn mode(&self) -> Option<Mode> {
+        self.mode
+    }
+
+    #[must_use]
+    pub fn tls(&self) -> TlsConfig {
+        self.tls.clone().unwrap_or_default()
+    }
+
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
+    pub fn tls_mut(&mut self) -> &mut TlsConfig {
+        if self.tls.is_none() {
+            self.tls = Some(TlsConfig::default());
         }
-        self.send.as_mut().unwrap()
+        self.tls.as_mut().unwrap()
     }
+}
 
-    #[must_use]
-    pub fn receive(&self) -> ReceiveConfig {
-        self.receive.clone().unwrap_or_default()
-    }
+#[cfg_attr(feature = "command-line", derive(clap::Parser))]
+#[derive(Default)]
+pub struct ReceiveConfig {
+    #[cfg_attr(feature = "command-line", clap(flatten))]
+    pub common: CommonConfig,
+    #[cfg_attr(feature = "command-line", clap(flatten))]
+    pub receive: Receive,
+}
 
-    #[allow(clippy::missing_panics_doc)] // cannot panic
-    pub fn receive_mut(&mut self) -> &mut ReceiveConfig {
-        if self.receive.is_none() {
-            self.receive = Some(ReceiveConfig::default());
+impl From<Config> for ReceiveConfig {
+    fn from(config: Config) -> Self {
+        Self {
+            common: config.common,
+            receive: config.receive,
         }
-        self.receive.as_mut().unwrap()
     }
+}
+
+#[cfg_attr(feature = "command-line", derive(clap::Parser))]
+#[derive(Default)]
+pub struct SendConfig {
+    #[cfg_attr(feature = "command-line", clap(flatten))]
+    pub common: CommonConfig,
+    #[cfg_attr(feature = "command-line", clap(flatten))]
+    pub send: Send,
+}
+
+impl From<Config> for SendConfig {
+    fn from(config: Config) -> Self {
+        Self {
+            common: config.common,
+            send: config.send,
+        }
+    }
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Config {
+    #[serde(flatten)]
+    pub(crate) common: CommonConfig,
+    pub(crate) receive: Receive,
+    pub(crate) send: Send,
 }
 
 pub(crate) fn parse(file: path::PathBuf) -> Result<Config, Error> {

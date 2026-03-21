@@ -1,9 +1,5 @@
-#[cfg(feature = "command-line")]
-use command_line::Args;
 use std::{env, fmt, net, path};
 
-#[cfg(feature = "command-line")]
-mod command_line;
 pub mod config;
 #[cfg(feature = "hash")]
 pub mod hash;
@@ -116,25 +112,55 @@ fn init_prometheus(prometheus_listen: Option<net::SocketAddr>) -> Result<(), Err
 
 #[derive(Clone, Copy)]
 pub enum Role {
-    Send,
     Receive,
+    Send,
 }
 
 impl Role {
     #[cfg(feature = "command-line")]
     fn parse_command_line(self) -> Result<config::Config, Error> {
-        match self {
-            Self::Send => command_line::SendArgs::parse_command_line(),
-            Self::Receive => command_line::ReceiveArgs::parse_command_line(),
-        }
+        use clap::Parser;
+
+        let config = match self {
+            Self::Receive => {
+                let mut receive_config = config::ReceiveConfig::parse();
+                if let Some(config_file) = receive_config.common.config_file {
+                    let mut config = config::ReceiveConfig::from(config::parse(config_file)?);
+                    config.update_from(env::args());
+                    receive_config = config;
+                }
+
+                config::Config {
+                    common: receive_config.common,
+                    receive: receive_config.receive,
+                    ..Default::default()
+                }
+            }
+            Self::Send => {
+                let mut send_config = config::SendConfig::parse();
+                if let Some(config_file) = send_config.common.config_file {
+                    let mut config = config::SendConfig::from(config::parse(config_file)?);
+                    config.update_from(env::args());
+                    send_config = config;
+                }
+
+                config::Config {
+                    common: send_config.common,
+                    send: send_config.send,
+                    ..Default::default()
+                }
+            }
+        };
+
+        Ok(config)
     }
 }
 
 impl fmt::Display for Role {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
-            Self::Send => write!(fmt, "send"),
             Self::Receive => write!(fmt, "receive"),
+            Self::Send => write!(fmt, "send"),
         }
     }
 }
@@ -175,14 +201,14 @@ pub fn command_arguments(
 
     let (log, log_file, prometheus_listen) = match role {
         Role::Send => (
-            config.send().log(),
-            config.send().log4rs_config(),
-            config.send().prometheus_listen(),
+            config.send.log(),
+            config.send.log4rs_config(),
+            config.send.prometheus_listen(),
         ),
         Role::Receive => (
-            config.receive().log(),
-            config.receive().log4rs_config(),
-            config.receive().prometheus_listen(),
+            config.receive.log(),
+            config.receive.log4rs_config(),
+            config.receive.prometheus_listen(),
         ),
     };
 

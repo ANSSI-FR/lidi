@@ -1,3 +1,4 @@
+use lidi_command_utils::config;
 #[cfg(feature = "from-tls")]
 use lidi_command_utils::tls;
 use lidi_protocol as protocol;
@@ -198,9 +199,13 @@ fn main() {
         }
     };
 
-    let common = config.common();
+    let config = config::SendConfig::from(config);
 
-    let raptorq = match protocol::RaptorQ::new(common.mtu(), common.block(), common.repair()) {
+    let raptorq = match protocol::RaptorQ::new(
+        config.common.mtu(),
+        config.common.block(),
+        config.common.repair(),
+    ) {
         Ok(raptorq) => raptorq,
         Err(e) => {
             log::error!("{e}");
@@ -219,7 +224,7 @@ fn main() {
     let sender = sync::Arc::new(sender);
 
     thread::scope(|scope| {
-        for (endpoint, from) in config.send().from().into_iter().enumerate() {
+        for (endpoint, from) in config.send.from().into_iter().enumerate() {
             let lsender = sender.clone();
 
             let endpoint = match u16::try_from(endpoint) {

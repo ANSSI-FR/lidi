@@ -46,18 +46,18 @@ impl TryFrom<&crate::config::TlsConfig> for ClientContext {
 
         let mut builder = openssl::ssl::SslContextBuilder::new(method)?;
 
-        let tls_min = match config.tls_min() {
+        let tls_min = match config.tls_min.unwrap_or_default() {
             crate::config::TlsVersion::Tls1_1 => openssl::ssl::SslVersion::TLS1_1,
             crate::config::TlsVersion::Tls1_2 => openssl::ssl::SslVersion::TLS1_2,
             crate::config::TlsVersion::Tls1_3 => openssl::ssl::SslVersion::TLS1_3,
         };
         builder.set_min_proto_version(Some(tls_min))?;
 
-        if let Some(ciphers) = config.ciphers() {
+        if let Some(ciphers) = &config.ciphers {
             builder.set_ciphersuites(ciphers)?;
         }
 
-        if let Some(groups) = config.groups() {
+        if let Some(groups) = &config.groups {
             builder.set_groups_list(groups)?;
         }
 
@@ -66,16 +66,16 @@ impl TryFrom<&crate::config::TlsConfig> for ClientContext {
         let options = options.union(openssl::ssl::SslOptions::CIPHER_SERVER_PREFERENCE);
         builder.set_options(options);
 
-        if let Some(certificate) = config.certificate() {
+        if let Some(certificate) = &config.certificate {
             builder.set_certificate_chain_file(certificate)?;
         }
 
-        if let Some(private_key) = config.key() {
+        if let Some(private_key) = &config.key {
             builder.set_private_key_file(private_key, openssl::ssl::SslFiletype::PEM)?;
             builder.check_private_key()?;
         }
 
-        if let Some(ca) = config.ca() {
+        if let Some(ca) = &config.ca {
             builder.set_ca_file(ca)?;
             builder.set_verify(
                 openssl::ssl::SslVerifyMode::PEER
@@ -135,7 +135,7 @@ impl TcpListener {
     ) -> Result<Self, Error> {
         let method = openssl::ssl::SslMethod::tls_server();
 
-        let mut builder = match config.tls_method() {
+        let mut builder = match config.tls_method.unwrap_or_default() {
             crate::config::TlsMethod::Mozilla_Intermediate_v4 => {
                 openssl::ssl::SslAcceptor::mozilla_intermediate(method)?
             }
@@ -150,18 +150,18 @@ impl TcpListener {
             }
         };
 
-        let tls_min = match config.tls_min() {
+        let tls_min = match config.tls_min.unwrap_or_default() {
             crate::config::TlsVersion::Tls1_1 => openssl::ssl::SslVersion::TLS1_1,
             crate::config::TlsVersion::Tls1_2 => openssl::ssl::SslVersion::TLS1_2,
             crate::config::TlsVersion::Tls1_3 => openssl::ssl::SslVersion::TLS1_3,
         };
         builder.set_min_proto_version(Some(tls_min))?;
 
-        if let Some(ciphers) = config.ciphers() {
+        if let Some(ciphers) = &config.ciphers {
             builder.set_ciphersuites(ciphers)?;
         }
 
-        if let Some(groups) = config.groups() {
+        if let Some(groups) = &config.groups {
             builder.set_groups_list(groups)?;
         }
 
@@ -170,16 +170,16 @@ impl TcpListener {
         let options = options.union(openssl::ssl::SslOptions::CIPHER_SERVER_PREFERENCE);
         builder.set_options(options);
 
-        if let Some(certificate) = config.certificate() {
+        if let Some(certificate) = &config.certificate {
             builder.set_certificate_chain_file(certificate)?;
         }
 
-        if let Some(private_key) = config.key() {
+        if let Some(private_key) = &config.key {
             builder.set_private_key_file(private_key, openssl::ssl::SslFiletype::PEM)?;
             builder.check_private_key()?;
         }
 
-        if let Some(ca) = config.ca() {
+        if let Some(ca) = &config.ca {
             builder.set_ca_file(ca)?;
             builder.set_verify(
                 openssl::ssl::SslVerifyMode::PEER

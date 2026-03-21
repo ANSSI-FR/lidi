@@ -1,3 +1,4 @@
+use lidi_command_utils::config;
 #[cfg(feature = "to-tls")]
 use lidi_command_utils::tls;
 use lidi_protocol as protocol;
@@ -129,9 +130,13 @@ fn main() {
         }
     };
 
-    let common = config.common();
+    let config = config::ReceiveConfig::from(config);
 
-    let raptorq = match protocol::RaptorQ::new(common.mtu(), common.block(), common.repair()) {
+    let raptorq = match protocol::RaptorQ::new(
+        config.common.mtu(),
+        config.common.block(),
+        config.common.repair(),
+    ) {
         Ok(raptorq) => raptorq,
         Err(e) => {
             log::error!("{e}");
@@ -140,7 +145,7 @@ fn main() {
     };
 
     #[cfg(feature = "to-tls")]
-    let tls = match lidi_command_utils::tls::ClientContext::try_from(&config.receive().tls()) {
+    let tls = match lidi_command_utils::tls::ClientContext::try_from(&config.receive.tls()) {
         Ok(tls) => tls,
         Err(e) => {
             log::error!("{e}");

@@ -172,18 +172,15 @@ struct Config {
     prometheus_listen: Option<net::SocketAddr>,
 }
 
-impl From<&config::Config> for Config {
-    fn from(config: &config::Config) -> Self {
-        let common = config.common();
-        let receive = config.receive();
-
+impl From<&config::ReceiveConfig> for Config {
+    fn from(config: &config::ReceiveConfig) -> Self {
         #[cfg(not(feature = "hash"))]
-        if common.hash() {
+        if config.common.hash() {
             log::warn!("hash was not enabled at compilation, ignoring this parameter");
         }
 
         #[cfg(not(feature = "heartbeat"))]
-        if common.heartbeat().is_some() {
+        if config.common.heartbeat().is_some() {
             log::warn!("heartbeat was not enabled at compilation, ignoring this parameter");
         }
 
@@ -196,7 +193,8 @@ impl From<&config::Config> for Config {
             config::Mode::Native,
         ];
 
-        let mode = receive
+        let mode = config
+            .receive
             .mode()
             .filter(|mode| {
                 if available_modes.contains(mode) {
@@ -209,22 +207,22 @@ impl From<&config::Config> for Config {
             .unwrap_or_else(|| available_modes[0]);
 
         Self {
-            mtu: common.mtu(),
-            ports: common.ports(),
-            max_clients: common.max_clients(),
+            mtu: config.common.mtu(),
+            ports: config.common.ports(),
+            max_clients: config.common.max_clients(),
             #[cfg(feature = "hash")]
-            hash: common.hash(),
-            flush: common.flush(),
+            hash: config.common.hash(),
+            flush: config.common.flush(),
             #[cfg(feature = "heartbeat")]
-            heartbeat: common.heartbeat(),
-            from: receive.from(),
-            to: receive.to(),
-            reset_timeout: receive.reset_timeout(),
-            abort_timeout: receive.abort_timeout(),
-            queue_size: receive.queue_size(),
+            heartbeat: config.common.heartbeat(),
+            from: config.receive.from(),
+            to: config.receive.to(),
+            reset_timeout: config.receive.reset_timeout(),
+            abort_timeout: config.receive.abort_timeout(),
+            queue_size: config.receive.queue_size(),
             mode,
             #[cfg(feature = "prometheus")]
-            prometheus_listen: receive.prometheus_listen(),
+            prometheus_listen: config.receive.prometheus_listen(),
         }
     }
 }
@@ -282,7 +280,7 @@ where
     }
 
     pub fn new(
-        config: &config::Config,
+        config: &config::ReceiveConfig,
         raptorq: protocol::RaptorQ,
         client_new: ClientNew,
         client_end: ClientEnd,

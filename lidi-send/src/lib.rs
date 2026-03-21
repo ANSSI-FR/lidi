@@ -112,18 +112,15 @@ struct Config {
     prometheus_listen: Option<net::SocketAddr>,
 }
 
-impl From<&config::Config> for Config {
-    fn from(config: &config::Config) -> Self {
-        let common = config.common();
-        let send = config.send();
-
+impl From<&config::SendConfig> for Config {
+    fn from(config: &config::SendConfig) -> Self {
         #[cfg(not(feature = "hash"))]
-        if common.hash() {
+        if config.common.hash() {
             log::warn!("hash was not enabled at compilation, ignoring this parameter");
         }
 
         #[cfg(not(feature = "heartbeat"))]
-        if common.heartbeat().is_some() {
+        if config.common.heartbeat().is_some() {
             log::warn!("heartbeat was not enabled at compilation, ignoring this parameter");
         }
 
@@ -136,7 +133,8 @@ impl From<&config::Config> for Config {
             config::Mode::Native,
         ];
 
-        let mode = send
+        let mode = config
+            .send
             .mode()
             .filter(|mode| {
                 if available_modes.contains(mode) {
@@ -149,21 +147,21 @@ impl From<&config::Config> for Config {
             .unwrap_or_else(|| available_modes[0]);
 
         Self {
-            mtu: common.mtu(),
-            ports: common.ports(),
-            max_clients: common.max_clients(),
+            mtu: config.common.mtu(),
+            ports: config.common.ports(),
+            max_clients: config.common.max_clients(),
             #[cfg(feature = "hash")]
-            hash: common.hash(),
-            flush: common.flush(),
+            hash: config.common.hash(),
+            flush: config.common.flush(),
             #[cfg(feature = "heartbeat")]
-            heartbeat: common.heartbeat(),
-            to: send.to(),
-            to_bind: send.to_bind(),
+            heartbeat: config.common.heartbeat(),
+            to: config.send.to(),
+            to_bind: config.send.to_bind(),
             mode,
             #[cfg(feature = "from-tls")]
-            tls: send.tls(),
+            tls: config.send.tls(),
             #[cfg(feature = "prometheus")]
-            prometheus_listen: config.send().prometheus_listen(),
+            prometheus_listen: config.send.prometheus_listen(),
         }
     }
 }
@@ -201,7 +199,7 @@ where
         }
     }
 
-    pub fn new(config: &config::Config, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
+    pub fn new(config: &config::SendConfig, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
         let config = Config::from(config);
 
         if config.ports.is_empty() {

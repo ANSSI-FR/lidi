@@ -1,8 +1,9 @@
+use lidi_command_utils::config;
 use lidi_protocol as protocol;
 use std::{io, process, thread};
 
 fn main() {
-    let mut config = match lidi_command_utils::command_arguments(
+    let config = match lidi_command_utils::command_arguments(
         lidi_command_utils::Role::Receive,
         true,
         false,
@@ -15,9 +16,13 @@ fn main() {
         }
     };
 
-    let common = config.common();
+    let mut config = config::ReceiveConfig::from(config);
 
-    let raptorq = match protocol::RaptorQ::new(common.mtu(), common.block(), common.repair()) {
+    let raptorq = match protocol::RaptorQ::new(
+        config.common.mtu(),
+        config.common.block(),
+        config.common.repair(),
+    ) {
         Ok(raptorq) => raptorq,
         Err(e) => {
             log::error!("{e}");
@@ -25,8 +30,8 @@ fn main() {
         }
     };
 
-    config.common_mut().max_clients = Some(1);
-    config.common_mut().heartbeat = None;
+    config.common.max_clients = Some(1);
+    config.common.heartbeat = None;
 
     let receiver = match lidi_receive::Receiver::new(
         &config,
