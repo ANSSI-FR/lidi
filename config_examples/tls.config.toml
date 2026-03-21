@@ -14,8 +14,8 @@ ca = "/tmp/ca/intermediate/certs/ca-chain.cert.pem"
 #ciphers = "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
 #groups = "secp521r1:secp384r1:brainpoolP512r1tls13:brainpoolP384r1tls13:brainpoolP256r1tls13"
 
-[[send.from]]
-tls = "127.0.0.1:4000"
+[send]
+from = [ "tls:127.0.0.1:4000" ]
 
 [receive.tls]
 key = "/tmp/ca/intermediate/private/client.key.pem"
@@ -26,7 +26,7 @@ ca = "/tmp/ca/intermediate/certs/ca-chain.cert.pem"
 #ciphers = "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
 #groups = "secp521r1:secp384r1:brainpoolP512r1tls13:brainpoolP384r1tls13:brainpoolP256r1tls13"
 
-[[receive.to]]
-tls = "127.0.0.1:7000"
+[receive]
+to = [ "tls:127.0.0.1:7000" ]
 
 

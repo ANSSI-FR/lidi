@@ -1,17 +1,15 @@
 use serde::Deserialize;
-#[cfg(feature = "command-line")]
-use std::str::FromStr;
 use std::{
     error, fmt, fs,
     io::{self, Read},
-    net, path, time,
+    net, path,
+    str::FromStr,
+    time,
 };
 
 const DEFAULT_RECEIVER: net::IpAddr = net::IpAddr::V4(net::Ipv4Addr::LOCALHOST);
 const DEFAULT_PORTS: &[u16] = &[5000];
 
-const DEFAULT_HASH: bool = false;
-const DEFAULT_FLUSH: bool = false;
 const DEFAULT_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Info;
 const DEFAULT_MAX_CLIENTS: u32 = 2;
 const DEFAULT_MTU: u16 = 1500;
@@ -70,30 +68,132 @@ impl fmt::Display for Mode {
     }
 }
 
-#[derive(Clone, Deserialize)]
-#[serde(rename_all = "lowercase", deny_unknown_fields)]
+#[derive(Clone, Copy, Default)]
+pub struct EndpointOptions {
+    pub flush: bool,
+    pub hash: bool,
+}
+
+impl fmt::Display for EndpointOptions {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(fmt, "flush = {}, hash = {}", self.flush, self.hash)
+    }
+}
+
+impl FromStr for EndpointOptions {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut res = Self::default();
+        for option in s.split(',') {
+            let Some((name, value)) = option.split_once('=') else {
+                return Err(Error::Endpoint(format!(
+                    "invalid option format: {option:?}"
+                )));
+            };
+            match name {
+                "flush" => {
+                    res.flush = bool::from_str(value)
+                        .map_err(|e| Error::Endpoint(format!("unknown flush option value: {e}")))?;
+                }
+                "hash" => {
+                    res.hash = bool::from_str(value)
+                        .map_err(|e| Error::Endpoint(format!("unknown hash option value: {e}")))?;
+                }
+                n => return Err(Error::Endpoint(format!("unknown option {n:?}"))),
+            }
+        }
+        Ok(res)
+    }
+}
+
+#[derive(Clone)]
 pub enum Endpoint {
-    Tcp(net::SocketAddr),
-    Tls(net::SocketAddr),
-    Unix(path::PathBuf),
+    Tcp {
+        address: net::SocketAddr,
+        options: EndpointOptions,
+    },
+    Tls {
+        address: net::SocketAddr,
+        options: EndpointOptions,
+    },
+    Unix {
+        path: path::PathBuf,
+        options: EndpointOptions,
+    },
+}
+
+impl Endpoint {
+    #[must_use]
+    pub const fn options(&self) -> &EndpointOptions {
+        match self {
+            Self::Tcp { options, .. } | Self::Tls { options, .. } | Self::Unix { options, .. } => {
+                options
+            }
+        }
+    }
 }
 
 impl FromStr for Endpoint {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.split_once(':') {
-            Some(("tcp", sockaddr)) => net::SocketAddr::from_str(sockaddr)
-                .map(Self::Tcp)
-                .map_err(|e| Error::Endpoint(format!("invalid socket addr for tcp endpoint: {e}"))),
-            Some(("tls", sockaddr)) => net::SocketAddr::from_str(sockaddr)
-                .map(Self::Tls)
-                .map_err(|e| Error::Endpoint(format!("invalid socket addr for tls endpoint: {e}"))),
-            Some(("unix", path)) => Ok(Self::Unix(path::PathBuf::from(path))),
-            Some((prefix, _)) => Err(Error::Endpoint(format!("unsupported prefix {prefix:?}"))),
-            None => Err(Error::Endpoint(String::from(
+        let Some((prefix, tail)) = s.split_once(':') else {
+            return Err(Error::Endpoint(String::from(
                 "invalid endpoint: missing prefix tcp: or tls: or unix:",
-            ))),
+            )));
+        };
+
+        let (prefix, options) = if prefix.ends_with(']') {
+            let Some((prefix, options)) = prefix.split_once('[') else {
+                return Err(Error::Endpoint(String::from(
+                    "missing '[' for endpoint options",
+                )));
+            };
+            (
+                prefix,
+                EndpointOptions::from_str(&options[..options.len() - 1])?,
+            )
+        } else {
+            (prefix, EndpointOptions::default())
+        };
+
+        match prefix {
+            "tcp" => net::SocketAddr::from_str(tail)
+                .map(|address| Self::Tcp { address, options })
+                .map_err(|e| Error::Endpoint(format!("invalid socket addr for tcp endpoint: {e}"))),
+            "tls" => net::SocketAddr::from_str(tail)
+                .map(|address| Self::Tls { address, options })
+                .map_err(|e| Error::Endpoint(format!("invalid socket addr for tls endpoint: {e}"))),
+            "unix" => {
+                let path = path::PathBuf::from(tail);
+                Ok(Self::Unix { path, options })
+            }
+            _ => Err(Error::Endpoint(format!("unsupported prefix {prefix:?}"))),
         }
+    }
+}
+
+struct EndpointVisitor;
+
+impl serde::de::Visitor<'_> for EndpointVisitor {
+    type Value = Endpoint;
+    fn expecting(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(fmt, "was expecting an endpoint definition")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Endpoint::from_str(v).map_err(serde::de::Error::custom)
+    }
+}
+
+impl<'de> Deserialize<'de> for Endpoint {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(EndpointVisitor)
     }
 }
 
@@ -151,16 +251,6 @@ pub struct CommonConfig {
     pub max_clients: Option<u32>,
     #[cfg_attr(
         feature = "command-line",
-        clap(long, help = "Compute hash of data transmitted for each client")
-    )]
-    hash: Option<bool>,
-    #[cfg_attr(
-        feature = "command-line",
-        clap(long, help = "Flush immediately data transmitted by each client")
-    )]
-    flush: Option<bool>,
-    #[cfg_attr(
-        feature = "command-line",
         clap(
             long,
             help = "Duration in seconds between sent/expected heartbeat message (0 to disable)"
@@ -195,16 +285,6 @@ impl CommonConfig {
     #[must_use]
     pub fn max_clients(&self) -> u32 {
         self.max_clients.unwrap_or(DEFAULT_MAX_CLIENTS)
-    }
-
-    #[must_use]
-    pub fn hash(&self) -> bool {
-        self.hash.unwrap_or(DEFAULT_HASH)
-    }
-
-    #[must_use]
-    pub fn flush(&self) -> bool {
-        self.flush.unwrap_or(DEFAULT_FLUSH)
     }
 
     #[must_use]
@@ -323,9 +403,8 @@ pub struct Receive {
     )]
     prometheus_listen: Option<net::SocketAddr>,
     #[cfg_attr(feature = "command-line", clap(long,
-                                              value_name = "tcp:<ip:port>|tls:<ip:port>|unix:<socket_path>",
                                               value_parser = Endpoint::from_str,
-                                              help = "Add a client endpoint"))]
+                                              help = "Add a client endpoint [tcp:<ip:port>|tls:<ip:port>|unix:<socket_path>][,<flush,hash>=<true|false>]*"))]
     to: Vec<Endpoint>,
     #[cfg_attr(
         feature = "command-line",
@@ -455,9 +534,8 @@ pub struct Send {
     )]
     prometheus_listen: Option<net::SocketAddr>,
     #[cfg_attr(feature = "command-line", clap(long,
-                                              value_name = "tcp:<ip:port>|tls:<ip:port>|unix:<socket_path>",
                                               value_parser = Endpoint::from_str,
-                                              help = "Add a client TCP or TLS or UNIX endpoint"))]
+                                              help = "Add a client endpoint [tcp:<ip:port>|tls:<ip:port>|unix:<socket_path>][,<flush,hash>=<true|false>]*"))]
     from: Vec<Endpoint>,
     #[cfg_attr(
         feature = "command-line",

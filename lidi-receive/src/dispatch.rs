@@ -96,7 +96,7 @@ pub fn start<ClientNew, ClientEnd>(
                     None => {
                         log::error!("client {client_id:x} for invalid endpoint");
                     }
-                    Some(endpoint) => {
+                    Some(endpoint_id) => {
                         let (client_sendq, client_recvq) = if 0 < receiver.config.queue_size {
                             crossbeam_channel::bounded::<protocol::Block>(
                                 receiver.config.queue_size,
@@ -107,7 +107,7 @@ pub fn start<ClientNew, ClientEnd>(
                         active_transfers.insert(client_id, client_sendq);
                         receiver
                             .to_clients
-                            .send((endpoint, client_id, client_recvq))?;
+                            .send((endpoint_id, client_id, client_recvq))?;
                     }
                 }
                 continue;

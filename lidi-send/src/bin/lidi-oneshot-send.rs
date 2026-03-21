@@ -49,7 +49,11 @@ fn main() {
             log::error!("failed to start diode sender: {e}");
         }
 
-        let err = if let Err(e) = sender.new_client(protocol::EndpointId::new(0), io::stdin()) {
+        let endpoint_options = config::EndpointOptions::default();
+
+        let err = if let Err(e) =
+            sender.new_client(protocol::EndpointId::new(0), endpoint_options, io::stdin())
+        {
             log::error!("failed to send Unix client to connect queue: {e}");
             Some(1)
         } else {

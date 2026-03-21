@@ -98,9 +98,6 @@ struct Config {
     mtu: u16,
     ports: Vec<u16>,
     max_clients: u32,
-    #[cfg(feature = "hash")]
-    hash: bool,
-    flush: bool,
     #[cfg(feature = "heartbeat")]
     heartbeat: Option<time::Duration>,
     to: net::IpAddr,
@@ -114,11 +111,6 @@ struct Config {
 
 impl From<&config::SendConfig> for Config {
     fn from(config: &config::SendConfig) -> Self {
-        #[cfg(not(feature = "hash"))]
-        if config.common.hash() {
-            log::warn!("hash was not enabled at compilation, ignoring this parameter");
-        }
-
         #[cfg(not(feature = "heartbeat"))]
         if config.common.heartbeat().is_some() {
             log::warn!("heartbeat was not enabled at compilation, ignoring this parameter");
@@ -150,9 +142,6 @@ impl From<&config::SendConfig> for Config {
             mtu: config.common.mtu(),
             ports: config.common.ports(),
             max_clients: config.common.max_clients(),
-            #[cfg(feature = "hash")]
-            hash: config.common.hash(),
-            flush: config.common.flush(),
             #[cfg(feature = "heartbeat")]
             heartbeat: config.common.heartbeat(),
             to: config.send.to(),
@@ -176,8 +165,10 @@ pub struct Sender<C> {
     raptorq: protocol::RaptorQ,
     next_block: sync::atomic::AtomicU8,
     block_recycler: crossbeam_deque::Injector<protocol::Block>,
-    to_server: crossbeam_channel::Sender<Option<(protocol::EndpointId, C)>>,
-    for_server: crossbeam_channel::Receiver<Option<(protocol::EndpointId, C)>>,
+    to_server:
+        crossbeam_channel::Sender<Option<(protocol::EndpointId, config::EndpointOptions, C)>>,
+    for_server:
+        crossbeam_channel::Receiver<Option<(protocol::EndpointId, config::EndpointOptions, C)>>,
     to_udp: crossbeam_channel::Sender<Option<protocol::Block>>,
     for_udp: crossbeam_channel::Receiver<Option<protocol::Block>>,
 }
@@ -306,8 +297,16 @@ where
     /// # Errors
     ///
     /// Will return `Err` if the `send` returns a `SendError<T>`.
-    pub fn new_client(&self, endpoint: protocol::EndpointId, client: C) -> Result<(), Error> {
-        if let Err(e) = self.to_server.send(Some((endpoint, client))) {
+    pub fn new_client(
+        &self,
+        endpoint_id: protocol::EndpointId,
+        endpoint_options: config::EndpointOptions,
+        client: C,
+    ) -> Result<(), Error> {
+        if let Err(e) = self
+            .to_server
+            .send(Some((endpoint_id, endpoint_options, client)))
+        {
             return Err(Error::Internal(format!("failed to enqueue client: {e}")));
         }
         Ok(())

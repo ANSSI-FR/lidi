@@ -61,10 +61,10 @@ impl AsRawFd for Client {
 impl Client {
     fn new(endpoint: &lidi_command_utils::config::Endpoint) -> Result<Self, lidi_receive::Error> {
         match endpoint {
-            lidi_command_utils::config::Endpoint::Tcp(to_tcp) => {
+            lidi_command_utils::config::Endpoint::Tcp { address, .. } => {
                 #[cfg(not(feature = "to-tcp"))]
                 {
-                    let _ = to_tcp;
+                    let _ = address;
                     Err(lidi_receive::Error::Io(io::Error::new(
                         io::ErrorKind::Unsupported,
                         "TCP endpoint not available (was not enabled at compilation)",
@@ -72,21 +72,21 @@ impl Client {
                 }
                 #[cfg(feature = "to-tcp")]
                 {
-                    let client = net::TcpStream::connect(to_tcp)?;
+                    let client = net::TcpStream::connect(address)?;
                     Ok(Self::Tcp(client))
                 }
             }
-            lidi_command_utils::config::Endpoint::Tls(to_tls) => {
-                let _ = to_tls;
+            lidi_command_utils::config::Endpoint::Tls { address, .. } => {
+                let _ = address;
                 Err(lidi_receive::Error::Io(io::Error::new(
                     io::ErrorKind::Unsupported,
-                    "TLS endpoint not available (was not enabled at compilation)",
+                    "Tls endpoint not available (was not enabled at compilation)",
                 )))
             }
-            lidi_command_utils::config::Endpoint::Unix(to_unix) => {
+            lidi_command_utils::config::Endpoint::Unix { path, .. } => {
                 #[cfg(not(feature = "to-unix"))]
                 {
-                    let _ = to_unix;
+                    let _ = path;
                     Err(lidi_receive::Error::Io(io::Error::new(
                         io::ErrorKind::Unsupported,
                         "Unix endpoint not available (was not enabled at compilation)",
@@ -94,7 +94,7 @@ impl Client {
                 }
                 #[cfg(feature = "to-unix")]
                 {
-                    let client = unix::net::UnixStream::connect(to_unix)?;
+                    let client = unix::net::UnixStream::connect(path)?;
                     Ok(Self::Unix(client))
                 }
             }
@@ -107,8 +107,8 @@ impl Client {
         endpoint: &lidi_command_utils::config::Endpoint,
     ) -> Result<Self, lidi_receive::Error> {
         match endpoint {
-            lidi_command_utils::config::Endpoint::Tls(to_tls) => {
-                let client = tls::TcpStream::connect(tls, to_tls)?;
+            lidi_command_utils::config::Endpoint::Tls { address, .. } => {
+                let client = tls::TcpStream::connect(tls, address)?;
                 Ok(Self::Tls(client))
             }
             e => Self::new(e),

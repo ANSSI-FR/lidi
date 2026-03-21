@@ -1,11 +1,13 @@
 //! Worker that reads data from a client socket and split it into [`crate::protocol`] blocks
 
+use lidi_command_utils::config;
 use lidi_protocol as protocol;
 use std::{io, os::fd::AsRawFd, sync};
 
 pub fn start<C>(
     sender: &crate::Sender<C>,
-    endpoint: protocol::EndpointId,
+    endpoint_id: protocol::EndpointId,
+    endpoint_options: config::EndpointOptions,
     client_id: protocol::ClientId,
     mut client: C,
 ) -> Result<(), crate::Error>
@@ -24,7 +26,7 @@ where
         protocol::BlockType::Start,
         &sender.raptorq,
         client_id,
-        Some(&endpoint.serialize()),
+        Some(&endpoint_id.serialize()),
     )?))?;
 
     let mut buffer = vec![0; protocol::Block::max_data_len(&sender.raptorq)];
@@ -32,7 +34,7 @@ where
     let mut transmitted = 0;
 
     #[cfg(feature = "hash")]
-    let mut hasher = if sender.config.hash {
+    let mut hasher = if endpoint_options.hash {
         Some(lidi_command_utils::hash::StreamHasher::default())
     } else {
         None
@@ -47,7 +49,7 @@ where
             log::trace!("client {client_id:x}: {read} bytes read");
             cursor += read;
 
-            if !(sender.config.flush || cursor >= buffer.len()) {
+            if !(endpoint_options.flush || cursor >= buffer.len()) {
                 continue;
             }
         }

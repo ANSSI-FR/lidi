@@ -26,7 +26,16 @@ where
         )));
     };
 
-    log::info!("client {client_id:x}: starting transfer to endpoint {endpoint_id}");
+    let endpoint_options = endpoint.options();
+
+    log::info!(
+        "client {client_id:x}: starting transfer to endpoint {endpoint_id} ({endpoint_options})"
+    );
+
+    #[cfg(not(feature = "hash"))]
+    if endpoint_options.hash {
+        log::warn!("hash was not enabled at compilation, ignoring this parameter");
+    }
 
     let client = (receiver.client_new)(endpoint, client_id).map_err(Into::into)?;
     let mut client =
@@ -35,7 +44,7 @@ where
     let mut transmitted = 0;
 
     #[cfg(feature = "hash")]
-    let mut hasher = if receiver.config.hash {
+    let mut hasher = if endpoint_options.hash {
         Some(lidi_command_utils::hash::StreamHasher::default())
     } else {
         None
@@ -63,7 +72,7 @@ where
             transmitted += payload.len();
 
             client.write_all(payload)?;
-            if receiver.config.flush {
+            if endpoint_options.flush {
                 client.flush()?;
             }
         }

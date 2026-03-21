@@ -15,7 +15,7 @@ where
     C: Read + AsRawFd + Send,
 {
     loop {
-        let Some((endpoint, client)) = sender.for_server.recv()? else {
+        let Some((endpoint_id, endpoint_options, client)) = sender.for_server.recv()? else {
             for _ in 0..sender.config.ports.len() {
                 sender.to_udp.send(None)?;
             }
@@ -24,7 +24,7 @@ where
 
         let client_id = new_client_id();
 
-        let client_res = client::start(sender, endpoint, client_id, client);
+        let client_res = client::start(sender, endpoint_id, endpoint_options, client_id, client);
 
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: error: {e}");

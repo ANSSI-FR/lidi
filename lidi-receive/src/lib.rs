@@ -157,9 +157,6 @@ struct Config {
     mtu: u16,
     ports: Vec<u16>,
     max_clients: u32,
-    #[cfg(feature = "hash")]
-    hash: bool,
-    flush: bool,
     #[cfg(feature = "heartbeat")]
     heartbeat: Option<time::Duration>,
     from: net::IpAddr,
@@ -174,11 +171,6 @@ struct Config {
 
 impl From<&config::ReceiveConfig> for Config {
     fn from(config: &config::ReceiveConfig) -> Self {
-        #[cfg(not(feature = "hash"))]
-        if config.common.hash() {
-            log::warn!("hash was not enabled at compilation, ignoring this parameter");
-        }
-
         #[cfg(not(feature = "heartbeat"))]
         if config.common.heartbeat().is_some() {
             log::warn!("heartbeat was not enabled at compilation, ignoring this parameter");
@@ -210,9 +202,6 @@ impl From<&config::ReceiveConfig> for Config {
             mtu: config.common.mtu(),
             ports: config.common.ports(),
             max_clients: config.common.max_clients(),
-            #[cfg(feature = "hash")]
-            hash: config.common.hash(),
-            flush: config.common.flush(),
             #[cfg(feature = "heartbeat")]
             heartbeat: config.common.heartbeat(),
             from: config.receive.from(),

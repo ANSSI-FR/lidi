@@ -3,8 +3,6 @@ ports = [5001, 5002, 5003, 5004]
 block = 300_000
 repair = 3
 max_clients = 2
-hash = false
-flush = false
 heartbeat = 10
 
 [send]
@@ -14,11 +12,7 @@ to_bind = "0.0.0.0:0"
 mode = "mmsg"
 prometheus_listen = "127.0.0.1:9001"
 
-[[send.from]]
-tcp = "127.0.0.1:4000"
-
-[[send.from]]
-unix = "/tmp/source_to_tcp_port_6001"
+from = [ "tcp:127.0.0.1:4000", "unix:/tmp/source_to_tcp_port_6001" ]
 
 [receive]
 log = "INFO"
@@ -29,9 +23,5 @@ reset_timeout = 2
 abort_timeout = 60
 prometheus_listen = "127.0.0.1:9002"
 
-[[receive.to]]
-unix = "/tmp/dest_from_tcp_port_4000"
-
-[[receive.to]]
-tcp = "127.0.0.1:6001"
+to = [ "unix:/tmp/dest_from_tcp_port_4000", "tcp:127.0.0.1:6001" ]
 

@@ -3,8 +3,6 @@ ports = [5001, 5002, 5003, 5004]
 block = 300_000
 repair = 3
 max_clients = 2
-hash = false
-flush = false
 heartbeat = 10
 
 [send]
@@ -15,8 +13,7 @@ mode = "mmsg"
 prometheus_listen = "127.0.0.1:9001"
 #log4rs_config = "lidi_log4rs.yml"
 
-[[send.from]]
-tcp = "127.0.0.1:4000"
+from = [ "tcp[flush=true]:127.0.0.1:4000" ]
 
 [receive]
 log = "INFO"
@@ -28,6 +25,5 @@ abort_timeout = 60
 prometheus_listen = "127.0.0.1:9002"
 #log4rs_config = "lidi_log4rs.yml"
 
-[[receive.to]]
-tcp = "127.0.0.1:6000"
+to = [ "tcp[flush=true]:127.0.0.1:6000" ]
 

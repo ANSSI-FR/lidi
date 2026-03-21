@@ -1,3 +1,5 @@
+#[cfg(feature = "command-line")]
+use clap::Parser;
 use std::{env, fmt, net, path};
 
 pub mod config;
@@ -119,8 +121,6 @@ pub enum Role {
 impl Role {
     #[cfg(feature = "command-line")]
     fn parse_command_line(self) -> Result<config::Config, Error> {
-        use clap::Parser;
-
         let config = match self {
             Self::Receive => {
                 let mut receive_config = config::ReceiveConfig::parse();

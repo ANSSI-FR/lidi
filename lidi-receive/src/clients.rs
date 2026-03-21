@@ -15,9 +15,9 @@ where
     E: Into<crate::Error>,
 {
     loop {
-        let (endpoint, client_id, recvq) = receiver.for_clients.recv()?;
+        let (endpoint_id, client_id, recvq) = receiver.for_clients.recv()?;
 
-        let client_res = client::start(receiver, endpoint, client_id, &recvq);
+        let client_res = client::start(receiver, endpoint_id, client_id, &recvq);
 
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: {e}");
