@@ -21,8 +21,6 @@ def build_lidi_config(context, udp_port, log_config):
         f"block = {block}",
         f"repair = {repair}",
         f"max_clients = {max_clients}",
-        f"hash = {str(hash_val).lower()}",
-        f"flush = {str(flush).lower()}",
         f"heartbeat = {heartbeat}",
         "",
         "[send]",
@@ -32,9 +30,7 @@ def build_lidi_config(context, udp_port, log_config):
         'mode = "mmsg"',
         'prometheus_listen = "127.0.0.1:9001"',
         f"{log_config}",
-        "",
-        "[[send.from]]",
-        f'tcp = "127.0.0.1:{context.tcp_send_port}"',
+        f'from = [ "tcp[hash={str(hash_val).lower()},flush={str(flush).lower()}]:127.0.0.1:{context.tcp_send_port}" ]',
         "",
         "[receive]",
         'log = "DEBUG"',
@@ -45,9 +41,7 @@ def build_lidi_config(context, udp_port, log_config):
         "abort_timeout = 60",
         'prometheus_listen = "127.0.0.1:9002"',
         f"{log_config}",
-        "",
-        "[[receive.to]]",
-        f'tcp = "127.0.0.1:{context.tcp_receive_port}"'
+        f'to = [ "tcp[hash={str(hash_val).lower()},flush={str(flush).lower()}]:127.0.0.1:{context.tcp_receive_port}" ]'
     ]
 
     return "\n".join(config_lines)
