@@ -8,7 +8,7 @@ import os
 # function call before any feature or scenario
 def before_all(context):
     # build all applications before running any test
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'lidi-receive', '--bin', 'lidi-send', '--bin', 'lidi-network-simulator', '--bin', 'lidi-flood-receive', '--bin', 'lidi-receive-file', '--bin', 'lidi-send-file'])
+    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'lidi-receive', '--bin', 'lidi-send', '--bin', 'lidi-network-simulator', '--bin', 'lidi-flood-receive', '--bin', 'lidi-receive-file', '--bin', 'lidi-send-file', '--bin', 'lidi-send-dir'])
     proc.communicate()
 
 

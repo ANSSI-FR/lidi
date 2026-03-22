@@ -202,8 +202,7 @@ def start_diode_send_dir(context):
 
     diode_send_dir_command = [
         f'{context.bin_dir}/lidi-send-dir',
-        '--log-config', context.log_config_diode_send_dir,
-        '--maximum-files', '1',
+        '--max-files', '1',
         '--to-tcp', f'127.0.0.1:{context.tcp_send_port}',
         context.send_dir.name
     ]
