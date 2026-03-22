@@ -4,29 +4,29 @@ use std::{net, path};
 #[derive(clap::Args)]
 #[group(required = true, multiple = false)]
 #[allow(clippy::struct_field_names)]
-struct Listeners {
+struct Clients {
     #[clap(
         value_name = "ip:port",
         long,
-        help = "IP address and port to accept TCP connections from lidi-receive"
+        help = "TCP address and port to connect to lidi-send"
     )]
-    from_tcp: Option<net::SocketAddr>,
+    to_tcp: Option<net::SocketAddr>,
     #[clap(
         value_name = "ip:port",
         long,
-        help = "IP address and port to accept TLS connections from lidi-receive"
+        help = "TLS address and port to connect to lidi-send"
     )]
-    from_tls: Option<net::SocketAddr>,
+    to_tls: Option<net::SocketAddr>,
     #[clap(
         value_name = "path",
         long,
-        help = "Path of Unix socket to accept Unix connections from lidi-receive"
+        help = "Path to Unix socket to connect to lidi-send"
     )]
-    from_unix: Option<path::PathBuf>,
+    to_unix: Option<path::PathBuf>,
 }
 
 #[derive(Parser)]
-#[clap(about = "Receive file(s) sent by lidi-send-file through lidi.")]
+#[clap(about = "Send a file to lidi-receive-file through lidi.")]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -36,30 +36,30 @@ struct Args {
     )]
     log_level: log::LevelFilter,
     #[clap(flatten)]
-    from: Listeners,
+    to: Clients,
     #[clap(
         default_value = "4194304",
         value_name = "bytes",
         long,
-        help = "Size of client write buffer"
+        help = "Size of client internal read/write buffer"
     )]
     buffer_size: usize,
     #[cfg(feature = "hash")]
-    #[clap(long, help = "Verify the hash of file content")]
+    #[clap(long, help = "Compute and send the hash of file content")]
     hash: bool,
     #[clap(
         long,
         default_value = "0",
         value_name = "max_files",
-        help = "Exits after receiving max_files files"
+        help = "Exits after sending max_files files"
     )]
     max_files: usize,
-    #[clap(long, value_name = "overwrite", help = "Overwrite existing files")]
-    overwrite: bool,
     #[clap(flatten)]
     tls: lidi_clients::Tls,
-    #[clap(default_value = ".", help = "Output directory")]
-    output_directory: path::PathBuf,
+    #[clap(long, help = "Wait/watch for new files after sending existing files")]
+    wait: bool,
+    #[clap(help = "Directory containing files to send")]
+    dir: String,
 }
 
 fn main() {
@@ -76,10 +76,14 @@ fn main() {
         env!("CARGO_PKG_VERSION")
     );
 
-    let diode = lidi_clients::DiodeReceive {
-        from_tcp: args.from.from_tcp,
-        from_tls: args.from.from_tls,
-        from_unix: args.from.from_unix,
+    let diode = if let Some(to_tcp) = args.to.to_tcp {
+        lidi_clients::DiodeSend::Tcp(to_tcp)
+    } else if let Some(to_tls) = args.to.to_tls {
+        lidi_clients::DiodeSend::Tls(to_tls)
+    } else if let Some(to_unix) = args.to.to_unix {
+        lidi_clients::DiodeSend::Unix(to_unix)
+    } else {
+        unreachable!()
     };
 
     let config = lidi_clients::file::Config {
@@ -88,13 +92,13 @@ fn main() {
         #[cfg(feature = "hash")]
         hash: args.hash,
         max_files: args.max_files,
-        overwrite: args.overwrite,
+        overwrite: false,
         #[cfg(feature = "inotify")]
-        wait: false,
+        wait: args.wait,
         tls: args.tls,
     };
 
-    if let Err(e) = lidi_clients::file::receive::receive_files(&config, &args.output_directory) {
+    if let Err(e) = lidi_clients::file::send::send_dir(&config, &args.dir) {
         log::error!("{e}");
     }
 }

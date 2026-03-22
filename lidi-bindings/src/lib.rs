@@ -30,6 +30,8 @@ pub unsafe extern "C" fn diode_new_config(
         buffer_size: buffer_size as usize,
         hash: false,
         max_files: 0,
+        overwrite: false,
+        wait: false,
         tls: lidi_clients::Tls::default(),
     });
     Box::into_raw(config)
@@ -99,6 +101,8 @@ pub unsafe extern "C" fn diode_receive_files(
         buffer_size: config.buffer_size,
         hash: false,
         max_files: 0,
+        overwrite: false,
+        wait: false,
         tls: config.tls.clone(),
     };
 

@@ -12,4 +12,4 @@ crate-type = ["dylib"]
 [dependencies.lidi-clients]
 path = "../lidi-clients"
 default-features = false
-features = [ "hash" ]
+features = [ "hash", "inotify" ]

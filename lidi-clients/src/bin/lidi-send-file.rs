@@ -83,6 +83,9 @@ fn main() {
         #[cfg(feature = "hash")]
         hash: args.hash,
         max_files: 0,
+        overwrite: false,
+        #[cfg(feature = "inotify")]
+        wait: false,
         tls: args.tls,
     };
 

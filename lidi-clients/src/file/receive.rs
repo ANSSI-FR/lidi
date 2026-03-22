@@ -76,7 +76,7 @@ fn receive_tcp_loop<'a>(
         }
         count += 1;
         let (client, client_addr) = server.accept()?;
-        log::info!("new TCP client ({client_addr}) connected");
+        log::debug!("new TCP client ({client_addr}) connected");
         scope.spawn(|| match receive_file(config, client, output_dir) {
             Ok(total) => log::info!("file received, {total} bytes received"),
             Err(e) => log::error!("failed to receive file: {e}"),
@@ -145,20 +145,21 @@ where
 {
     let header = file::protocol::Header::deserialize_from(&mut diode)?;
 
-    log::debug!("receiving file \"{}\"", header.file_name);
-    log::debug!("file size = {}", header.file_length);
-
     let file_path = path::PathBuf::from(header.file_name);
     let file_name = file_path
         .file_name()
         .ok_or_else(|| file::Error::Other(String::from("unwrap of file_name failed")))?;
     let file_path = output_dir.join(path::PathBuf::from(file_name));
 
-    log::debug!("storing at \"{}\"", file_path.display());
+    log::info!(
+        "receiving file {} ({} bytes)",
+        file_path.display(),
+        header.file_length
+    );
 
-    if file_path.exists() {
+    if !config.overwrite && file_path.exists() {
         return Err(file::Error::Other(format!(
-            "file \"{}\" already exists",
+            "file {} already exists",
             file_path.display()
         )));
     }

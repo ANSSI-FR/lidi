@@ -12,6 +12,17 @@ version = "4"
 default-features = false
 features = [ "color", "derive", "error-context", "help", "std", "suggestions", "usage" ]
 
+[dependencies.crossbeam-channel]
+version = "0"
+optional = true
+default-features = false
+features = [ "std" ]
+
+[dependencies.inotify]
+version = "0"
+optional = true
+default-features = false
+
 [dependencies.log]
 version = "0"
 default-features = false
@@ -39,8 +50,9 @@ default-features = false
 features = [ "std", "xxhash3_128" ]
 
 [features]
-default = [ "hash", "tcp", "tls", "unix" ]
+default = [ "hash", "inotify", "tcp", "tls", "unix" ]
 hash = [ "dep:twox-hash" ]
+inotify = [ "dep:crossbeam-channel", "dep:inotify" ]
 tcp = [ ]
 tls = [ "dep:openssl" ]
 unix = [ ]

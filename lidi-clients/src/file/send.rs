@@ -11,6 +11,124 @@ use std::{
     os::unix::fs::PermissionsExt,
     path,
 };
+#[cfg(feature = "inotify")]
+use std::{io, thread};
+
+#[cfg(feature = "inotify")]
+fn notifier_thread(
+    dir: &path::Path,
+    to_copy: &crossbeam_channel::Sender<path::PathBuf>,
+) -> Result<(), file::Error> {
+    let mut inotify = inotify::Inotify::init()?;
+
+    inotify.watches().add(
+        dir,
+        inotify::WatchMask::CLOSE_WRITE | inotify::WatchMask::MOVED_TO,
+    )?;
+
+    let mut buffer = [0u8; 4096];
+
+    loop {
+        let events = inotify.read_events_blocking(&mut buffer)?;
+        for event in events {
+            if let Some(name) = event.name {
+                let path = dir.join(name);
+                to_copy.send(path).map_err(|e| {
+                    file::Error::Io(io::Error::new(io::ErrorKind::BrokenPipe, e.to_string()))
+                })?;
+            }
+        }
+    }
+}
+
+#[cfg(feature = "inotify")]
+fn wait_send_dir(config: &file::Config<crate::DiodeSend>, path: path::PathBuf, mut count: usize) {
+    let (to_copy, for_copy) = crossbeam_channel::unbounded();
+
+    thread::spawn(move || {
+        if let Err(e) = notifier_thread(&path, &to_copy) {
+            log::error!("{e}");
+        }
+    });
+
+    loop {
+        if config.max_files != 0 && count >= config.max_files {
+            break;
+        }
+
+        let Ok(path) = for_copy.recv() else {
+            break;
+        };
+
+        let Ok(path) = path
+            .into_os_string()
+            .into_string()
+            .inspect_err(|e| log::error!("unsupported file name {}", e.display()))
+        else {
+            continue;
+        };
+
+        match send_file(config, &path) {
+            Ok(total) => {
+                log::info!("file {path:?} sent, {total} bytes sent");
+            }
+            Err(e) => {
+                log::error!("failed to send file {path}: {e}");
+            }
+        }
+
+        count += 1;
+    }
+}
+
+pub fn send_dir(config: &file::Config<crate::DiodeSend>, path: &String) -> Result<(), file::Error> {
+    let dir = path::PathBuf::from(path);
+
+    if !dir.is_dir() {
+        return Err(file::Error::Other(format!("{path:?} is not a directory")));
+    }
+
+    let mut count = 0;
+
+    for file in dir
+        .read_dir()?
+        .filter_map(|entry| {
+            entry
+                .inspect_err(|e| log::error!("failed to read entry: {e}"))
+                .ok()
+                .map(|entry| entry.path())
+        })
+        .filter(|path| path.is_file())
+    {
+        let Ok(file_path) = file
+            .as_os_str()
+            .to_os_string()
+            .into_string()
+            .inspect_err(|e| {
+                log::error!(
+                    "unsupported file name {} for {}",
+                    file.display(),
+                    e.display()
+                );
+            })
+        else {
+            continue;
+        };
+        let total = send_file(config, &file_path)?;
+        log::info!("file {path:?} sent, {total} bytes sent");
+
+        count += 1;
+
+        if config.max_files != 0 && count >= config.max_files {
+            return Ok(());
+        }
+    }
+
+    #[cfg(feature = "inotify")]
+    wait_send_dir(config, dir, count);
+
+    Ok(())
+}
 
 /// # Errors
 ///
@@ -18,11 +136,11 @@ use std::{
 /// returns an `Err`.
 pub fn send_files(
     config: &file::Config<crate::DiodeSend>,
-    files: &[String],
+    paths: &[String],
 ) -> Result<(), file::Error> {
-    for file in files {
-        let total = send_file(config, file)?;
-        log::info!("file send, {total} bytes sent");
+    for path in paths {
+        let total = send_file(config, path)?;
+        log::info!("file {path:?} sent, {total} bytes sent");
     }
     Ok(())
 }
@@ -36,7 +154,7 @@ pub fn send_files(
 ///   fails.
 pub fn send_file(
     config: &file::Config<crate::DiodeSend>,
-    file_path: &String,
+    path: &String,
 ) -> Result<usize, file::Error> {
     log::debug!("connecting to {}", config.diode);
 
@@ -51,7 +169,7 @@ pub fn send_file(
             #[cfg(feature = "tcp")]
             {
                 let diode = net::TcpStream::connect(socket_addr)?;
-                send_file_aux(config, diode, file_path)
+                send_file_aux(config, diode, &path::PathBuf::from(path))
             }
         }
         crate::DiodeSend::Tls(socket_addr) => {
@@ -65,7 +183,7 @@ pub fn send_file(
             {
                 let context = tls::ClientContext::try_from(&config.tls)?;
                 let diode = tls::TcpStream::connect(&context, socket_addr)?;
-                send_file_aux(config, diode, file_path)
+                send_file_aux(config, diode, &path::PathBuf::from(path))
             }
         }
         crate::DiodeSend::Unix(path) => {
@@ -78,7 +196,7 @@ pub fn send_file(
             #[cfg(feature = "unix")]
             {
                 let diode = unix::net::UnixStream::connect(path)?;
-                send_file_aux(config, diode, file_path)
+                send_file_aux(config, diode, &path::PathBuf::from(path))
             }
         }
     }
@@ -87,14 +205,12 @@ pub fn send_file(
 fn send_file_aux<D>(
     config: &file::Config<crate::DiodeSend>,
     mut diode: D,
-    file_path: &String,
+    file_path: &path::PathBuf,
 ) -> Result<usize, file::Error>
 where
     D: Read + Write,
 {
-    log::debug!("opening file {file_path:?}");
-
-    let file_path = path::PathBuf::from(file_path);
+    log::debug!("opening file {}", file_path.display());
 
     if !file_path.is_file() {
         return Err(file::Error::Other(String::from("not a file")));
@@ -104,7 +220,7 @@ where
         .read(true)
         .write(false)
         .create(false)
-        .open(&file_path)?;
+        .open(file_path)?;
 
     let file_name = file_path
         .file_name()
@@ -138,6 +254,12 @@ where
     } else {
         None
     };
+
+    log::info!(
+        "sending file {} ({} bytes)",
+        file_path.display(),
+        header.file_length
+    );
 
     loop {
         match file.read(&mut buffer[cursor..])? {
