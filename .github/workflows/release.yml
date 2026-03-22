@@ -19,11 +19,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install just
+
       - name: Update rust
         run: rustup update
 
       - name: Build release
-        run: cargo build --release
+        run: just release
 
       - name: Gather artifacts
         run: |
@@ -31,6 +36,7 @@ jobs:
           cp target/release/lidi-{receive,send} artifacts/release/
           cp target/release/lidi-{flood,oneshot}-{receive,send} artifacts/release/
           cp target/release/lidi-{receive,send}-{file,udp} artifacts/release/
+          cp target/release/lidi-network-simulator artifacts/release/
           cp target/release/liblidi_bindings.so artifacts/release/
 
       - name: Upload release artifacts

@@ -17,8 +17,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt install just
+
       - name: Update rust
         run: rustup update
 
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features --workspace
+        run: just clippy
