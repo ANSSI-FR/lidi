@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::{net, path};
+use std::{net, os::unix::ffi::OsStrExt, path};
 
 #[derive(clap::Args)]
 #[group(required = true, multiple = false)]
@@ -54,10 +54,12 @@ struct Args {
         help = "Exits after receiving max_files files"
     )]
     max_files: usize,
-    #[clap(long, value_name = "overwrite", help = "Overwrite existing files")]
+    #[clap(long, help = "Overwrite existing files")]
     overwrite: bool,
     #[clap(flatten)]
     tls: lidi_clients::Tls,
+    #[clap(long, help = "Chroot in output directory before receiving files")]
+    chroot: bool,
     #[clap(default_value = ".", help = "Output directory")]
     output_directory: path::PathBuf,
 }
@@ -94,7 +96,41 @@ fn main() {
         tls: args.tls,
     };
 
-    if let Err(e) = lidi_clients::file::receive::receive_files(&config, &args.output_directory) {
+    let output_directory = if args.chroot {
+        let mut bytes_output_directory = Vec::from(args.output_directory.as_os_str().as_bytes());
+        bytes_output_directory.push(0);
+
+        let c_output_directory = match std::ffi::CString::from_vec_with_nul(bytes_output_directory)
+        {
+            Ok(res) => res,
+            Err(e) => {
+                log::error!(
+                    "failed to convert output directory to C string {}: {e}",
+                    args.output_directory.display()
+                );
+                std::process::exit(1);
+            }
+        };
+
+        if unsafe { libc::chroot(c_output_directory.as_ptr()) } != 0 {
+            let err_str =
+                unsafe { std::ffi::CStr::from_ptr(libc::strerror(*libc::__errno_location())) }
+                    .to_string_lossy();
+            log::error!(
+                "failed to chroot in {}: {err_str}",
+                args.output_directory.display()
+            );
+            std::process::exit(1);
+        }
+
+        log::info!("chrooted in {}", args.output_directory.display());
+
+        path::PathBuf::from("/")
+    } else {
+        args.output_directory
+    };
+
+    if let Err(e) = lidi_clients::file::receive::receive_files(&config, &output_directory) {
         log::error!("{e}");
     }
 }

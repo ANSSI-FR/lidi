@@ -7,6 +7,9 @@ release_tcp_mmsg:
 release_tls_native:
     cargo build --release --no-default-features --features from-tls,to-tls,tls,receive-native,send-native
 
+grant_chroot_receive_file:
+    sudo setcap cap_sys_chroot=pe target/release/lidi-receive-file
+
 clean:
     cargo clean
 

@@ -28,7 +28,9 @@ jobs:
         run: rustup update
 
       - name: Build release
-        run: just release
+        run: |
+          just release
+          just grant_chroot_receive_file
 
       - name: Gather artifacts
         run: |

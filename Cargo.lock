@@ -636,6 +636,7 @@ dependencies = [
  "clap",
  "crossbeam-channel",
  "inotify",
+ "libc",
  "log",
  "openssl",
  "rand 0.10.0",
