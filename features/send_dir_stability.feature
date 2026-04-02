@@ -17,7 +17,7 @@ Feature: Check diode-send-dir is still working after a diode-send restart
     And diode-file-receive file B in 5 seconds
 
   Scenario: Many files in dir before starting diode-send-dir
-    Given diode is started with max throughput of 100 Mb/s
+    Given diode is started with max throughput of 100mbit
     When we copy 500 files of size 1KB
     And diode-send-dir is started
     And we copy 500 files of size 1KB

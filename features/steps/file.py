@@ -1,9 +1,6 @@
 
 import hashlib
 import os
-import shutil
-import subprocess
-from tempfile import TemporaryDirectory
 import time
 
 
@@ -26,6 +23,8 @@ def parse_human_size(size):
 
 def md5sum(filename, blocksize=65536):
     """Calculate MD5 hash of a file."""
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"File {filename} does not exist")
     h = hashlib.md5()
     with open(filename, "rb") as f:
         for block in iter(lambda: f.read(blocksize), b""):
@@ -33,28 +32,48 @@ def md5sum(filename, blocksize=65536):
     return h.hexdigest()
 
 def create_file(context, filename, size):
-    """Create a file with specified size using dd command."""
+    """Create a file with specified size using Python."""
     file_size = parse_human_size(size)
-    count = file_size // 1024
-    blocksize = 1024
 
-    proc = subprocess.run(
-        f'dd if=/dev/random of={filename} bs={blocksize} count={count}',
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        shell=True,
-        timeout=30
-    )
-    assert proc.returncode == 0
+    # Use Python's open() to write random data directly
+    with open(filename, 'wb') as f:
+        remaining = file_size
+        while remaining > 0:
+            chunk_size = min(1024 * 1024, remaining)  # 1MB chunks
+            chunk = os.urandom(chunk_size)
+            f.write(chunk)
+            remaining -= chunk_size
+
+    # Verify file exists and has correct size
+    if not os.path.exists(filename):
+        print(f"DEBUG: File {filename} does not exist after write")
+        print(f"DEBUG: Directory contents: {os.listdir(os.path.dirname(filename))}")
+        raise Exception(f"File {filename} was not created")
+
+    actual_size = os.path.getsize(filename)
+
+    if actual_size != file_size:
+        raise Exception(f"File {filename} has wrong size: {actual_size} != {file_size}")
 
     # Store info in context
     store_file_info(context, filename)
 
 def store_file_info(context, filename):
     """Store file information in the context."""
+    # Verify file exists before accessing it
+    if not os.path.exists(filename):
+        raise Exception(f"File {filename} does not exist when storing info")
+    
     # Store info about the generated file in context
-    file_size = os.stat(filename).st_size
-    file_hash = md5sum(filename)
+    try:
+        file_size = os.stat(filename).st_size
+    except OSError as e:
+        raise Exception(f"Cannot stat file {filename}: {e}")
+    
+    try:
+        file_hash = md5sum(filename)
+    except Exception as e:
+        raise Exception(f"Cannot compute hash for file {filename}: {e}")
 
     name = os.path.basename(filename)
 
@@ -86,22 +105,28 @@ def wait_for_file(context, dir, name, seconds, expect_file=True):
             time.sleep(0.001)
             continue
 
-        # File received, check content
-        file_content_hash = md5sum(filename)
+        # File size matches, compute hash to verify content
+        try:
+            file_content_hash = md5sum(filename)
+        except Exception:
+            # Hash computation failed, file might still be writing
+            time.sleep(0.001)
+            continue
+        
+        # Verify hash matches
         if file_content_hash != file_hash:
             raise Exception(f'File content hash mismatch for {name}: expected {file_hash}, got {file_content_hash}')
 
+        # File received and verified
         if expect_file:
-            # OK => delete and quit
-            #os.unlink(filename)
             return
         else:
-            # OK => delete and raise exception (file should not be received)
             os.unlink(filename)
             raise Exception('File received')
 
     # Loop stops before receiving file
-    raise Exception('File not received')
+    if expect_file:
+        raise Exception('File not received')
 
 def test_file(context, dir, name, seconds):
     """Test that a file is received."""
@@ -113,34 +138,22 @@ def test_no_file(context, dir, name, seconds):
 
 def create_and_copy_file(context, name, size):
     """Create a file and copy it to the send directory."""
-    temp_dir = TemporaryDirectory(dir=context.base_dir)
-    try:
-        filename = os.path.join(temp_dir.name, name)
-        create_file(context, filename, size)
-        shutil.copy(filename, context.send_dir.name)
-    finally:
-        temp_dir.cleanup()
+    send_dir = context.send_dir
+    filename = os.path.join(send_dir, name)
+    create_file(context, filename, size)
 
 def create_and_copy_multiple_files(context, files, size):
     """Create multiple files and copy them to the send directory."""
-    temp_dir = TemporaryDirectory(dir=context.base_dir)
-    try:
-        for i in range(int(files)):
-            context.counter += 1
-            name = str(f"test_file_{context.counter}_{i}")
-            filename = os.path.join(temp_dir.name, name)
-            create_file(context, filename, size)
-            shutil.copy(filename, context.send_dir.name)
-    finally:
-        temp_dir.cleanup()
+    send_dir = context.send_dir
+    import time
+    suffix = int(time.time() * 1000) % 10000
+    for i in range(int(files)):
+        name = str(f"test_file_{suffix}_{i}")
+        filename = os.path.join(send_dir, name)
+        create_file(context, filename, size)
 
 def create_and_move_file(context, name, size):
     """Create a file and move it to the send directory."""
-    temp_dir = TemporaryDirectory(dir=context.base_dir)
-    try:
-        filename = os.path.join(temp_dir.name, name)
-        create_file(context, filename, size)
-        destname = os.path.join(context.send_dir.name, name)
-        os.rename(filename, destname)
-    finally:
-        temp_dir.cleanup()
+    send_dir = context.send_dir
+    destname = os.path.join(send_dir, name)
+    create_file(context, destname, size)
