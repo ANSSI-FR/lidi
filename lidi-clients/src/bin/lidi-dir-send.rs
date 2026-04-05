@@ -26,7 +26,7 @@ struct Clients {
 }
 
 #[derive(Parser)]
-#[clap(about = "Send a file to lidi-receive-file through lidi.")]
+#[clap(about = "Send a directory to lidi-file-receive through lidi.")]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -35,6 +35,8 @@ struct Args {
         help = "Log level"
     )]
     log_level: log::LevelFilter,
+    #[clap(long, help = "Path to log4rs configuration file")]
+    log_config: Option<path::PathBuf>,
     #[clap(flatten)]
     to: Clients,
     #[clap(
@@ -47,16 +49,27 @@ struct Args {
     #[cfg(feature = "hash")]
     #[clap(long, help = "Compute and send the hash of file content")]
     hash: bool,
+    #[clap(
+        long,
+        default_value = "0",
+        value_name = "max_files",
+        help = "Exits after sending max_files files"
+    )]
+    max_files: usize,
     #[clap(flatten)]
     tls: lidi_clients::Tls,
-    #[clap(help = "Files to send")]
-    files: Vec<String>,
+    #[clap(long, help = "Regex of file names to ignore")]
+    ignore: Option<regex::Regex>,
+    #[clap(long, help = "Watch for new files")]
+    watch: bool,
+    #[clap(help = "Directory containing files to send")]
+    dir: String,
 }
 
 fn main() {
     let args = Args::parse();
 
-    if let Err(e) = lidi_clients::init_logger(args.log_level) {
+    if let Err(e) = lidi_clients::init_logger(args.log_level, args.log_config.as_ref()) {
         eprintln!("failed to initialize logger: {e}");
         return;
     }
@@ -82,14 +95,15 @@ fn main() {
         buffer_size: args.buffer_size,
         #[cfg(feature = "hash")]
         hash: args.hash,
-        max_files: 0,
+        max_files: args.max_files,
         overwrite: false,
+        ignore: args.ignore,
         #[cfg(feature = "inotify")]
-        wait: false,
+        watch: args.watch,
         tls: args.tls,
     };
 
-    if let Err(e) = lidi_clients::file::send::send_files(&config, &args.files) {
+    if let Err(e) = lidi_clients::file::send::send_dir(&config, &args.dir) {
         log::error!("{e}");
     }
 }

@@ -12,7 +12,9 @@
 use clap::Parser;
 use lidi_clients::init_logger;
 use std::net::Ipv4Addr;
+use std::net::SocketAddr;
 use std::net::UdpSocket;
+use std::path;
 use std::time::Instant;
 
 #[derive(Parser, Debug)]
@@ -24,7 +26,7 @@ struct Args {
 
     /// UDP ip:port to connect to sent packets
     #[arg(short, long)]
-    to_udp: String,
+    to_udp: SocketAddr,
 
     /// Maximum transmission bandwidth (in bits/s)
     #[arg(short, long)]
@@ -52,7 +54,8 @@ struct Args {
 
     /// Path to log configuration file
     #[arg(long)]
-    log_config: Option<String>,
+    log_config: Option<path::PathBuf>,
+
     /// Verbosity level. Using it multiple times adds more logs.
     #[arg(long, default_value_t = log::LevelFilter::Info)]
     pub log_level: log::LevelFilter,
@@ -276,7 +279,7 @@ fn main() {
         max_bandwidth = Some(MaxBandwidth::new(bandwidth));
     }
 
-    if let Err(e) = init_logger(args.log_level) {
+    if let Err(e) = init_logger(args.log_level, args.log_config.as_ref()) {
         eprintln!("Unable to init log {:?}: {}", args.log_config, e);
         return;
     }
@@ -288,16 +291,13 @@ fn main() {
     // setsockopt(&rx_socket, RcvBuf, &rx_size).expect("Cant set rx socket rcvbuf");
 
     let tx_socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).expect("Cant bind tx socket");
-    tx_socket
-        .connect(args.to_udp)
-        .expect("Cant connect tx socket");
 
     let mut buf = vec![0u8; u16::MAX as usize];
     loop {
         let mut send_packet = true;
 
-        let len = rx_socket
-            .recv(&mut buf)
+        let (len, _) = rx_socket
+            .recv_from(&mut buf)
             .expect("Can't recv message from socket");
 
         // apply all network algo. we drop packet if at least one says no
@@ -322,7 +322,7 @@ fn main() {
         }
 
         if send_packet {
-            if let Err(err) = tx_socket.send(&buf[0..len]) {
+            if let Err(err) = tx_socket.send_to(&buf[0..len], args.to_udp) {
                 log::warn!("Cannot send packets: {err}");
             }
             stats.sent(len);

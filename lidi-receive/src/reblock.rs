@@ -10,11 +10,48 @@ struct Block {
     packets: Vec<raptorq::EncodingPacket>,
 }
 
-#[allow(clippy::too_many_lines)]
+fn send_to_decode(
+    to_decode: &crossbeam_channel::Sender<super::Reassembled>,
+    id: u8,
+    blocks: &mut [Block],
+    nb_packets: usize,
+) -> Result<bool, crate::Error> {
+    blocks[id as usize].ignore = true;
+
+    let packets = mem::replace(
+        &mut blocks[id as usize].packets,
+        Vec::with_capacity(nb_packets),
+    );
+
+    to_decode.send(super::Reassembled::Block { id, packets })?;
+
+    #[cfg(feature = "prometheus")]
+    metrics::counter!("lidi_receive_blocks_reassembled").increment(1);
+
+    log::trace!("reassembled block {id}");
+
+    let opposite = id.wrapping_add(WINDOW_WIDTH) as usize;
+
+    if blocks[opposite].ignore {
+        blocks[opposite].ignore = false;
+
+        if !blocks[opposite].packets.is_empty() {
+            #[cfg(feature = "prometheus")]
+            metrics::counter!("lidi_receive_blocks_lost").increment(1);
+            log::error!("lost block {opposite} (too far)");
+            to_decode.send(super::Reassembled::Error)?;
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
 pub fn start<ClientNew, ClientEnd>(
     receiver: &crate::Receiver<ClientNew, ClientEnd>,
 ) -> Result<(), crate::Error> {
-    let min_nb_packets = usize::from(receiver.raptorq.min_nb_packets());
+    let min_nb_packets = usize::try_from(receiver.raptorq.min_nb_packets())
+        .map_err(|e| crate::Error::Internal(format!("min_nb_packets: {e}")))?;
     let nb_packets = usize::try_from(receiver.raptorq.nb_packets())
         .map_err(|e| crate::Error::Internal(format!("nb_packets: {e}")))?;
 
@@ -33,25 +70,40 @@ pub fn start<ClientNew, ClientEnd>(
             .recv_timeout(receiver.config.reset_timeout)
         {
             Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                reset = true;
+                if !reset {
+                    reset = true;
 
-                let damaged = blocks
-                    .iter()
-                    .filter(|block| !block.ignore)
-                    .map(|block| block.packets.len() as u64)
-                    .sum();
-
-                if 0u64 < damaged {
-                    #[cfg(feature = "prometheus")]
-                    metrics::counter!("lidi_receive_blocks_damaged").increment(damaged);
-                    log::error!("non empty block after timeout");
-                    receiver.to_decode.send(super::Reassembled::Error)?;
+                    let prev = cur_id.wrapping_sub(1);
+                    while cur_id != prev {
+                        let nb_packets = blocks[cur_id as usize].packets.len();
+                        if 0 < nb_packets {
+                            if nb_packets < min_nb_packets {
+                                log::warn!(
+                                    "block {cur_id} is incomplete ({nb_packets} packets) after reset timeout, forcibly send to decode"
+                                );
+                            }
+                            let _ = send_to_decode(
+                                &receiver.to_decode,
+                                cur_id,
+                                &mut blocks,
+                                nb_packets,
+                            )?;
+                        }
+                        cur_id = cur_id.wrapping_add(1);
+                    }
                 }
 
                 continue;
             }
             Err(e) => return Err(crate::Error::from(e)),
-            Ok(packets) => packets,
+            Ok(packets) => {
+                #[cfg(not(feature = "receive-mmsg"))]
+                {
+                    [packets]
+                }
+                #[cfg(feature = "receive-mmsg")]
+                packets
+            }
         };
 
         if reset {
@@ -62,9 +114,6 @@ pub fn start<ClientNew, ClientEnd>(
                 block.packets.clear();
             }
 
-            #[cfg(not(feature = "receive-mmsg"))]
-            let first_packet = &packets;
-            #[cfg(feature = "receive-mmsg")]
             let first_packet = &packets[0];
 
             cur_id = first_packet.payload_id().source_block_number();
@@ -77,60 +126,33 @@ pub fn start<ClientNew, ClientEnd>(
             }
         }
 
-        #[cfg(not(feature = "receive-mmsg"))]
-        {
-            let id = packets.payload_id().source_block_number() as usize;
+        let mut fast_track = false;
 
-            if blocks[id].ignore {
-                #[cfg(feature = "prometheus")]
-                metrics::counter!("lidi_receive_packets_ignored").increment(1);
+        for packet in packets {
+            let id = packet.payload_id().source_block_number();
+
+            if blocks[id as usize].ignore {
+                if id == cur_id.wrapping_add(WINDOW_WIDTH) {
+                    fast_track = true;
+                    blocks[id as usize].ignore = false;
+                    blocks[id as usize].packets.push(packet);
+                } else {
+                    #[cfg(feature = "prometheus")]
+                    metrics::counter!("lidi_receive_packets_ignored").increment(1);
+                }
             } else {
-                blocks[id].packets.push(packets);
+                blocks[id as usize].packets.push(packet);
             }
         }
-        #[cfg(feature = "receive-mmsg")]
-        for packet in packets {
-            let id = packet.payload_id().source_block_number() as usize;
 
-            if blocks[id].ignore {
-                #[cfg(feature = "prometheus")]
-                metrics::counter!("lidi_receive_packets_ignored").increment(1);
-            } else {
-                blocks[id].packets.push(packet);
-            }
+        if fast_track {
+            log::warn!("probable network interrupt, fast track first block");
+            let _ = send_to_decode(&receiver.to_decode, cur_id, &mut blocks, nb_packets)?;
+            cur_id = cur_id.wrapping_add(1);
         }
 
         while blocks[cur_id as usize].packets.len() >= min_nb_packets {
-            blocks[cur_id as usize].ignore = true;
-
-            let packets = mem::replace(
-                &mut blocks[cur_id as usize].packets,
-                Vec::with_capacity(nb_packets),
-            );
-
-            #[cfg(feature = "prometheus")]
-            metrics::counter!("lidi_receive_blocks_reassembled").increment(1);
-
-            log::trace!("reassembled block {cur_id}");
-
-            receiver.to_decode.send(super::Reassembled::Block {
-                id: cur_id,
-                packets,
-            })?;
-
-            let opposite = cur_id.wrapping_add(WINDOW_WIDTH) as usize;
-
-            if !blocks[opposite].packets.is_empty() {
-                #[cfg(feature = "prometheus")]
-                metrics::counter!("lidi_receive_blocks_lost").increment(1);
-                log::error!("lost block {opposite} (too far)");
-                receiver.to_decode.send(super::Reassembled::Error)?;
-                reset = true;
-                break;
-            }
-
-            blocks[opposite].ignore = false;
-
+            reset = send_to_decode(&receiver.to_decode, cur_id, &mut blocks, nb_packets)?;
             cur_id = cur_id.wrapping_add(1);
         }
 

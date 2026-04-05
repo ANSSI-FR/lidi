@@ -26,7 +26,7 @@ struct Clients {
 }
 
 #[derive(Parser)]
-#[clap(about = "Send UDP datagrams to lidi-receive-udp.")]
+#[clap(about = "Send a file to lidi-file-receive through lidi.")]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -35,22 +35,30 @@ struct Args {
         help = "Log level"
     )]
     log_level: log::LevelFilter,
+    #[clap(long, help = "Path to log4rs configuration file")]
+    log_config: Option<path::PathBuf>,
     #[clap(flatten)]
     to: Clients,
     #[clap(
-        value_name = "ip:port",
+        default_value = "4194304",
+        value_name = "bytes",
         long,
-        help = "IP address and port to receive UDP packets"
+        help = "Size of client internal read/write buffer"
     )]
-    from: net::SocketAddr,
+    buffer_size: usize,
+    #[cfg(feature = "hash")]
+    #[clap(long, help = "Compute and send the hash of file content")]
+    hash: bool,
     #[clap(flatten)]
     tls: lidi_clients::Tls,
+    #[clap(help = "Files to send")]
+    files: Vec<String>,
 }
 
 fn main() {
     let args = Args::parse();
 
-    if let Err(e) = lidi_clients::init_logger(args.log_level) {
+    if let Err(e) = lidi_clients::init_logger(args.log_level, args.log_config.as_ref()) {
         eprintln!("failed to initialize logger: {e}");
         return;
     }
@@ -71,13 +79,20 @@ fn main() {
         unreachable!()
     };
 
-    let config = lidi_clients::udp::Config {
+    let config = lidi_clients::file::Config {
         diode,
-        buffer_size: u16::MAX as usize,
+        buffer_size: args.buffer_size,
+        #[cfg(feature = "hash")]
+        hash: args.hash,
+        max_files: 0,
+        overwrite: false,
+        ignore: None,
+        #[cfg(feature = "inotify")]
+        watch: false,
         tls: args.tls,
     };
 
-    if let Err(e) = lidi_clients::udp::send::send(&config, args.from) {
+    if let Err(e) = lidi_clients::file::send::send_files(&config, &args.files) {
         log::error!("{e}");
     }
 }

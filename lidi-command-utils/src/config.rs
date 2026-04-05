@@ -13,8 +13,8 @@ const DEFAULT_PORTS: &[u16] = &[5000];
 const DEFAULT_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Info;
 const DEFAULT_MAX_CLIENTS: u32 = 2;
 const DEFAULT_MTU: u16 = 1500;
-const DEFAULT_BLOCK: u32 = 200_000;
-const DEFAULT_REPAIR: u16 = 2;
+const DEFAULT_BLOCK: u32 = 220_000;
+const DEFAULT_REPAIR_PERCENTAGE: u8 = 1;
 const DEFAULT_RESET_TIMEOUT_SECONDS: u64 = 2;
 const DEFAULT_QUEUE_SIZE: usize = 0;
 
@@ -237,9 +237,9 @@ pub struct CommonConfig {
     block: Option<u32>,
     #[cfg_attr(
         feature = "command-line",
-        clap(long, help = "Number of repair RaptorQ packets")
+        clap(long, help = "Percentage of additional repair RaptorQ packets")
     )]
-    repair: Option<u16>,
+    repair: Option<u8>,
     #[cfg_attr(
         feature = "command-line",
         clap(
@@ -278,8 +278,8 @@ impl CommonConfig {
     }
 
     #[must_use]
-    pub fn repair(&self) -> u16 {
-        self.repair.unwrap_or(DEFAULT_REPAIR)
+    pub fn repair(&self) -> u8 {
+        self.repair.unwrap_or(DEFAULT_REPAIR_PERCENTAGE)
     }
 
     #[must_use]

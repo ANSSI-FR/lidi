@@ -45,6 +45,8 @@ struct Args {
         help = "Log level"
     )]
     log_level: log::LevelFilter,
+    #[clap(long, help = "Path to log4rs configuration file")]
+    log_config: Option<path::PathBuf>,
     #[clap(flatten)]
     to: Clients,
     #[clap(
@@ -61,7 +63,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    if let Err(e) = lidi_clients::init_logger(args.log_level) {
+    if let Err(e) = lidi_clients::init_logger(args.log_level, args.log_config.as_ref()) {
         eprintln!("failed to initialize logger: {e}");
         return;
     }

@@ -282,11 +282,10 @@ where
         }
 
         log::info!(
-            "RaptorQ block {} bytes in {} packets + {} repair packets + {} spare packets",
+            "RaptorQ block {} bytes in {} packets + {} repair packets ",
             self.raptorq.block_size(),
-            self.raptorq.min_nb_packets() - protocol::MIN_NB_REPAIR_PACKETS,
-            protocol::MIN_NB_REPAIR_PACKETS,
-            self.raptorq.nb_packets() - u32::from(self.raptorq.min_nb_packets()),
+            self.raptorq.min_nb_packets(),
+            self.raptorq.nb_packets() - self.raptorq.min_nb_packets(),
         );
 
         log::debug!("{}", self.raptorq);

@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
-          bin: lidi-send,lidi-oneshot-send,lidi-receive,lidi-oneshot-receive,lidi-send-dir,lidi-send-file,lidi-receive-file,lidi-send-udp,lidi-receive-udp,lidi-network-simulator
+          bin: lidi-send,lidi-send-oneshot,lidi-receive,lidi-receive-oneshot,lidi-dir-send,lidi-file-send,lidi-file-receive,lidi-udp-send,lidi-udp-receive,lidi-network-simulator
           archive: lidi-$tag
           token: ${{ secrets.GITHUB_TOKEN }}
   build-and-push-docker-image:

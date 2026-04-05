@@ -43,13 +43,13 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
         let block_id = block.id();
         let client_id = block.client_id();
 
-        log::debug!("encoding block {block_id} for client {client_id:x}");
+        log::trace!("encoding block {block_id} for client {client_id:x}");
 
         let packets = sender.raptorq.encode(block_id, block.serialized());
 
         sender.block_recycler.push(block);
 
-        log::debug!("sending block {block_id}");
+        log::debug!("sending block {block_id} ({} packets)", packets.len());
 
         if let Err(e) = udp.send(&packets) {
             log::error!("failed to send UDP packet: {e}");

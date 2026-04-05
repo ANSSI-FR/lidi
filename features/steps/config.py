@@ -6,8 +6,8 @@ def build_lidi_config(context, udp_port, log_config):
     # Use values from tcp.config.toml example as base
     mtu = getattr(context, 'mtu', 1500) or 1500
     ports = [int(udp_port)]
-    block = getattr(context, 'block_size', 30_000) or 30_000
-    repair = getattr(context, 'repair_block', 3) or 3
+    block = getattr(context, 'block_size', 20_000) or 20_000
+    repair = getattr(context, 'repair', 1) or 1
     max_clients = 2
     hash_val = False
     flush = False
@@ -23,7 +23,7 @@ def build_lidi_config(context, udp_port, log_config):
         f"heartbeat = {heartbeat}",
         "",
         "[send]",
-        'log = "DEBUG"',
+        'log = "INFO"',
         'to = "127.0.0.1"',
         'to_bind = "0.0.0.0:0"',
         'mode = "mmsg"',
@@ -32,7 +32,7 @@ def build_lidi_config(context, udp_port, log_config):
         f'from = [ "tcp[hash={str(hash_val).lower()},flush={str(flush).lower()}]:127.0.0.1:{context.tcp_send_port}" ]',
         "",
         "[receive]",
-        'log = "DEBUG"',
+        'log = "INFO"',
         'from = "127.0.0.1"',
         'mode = "mmsg"',
         "queue_size = 4096",
@@ -53,21 +53,12 @@ def write_lidi_config(context, filename, udp_port, log_config):
         config_file.write(build_lidi_config(context, udp_port, log_config_str))
     return full_path
 
-@contextmanager
-def log_files(base_dir, name):
-    """Context manager for handling log files."""
-    log_file_path = os.path.join(base_dir, f'{name}.log')
-    log_file_error_path = os.path.join(base_dir, f'{name}-error.log')
-    
-    with open(log_file_path, 'w') as stdout, open(log_file_error_path, 'w') as stderr:
-        yield stdout, stderr
-
 def build_lidi_send_command(context):
-    lidi_config = write_lidi_config(context, "lidi_send.toml", "5000", context.log_config_diode_send)
+    lidi_config = write_lidi_config(context, "lidi_send.toml", "5000", context.log_config_lidi_send)
 
-    diode_send_command = [f'{context.bin_dir}/lidi-send', lidi_config]
+    lidi_send_command = [f'{context.bin_dir}/lidi-send', lidi_config]
 
-    return diode_send_command
+    return lidi_send_command
 
 def build_lidi_receive_command(context):
     # Determine UDP port based on network behavior
@@ -80,39 +71,49 @@ def build_lidi_receive_command(context):
     )
     receiver_bind_udp_port = "6000" if has_network_simulator else "5000"
 
-    lidi_config = write_lidi_config(context, "lidi_receive.toml", receiver_bind_udp_port, context.log_config_diode_receive)
+    lidi_config = write_lidi_config(context, "lidi_receive.toml", receiver_bind_udp_port, context.log_config_lidi_receive)
 
-    diode_receive_command = [f'{context.bin_dir}/lidi-receive', lidi_config]
+    lidi_receive_command = [f'{context.bin_dir}/lidi-receive', lidi_config]
 
-    return diode_receive_command
+    return lidi_receive_command
 
 def build_lidi_receive_file_command(context):
-    diode_receive_file_command = [
-        f'{context.bin_dir}/lidi-receive-file',
+    lidi_receive_file_command = [
+        f'{context.bin_dir}/lidi-file-receive',
         '--from-tcp',
         f'127.0.0.1:{context.tcp_receive_port}',
+        '--log-config', context.log_config_lidi_receive_file,
         context.receive_dir
     ]
 
-    return diode_receive_file_command
+    return lidi_receive_file_command
 
-def build_diode_send_dir_command(context):
-    diode_send_dir_command = [
-        f'{context.bin_dir}/lidi-send-dir',
+def build_lidi_send_dir_command(context, watch, ignore):
+    lidi_send_dir_command = [
+        f'{context.bin_dir}/lidi-dir-send',
         '--to-tcp', f'127.0.0.1:{context.tcp_send_port}',
-        context.send_dir
+        '--log-config', context.log_config_lidi_send_dir
     ]
 
-    return diode_send_dir_command
+    if watch:
+        lidi_send_dir_command += ['--watch']
+    
+    if ignore is not None:
+        lidi_send_dir_command += ['--ignore', ignore]
+        
+    lidi_send_dir_command += [context.send_dir]
+    
+    return lidi_send_dir_command
 
-def build_diode_send_file_command(context, filename):
+def build_lidi_send_file_command(context, filename):
     # Création de la liste de base pour la commande
     base_command = [
-        f"{context.bin_dir}/lidi-send-file",
+        f"{context.bin_dir}/lidi-file-send",
         "--buffer-size",
         "8192",
         "--to-tcp",
-        f"127.0.0.1:{context.tcp_send_port}"
+        f"127.0.0.1:{context.tcp_send_port}",
+        '--log-config', context.log_config_lidi_send_file
     ]
     
     # Convertir filename en liste pour la fusion
@@ -124,9 +125,9 @@ def build_diode_send_file_command(context, filename):
         filename_list = [filename]
     
     # Fusion des deux listes : la commande de base et la liste contenant filename
-    diode_send_file_command = base_command + filename_list
+    lidi_send_file_command = base_command + filename_list
     
-    return diode_send_file_command
+    return lidi_send_file_command
 
 def build_network_simulator_command(context):
     # Setup network behavior parameters

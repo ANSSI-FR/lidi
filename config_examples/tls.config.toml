@@ -1,6 +1,6 @@
 mtu = 9000
 ports = [5001, 5002, 5003, 5004, 5005]
-block = 300_000
+block = 220_000
 repair = 1
 max_clients = 1
 

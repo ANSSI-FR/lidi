@@ -39,6 +39,7 @@ pub enum Error {
     Io(io::Error),
     InvalidBlockType(Option<u8>),
     InvalidEndpoint(EndpointId),
+    InvalidRepairPercentage(u8),
     SymbolCountTooLarge(String),
     TransferLengthTooLarge(String),
 }
@@ -50,6 +51,7 @@ impl fmt::Display for Error {
             Self::Io(e) => write!(fmt, "I/O error: {e}"),
             Self::InvalidBlockType(b) => write!(fmt, "invalid block type: {b:?}"),
             Self::InvalidEndpoint(e) => write!(fmt, "invalid endpoint: {e}"),
+            Self::InvalidRepairPercentage(r) => write!(fmt, "invalid repair percentage: {r}"),
             Self::SymbolCountTooLarge(s) => write!(fmt, "symbol count too large: {s}"),
             Self::TransferLengthTooLarge(s) => write!(fmt, "transfer length too large: {s}"),
         }
@@ -62,7 +64,7 @@ impl From<io::Error> for Error {
     }
 }
 
-pub const MIN_NB_REPAIR_PACKETS: u16 = 2;
+pub const MIN_NB_REPAIR_PACKETS: u32 = 2;
 
 const PACKET_HEADER_SIZE: u16 = 20 + 8;
 const RAPTORQ_ALIGNMENT: u16 = 8;
@@ -70,11 +72,11 @@ const RAPTORQ_HEADER_SIZE: u16 = 4;
 
 pub struct RaptorQ {
     max_packet_size: u16,
-    symbol_count: u16,
+    symbol_count: u32,
     transfer_length: u32,
     plan: raptorq::SourceBlockEncodingPlan,
     config: raptorq::ObjectTransmissionInformation,
-    nb_repair_packets: u16,
+    nb_repair_packets: u32,
 }
 
 impl RaptorQ {
@@ -83,26 +85,34 @@ impl RaptorQ {
     /// Will return `Err` if `symbol_count`
     ///   or
     /// `nb_repair_packets` parsing fails
-    pub fn new(mtu: u16, block_size: u32, nb_repair_packets: u16) -> Result<Self, Error> {
+    pub fn new(mtu: u16, block_size: u32, repair_percentage: u8) -> Result<Self, Error> {
+        if 100 <= repair_percentage {
+            return Err(Error::InvalidRepairPercentage(repair_percentage));
+        }
+
         let mut max_packet_size = mtu - PACKET_HEADER_SIZE - RAPTORQ_HEADER_SIZE;
         max_packet_size -= max_packet_size % RAPTORQ_ALIGNMENT;
 
         let symbol_count = u16::try_from(block_size / u32::from(max_packet_size))
             .map_err(|e| Error::SymbolCountTooLarge(e.to_string()))?;
 
-        let transfer_length = u32::from(max_packet_size) * u32::from(symbol_count);
-
         let plan = raptorq::SourceBlockEncodingPlan::generate(symbol_count);
+
+        let transfer_length = u32::from(max_packet_size) * u32::from(symbol_count);
 
         let config = raptorq::ObjectTransmissionInformation::with_defaults(
             u64::from(transfer_length),
             max_packet_size,
         );
 
-        let mut nb_repair_packets = nb_repair_packets;
-        if nb_repair_packets < MIN_NB_REPAIR_PACKETS {
-            nb_repair_packets = MIN_NB_REPAIR_PACKETS;
-        }
+        let symbol_count = u32::from(symbol_count);
+        let min_nb_packets = symbol_count + MIN_NB_REPAIR_PACKETS;
+
+        let rate = f64::from(repair_percentage) / 100.0;
+
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        let nb_repair_packets = MIN_NB_REPAIR_PACKETS
+            + ((f64::from(min_nb_packets) * rate) / (1.0 - rate)).ceil() as u32;
 
         Ok(Self {
             max_packet_size,
@@ -120,7 +130,7 @@ impl RaptorQ {
     }
 
     #[must_use]
-    pub const fn min_nb_packets(&self) -> u16 {
+    pub const fn min_nb_packets(&self) -> u32 {
         // we require to have at least min_nb_repair_packets packets
         // in addition to normal packets to improve integrity of
         // RaptorQ decoding process
@@ -128,8 +138,8 @@ impl RaptorQ {
     }
 
     #[must_use]
-    pub fn nb_packets(&self) -> u32 {
-        u32::from(self.symbol_count) + u32::from(self.nb_repair_packets)
+    pub const fn nb_packets(&self) -> u32 {
+        self.symbol_count + self.nb_repair_packets
     }
 
     #[must_use]
@@ -142,10 +152,10 @@ impl RaptorQ {
         );
         let mut packets = encoder.source_packets();
         if 0 < self.nb_repair_packets {
-            packets.extend(encoder.repair_packets(
-                u32::from(self.config.symbol_size()),
-                u32::from(self.nb_repair_packets),
-            ));
+            packets.extend(
+                encoder
+                    .repair_packets(u32::from(self.config.symbol_size()), self.nb_repair_packets),
+            );
         }
         packets
     }
@@ -165,12 +175,8 @@ impl fmt::Display for RaptorQ {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             fmt,
-            "RaptorQ max_packet_size = {} transfer_length = {} symbol_count|nb_packets = {} nb_repair_packets == {} min_nb_repair_packets == {}",
-            self.max_packet_size,
-            self.transfer_length,
-            self.symbol_count,
-            self.nb_repair_packets,
-            MIN_NB_REPAIR_PACKETS
+            "RaptorQ max_packet_size = {} transfer_length = {} symbol_count|nb_packets = {} min_nb_repair_packets == {MIN_NB_REPAIR_PACKETS} nb_repair_packets == {} ",
+            self.max_packet_size, self.transfer_length, self.symbol_count, self.nb_repair_packets,
         )
     }
 }

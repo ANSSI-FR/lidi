@@ -36,9 +36,9 @@ jobs:
         run: |
           mkdir -p artifacts/release/
           cp target/release/lidi-{receive,send} artifacts/release/
-          cp target/release/lidi-{flood,oneshot}-{receive,send} artifacts/release/
-          cp target/release/lidi-{receive,send}-{file,udp} artifacts/release/
-          cp target/release/lidi-send-dir artifacts/release/
+          cp target/release/lidi-{receive,send}-oneshot artifacts/release/
+          cp target/release/lidi-{file,flood,udp}-{receive,send} artifacts/release/
+          cp target/release/lidi-dir-send artifacts/release/
           cp target/release/lidi-network-simulator artifacts/release/
           cp target/release/liblidi_bindings.so artifacts/release/
 

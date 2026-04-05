@@ -8,7 +8,7 @@ release_tls_native:
     cargo build --release --no-default-features --features from-tls,to-tls,tls,receive-native,send-native
 
 grant_chroot_receive_file:
-    sudo setcap cap_sys_chroot=pe target/release/lidi-receive-file
+    sudo setcap cap_sys_chroot=pe target/release/lidi-file-receive
 
 clean:
     cargo clean
@@ -26,8 +26,7 @@ bench:
     cargo bench --all-features
 
 test:
-    #behave features/*.feature
-    behave --tags=~fail features/simple.feature
+    behave --tags=~fail features/*.feature
 
 doc:
     sphinx-build doc doc/_build

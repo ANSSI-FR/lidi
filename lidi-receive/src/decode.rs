@@ -26,7 +26,7 @@ pub fn start<ClientNew, ClientEnd>(
                         receiver.to_dispatch.send(None)?;
                     }
                     Some(block) => {
-                        log::debug!("block {id} decoded ({} bytes)", block.len());
+                        log::trace!("block {id} decoded ({} bytes)", block.len());
 
                         #[cfg(feature = "prometheus")]
                         metrics::counter!("lidi_receive_blocks_decoded").increment(1);

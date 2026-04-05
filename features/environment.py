@@ -5,13 +5,13 @@ import subprocess
 import time
 import os
 
-from features.steps.diode import stop_throttled_diode
+from features.steps.lidi import stop_throttled_diode
 from features.steps.utils import kill_process_safe
 
 # function called before any feature or scenario
 def before_all(context):
     # build all applications before running any test
-    proc = subprocess.Popen(['cargo', 'build', '--release', '--bin', 'lidi-receive', '--bin', 'lidi-send', '--bin', 'lidi-network-simulator', '--bin', 'lidi-flood-receive', '--bin', 'lidi-receive-file', '--bin', 'lidi-send-file', '--bin', 'lidi-send-dir'])
+    proc = subprocess.Popen(['just', 'release'])
     proc.communicate()
 
 
@@ -57,12 +57,12 @@ def before_scenario(context, _feature):
     context.files = {}
 
     # process instances
-    context.proc_diode_receive = None
-    context.proc_diode_send = None
-    context.proc_diode_send_file = None
-    context.proc_diode_send_dir = None
+    context.proc_lidi_receive = None
+    context.proc_lidi_send = None
+    context.proc_lidi_send_file = None
+    context.proc_lidi_send_dir = None
     context.proc_network = None
-    context.proc_diode_receive_file = None
+    context.proc_lidi_receive_file = None
     
     # directory containing binaries
     context.bin_dir = "./target/release/"
@@ -80,14 +80,15 @@ def before_scenario(context, _feature):
     context.tcp_receive_port = 6000
 
     context.block_size = None
-    context.repair_block = None
+    context.repair = None
     context.mtu = None
 
     # display
-    context.log_config_diode_receive = None
-    context.log_config_diode_receive_file = None
-    context.log_config_diode_send = None
-    context.log_config_diode_send_dir = None
+    context.log_config_lidi_receive = None
+    context.log_config_lidi_receive_file = None
+    context.log_config_lidi_send = None
+    context.log_config_lidi_send_dir = None
+    context.log_config_lidi_send_file = None
     context.log_config_network_behavior = None
 
     context.lidi_config_path = context.base_dir
@@ -100,12 +101,12 @@ def after_scenario(context, _scenario):
     stop_throttled_diode(context)
     
     # first kill processes
-    kill_process_safe('proc_diode_receive', 'lidi-receive', context)
-    kill_process_safe('proc_diode_send', 'lidi-send', context)
-    kill_process_safe('proc_diode_send_file', 'lidi-send-file', context)
-    kill_process_safe('proc_diode_send_dir', 'lidi-send-dir', context)
+    kill_process_safe('proc_lidi_receive', 'lidi-receive', context)
+    kill_process_safe('proc_lidi_send', 'lidi-send', context)
+    kill_process_safe('proc_lidi_send_file', 'lidi-file-send', context)
+    kill_process_safe('proc_lidi_send_dir', 'lidi-dir-send', context)
     kill_process_safe('proc_network', 'lidi-network-simulator', context)
-    kill_process_safe('proc_diode_receive_file', 'lidi-receive-file', context)
+    kill_process_safe('proc_lidi_receive_file', 'lidi-file-receive', context)
 
     # make sure everything is killed, even throttled_fs (fuse) which uses temp directories
     time.sleep(1)
@@ -127,27 +128,33 @@ root:
 """
 
 def setup_log_config(context, log_dir, level="info"):
-    context.log_config_diode_receive = os.path.join(log_dir, "log_config_diode_receive.yml")
-    filename = os.path.join(log_dir, "diode_receive.log")
-    with open(context.log_config_diode_receive, "w") as f:
+    context.log_config_lidi_receive = os.path.join(log_dir, "log_config_lidi_receive.yml")
+    filename = os.path.join(log_dir, "lidi_receive.log")
+    with open(context.log_config_lidi_receive, "w") as f:
         f.write(build_log_config(filename, level))
         f.close()
 
-    context.log_config_diode_send = os.path.join(log_dir, "log_config_diode_send.yml")
-    filename = os.path.join(log_dir, "diode_send.log")
-    with open(context.log_config_diode_send, "w") as f:
+    context.log_config_lidi_receive_file = os.path.join(log_dir, "log_config_lidi_receive_file.yml")
+    filename = os.path.join(log_dir, "lidi_receive_file.log")
+    with open(context.log_config_lidi_receive_file, "w") as f:
         f.write(build_log_config(filename, level))
         f.close()
 
-    context.log_config_diode_send_dir = os.path.join(log_dir, "log_config_diode_send_dir.yml")
-    filename = os.path.join(log_dir, "diode_send_dir.log")
-    with open(context.log_config_diode_send_dir, "w") as f:
+    context.log_config_lidi_send = os.path.join(log_dir, "log_config_lidi_send.yml")
+    filename = os.path.join(log_dir, "lidi_send.log")
+    with open(context.log_config_lidi_send, "w") as f:
         f.write(build_log_config(filename, level))
         f.close()
 
-    context.log_config_diode_receive_file = os.path.join(log_dir, "log_config_diode_receive_file.yml")
-    filename = os.path.join(log_dir, "diode_receive_file.log")
-    with open(context.log_config_diode_receive_file, "w") as f:
+    context.log_config_lidi_send_dir = os.path.join(log_dir, "log_config_lidi_send_dir.yml")
+    filename = os.path.join(log_dir, "lidi_send_dir.log")
+    with open(context.log_config_lidi_send_dir, "w") as f:
+        f.write(build_log_config(filename, level))
+        f.close()
+
+    context.log_config_lidi_send_file= os.path.join(log_dir, "log_config_lidi_send_file.yml")
+    filename = os.path.join(log_dir, "lidi_send_file.log")
+    with open(context.log_config_lidi_send_file, "w") as f:
         f.write(build_log_config(filename, level))
         f.close()
 

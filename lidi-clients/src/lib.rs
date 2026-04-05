@@ -132,11 +132,7 @@ impl fmt::Display for DiodeReceive {
     }
 }
 
-/// # Errors
-///
-/// Will return `Err` if `file` cannot be opened
-/// or logger cannot be set (Term or file mode).
-pub fn init_logger(level_filter: log::LevelFilter) -> Result<(), String> {
+fn init_logger_simplelog(level_filter: log::LevelFilter) -> Result<(), String> {
     let terminal_mode = simplelog::TerminalMode::Mixed;
 
     let config = simplelog::ConfigBuilder::new()
@@ -155,5 +151,32 @@ pub fn init_logger(level_filter: log::LevelFilter) -> Result<(), String> {
         terminal_mode,
         simplelog::ColorChoice::Auto,
     )
-    .map_err(|e| e.to_string())
+    .map_err(|e| format!("failed to initialize simplelog: {e}"))
+}
+
+pub fn init_logger(
+    level_filter: log::LevelFilter,
+    log4rs_config: Option<&path::PathBuf>,
+) -> Result<(), String> {
+    #[cfg(not(feature = "log4rs"))]
+    {
+        if log4rs_config.is_some() {
+            eprintln!("log4rs configuration is enabled, but log4rs was not enabled at compilation");
+        }
+        init_logger_simplelog(level_filter)
+    }
+
+    #[cfg(feature = "log4rs")]
+    log4rs_config.map_or_else(
+        || init_logger_simplelog(level_filter),
+        |log4rs_config| {
+            log4rs::config::init_file(log4rs_config, log4rs::config::Deserializers::default())
+                .map_err(|e| {
+                    format!(
+                        "failed to configure log4rs with {}: {e}",
+                        log4rs_config.display()
+                    )
+                })
+        },
+    )
 }

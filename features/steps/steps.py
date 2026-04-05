@@ -3,88 +3,101 @@ from behave import given, when, then, use_step_matcher
 import os
 import time
 
-from features.steps.diode import create_file, send_file, send_multiple_files, start_diode, start_diode_file_receive, start_diode_receive, start_diode_send, start_diode_send_dir, start_throttled_diode, stop_diode_file_receive, stop_diode_receive, stop_diode_send
+from features.steps.lidi import create_file, send_file, send_multiple_files, start_diode, start_lidi_file_receive, start_lidi_receive, start_lidi_send, start_lidi_send_dir, start_throttled_diode, stop_lidi_file_receive, stop_lidi_receive, stop_lidi_send
 from features.steps.file import create_and_copy_file, create_and_copy_multiple_files, create_and_move_file, parse_human_size, test_file, test_no_file
 
 use_step_matcher("cfparse")
 
-@given('diode is started')
+@given('lidi is started')
 def step_impl(context):
     start_diode(context)
 
-@when('diode-receive is restarted')
+@when('lidi-receive is restarted')
 def step_impl(context):
-    stop_diode_receive(context)
+    stop_lidi_receive(context)
     # wait some time to prevent address already in use if restarted too quickly
     time.sleep(5)
-    start_diode_receive(context)
+    start_lidi_receive(context)
 
-@when('diode-send is restarted')
+@when('lidi-send is restarted')
 def step_impl(context):
-    stop_diode_send(context)
-    start_diode_send(context)
+    stop_lidi_send(context)
+    # wait for lidi-receive reset timeout to happen
+    time.sleep(2)
+    start_lidi_send(context)
 
-@when('diode-file-receive is restarted')
+@when('lidi-file-receive is restarted')
 def step_impl(context):
-    stop_diode_file_receive(context)
+    stop_lidi_file_receive(context)
     # wait some time to prevent address already in use if restarted too quickly
     time.sleep(5)
-    start_diode_file_receive(context)
+    start_lidi_file_receive(context)
 
-@when('diode-send-dir is started')
-def step_impl(context):
-    start_diode_send_dir(context)
+@given('lidi-dir-send is started with watch and ignore dot files')
+def step_lidi_send_dir_with_watch_and_ignore_dot_files(context):
+    start_lidi_send_dir(context, True, '^\\.')
 
-@given('diode is started with max throughput of {throughput} and MTU {mtu}')
-def step_diode_started_with_max_throughput_and_mtu(context, throughput, mtu):
+@given('lidi-dir-send is started with watch')
+def step_lidi_send_dir_with_watch(context):
+    start_lidi_send_dir(context, True)
+
+@given('lidi-dir-send is started')
+def step_lidi_send_dir(context):
+    start_lidi_send_dir(context)
+
+@given('lidi is started with max throughput of {throughput} and MTU {mtu}')
+def step_lidi_started_with_max_throughput_and_mtu(context, throughput, mtu):
     # throughput format: tc notation (e.g., "100mbit", "990kbit")
     # mtu: maximum transmission unit in bytes
     context.read_rate = throughput
     context.mtu = int(mtu)
     start_throttled_diode(context, context.read_rate, int(mtu))
 
-@given('diode is started with max throughput of {throughput}')
-def step_diode_started_with_max_throughput(context, throughput):
-    # two possibilities : limit file system read throughput or configure the diode for that
+@given('lidi is started with max throughput of {throughput}')
+def step_lidi_started_with_max_throughput(context, throughput):
+    # two possibilities : limit file system read throughput or configure the lidi for that
     # throughput format: tc notation (e.g., "100mbit", "990kbit")
     context.read_rate = throughput
     start_throttled_diode(context, context.read_rate)
 
-@given('encoding block size is {encoding} and repair block size is {repair}')
-def step_set_encoding_repair_block_size(context, encoding, repair):
-    context.repair_block = 20000
-    context.block_size = 20000
+@given('encoding block size is {encoding}')
+def step_set_encoding(context, encoding):
+    context.block_size = encoding
 
-@when('diode-file-send file {name} of size {size}')
+@given('repair percentage is {repair} %')
+def step_set_encoding(context, repair):
+    context.repair = repair
+    
+@when('lidi-file-send file {name} of size {size}')
 def step_impl(context, name, size):
     send_file(context, name, size)
 
-@when('diode-send restarts while diode-file-send file {name} of size {size}')
+@when('lidi-send restarts while lidi-file-send file {name} of size {size}')
 def step_impl(context, name, size):
     send_file(context, name, size, True)
     # transfer is in progress, wait 1 second then restart diode
     time.sleep(3)
-    stop_diode_send(context)
-    start_diode_send(context)
+    stop_lidi_send(context)
+    start_lidi_send(context)
 
-@when('diode-receive restarts while diode-file-send file {name} of size {size}')
+@when('lidi-receive restarts while lidi-file-send file {name} of size {size}')
 def step_impl(context, name, size):
     send_file(context, name, size, True)
     # transfer is in progress, wait 1 second then restart diode
     time.sleep(3)
-    stop_diode_receive(context)
+    stop_lidi_receive(context)
     time.sleep(5)
-    start_diode_receive(context)
+    start_lidi_receive(context)
 
-@then('diode-file-receive file {name} in {seconds} seconds')
+@then('lidi-file-receive file {name} in {seconds} seconds')
 def step_impl(context, name, seconds):
     test_file(context, context.receive_dir, name, seconds)
 
-@when('diode-file-receive file {name} in {seconds} seconds')
+@when('lidi-file-receive file {name} in {seconds} seconds')
 def step_impl(context, name, seconds):
     test_file(context, context.receive_dir, name, seconds)
 
-@when('diode-file-send {files} files of size {size}')
+@when('lidi-file-send {files} files of size {size}')
 def step_impl(context, files, size):
     for i in range(int(files)):
         name = str(f"test_file_{i}")
@@ -94,15 +107,15 @@ def step_impl(context, files, size):
     # now send all of them at once
     send_multiple_files(context)
 
-@then('diode-file-receive all files in {seconds} seconds')
+@then('lidi-file-receive all files in {seconds} seconds')
 def step_impl(context, seconds):
     for name in context.files:
         test_file(context, context.receive_dir, name, seconds)
 
-@given(u'diode with send-dir is started')
+@given(u'lidi with send-dir is started')
 def step_impl(context):
     start_diode(context)
-    start_diode_send_dir(context)
+    start_lidi_send_dir(context)
 
 @when(u'we copy a file {name} of size {size}')
 def step_impl(context, name, size):
@@ -116,7 +129,7 @@ def step_impl(context, files, size):
 def step_impl(context, name, size):
     create_and_move_file(context, name, size)
 
-@then('diode-file-receive no file {name} in {seconds} seconds')
+@then('lidi-file-receive no file {name} in {seconds} seconds')
 def step_impl(context, name, seconds):
     test_no_file(context, context.receive_dir, name, seconds)
 

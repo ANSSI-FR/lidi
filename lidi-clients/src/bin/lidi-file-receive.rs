@@ -26,7 +26,7 @@ struct Listeners {
 }
 
 #[derive(Parser)]
-#[clap(about = "Receive file(s) sent by lidi-send-file through lidi.")]
+#[clap(about = "Receive file(s) sent by lidi-file-send through lidi.")]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -35,6 +35,8 @@ struct Args {
         help = "Log level"
     )]
     log_level: log::LevelFilter,
+    #[clap(long, help = "Path to log4rs configuration file")]
+    log_config: Option<path::PathBuf>,
     #[clap(flatten)]
     from: Listeners,
     #[clap(
@@ -67,7 +69,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    if let Err(e) = lidi_clients::init_logger(args.log_level) {
+    if let Err(e) = lidi_clients::init_logger(args.log_level, args.log_config.as_ref()) {
         eprintln!("failed to initialize logger: {e}");
         return;
     }
@@ -91,8 +93,9 @@ fn main() {
         hash: args.hash,
         max_files: args.max_files,
         overwrite: args.overwrite,
+        ignore: None,
         #[cfg(feature = "inotify")]
-        wait: false,
+        watch: false,
         tls: args.tls,
     };
 

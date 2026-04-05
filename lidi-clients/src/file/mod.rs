@@ -15,8 +15,9 @@ pub struct Config<D> {
     pub hash: bool,
     pub max_files: usize,
     pub overwrite: bool,
+    pub ignore: Option<regex::Regex>,
     #[cfg(feature = "inotify")]
-    pub wait: bool,
+    pub watch: bool,
     pub tls: crate::Tls,
 }
 

@@ -17,7 +17,7 @@ use std::{io, thread};
 #[cfg(feature = "inotify")]
 fn notifier_thread(
     dir: &path::Path,
-    to_copy: &crossbeam_channel::Sender<path::PathBuf>,
+    to_send: &crossbeam_channel::Sender<path::PathBuf>,
 ) -> Result<(), file::Error> {
     let mut inotify = inotify::Inotify::init()?;
 
@@ -33,7 +33,7 @@ fn notifier_thread(
         for event in events {
             if let Some(name) = event.name {
                 let path = dir.join(name);
-                to_copy.send(path).map_err(|e| {
+                to_send.send(path).map_err(|e| {
                     file::Error::Io(io::Error::new(io::ErrorKind::BrokenPipe, e.to_string()))
                 })?;
             }
@@ -42,23 +42,34 @@ fn notifier_thread(
 }
 
 #[cfg(feature = "inotify")]
-fn wait_send_dir(config: &file::Config<crate::DiodeSend>, path: path::PathBuf, mut count: usize) {
-    let (to_copy, for_copy) = crossbeam_channel::unbounded();
-
-    thread::spawn(move || {
-        if let Err(e) = notifier_thread(&path, &to_copy) {
-            log::error!("{e}");
-        }
-    });
+fn send_file_thread(
+    config: &file::Config<crate::DiodeSend>,
+    for_send: &crossbeam_channel::Receiver<path::PathBuf>,
+) {
+    let mut count = 0;
 
     loop {
+        use std::ffi::OsStr;
+
         if config.max_files != 0 && count >= config.max_files {
             break;
         }
 
-        let Ok(path) = for_copy.recv() else {
+        let Ok(path) = for_send.recv() else {
             break;
         };
+
+        let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
+            log::error!("not a file {:?}", path.display());
+            continue;
+        };
+
+        if let Some(ignore) = config.ignore.as_ref()
+            && ignore.is_match(file_name)
+        {
+            log::debug!("ignoring {:?}", path.display());
+            continue;
+        }
 
         let Ok(path) = path
             .into_os_string()
@@ -88,46 +99,35 @@ pub fn send_dir(config: &file::Config<crate::DiodeSend>, path: &String) -> Resul
         return Err(file::Error::Other(format!("{path:?} is not a directory")));
     }
 
-    let mut count = 0;
+    let (to_send, for_send) = crossbeam_channel::unbounded();
 
-    for file in dir
-        .read_dir()?
-        .filter_map(|entry| {
-            entry
-                .inspect_err(|e| log::error!("failed to read entry: {e}"))
-                .ok()
-                .map(|entry| entry.path())
-        })
-        .filter(|path| path.is_file())
-    {
-        let Ok(file_path) = file
-            .as_os_str()
-            .to_os_string()
-            .into_string()
-            .inspect_err(|e| {
-                log::error!(
-                    "unsupported file name {} for {}",
-                    file.display(),
-                    e.display()
-                );
+    thread::scope(|scope| {
+        thread::Builder::new().spawn_scoped(scope, || send_file_thread(config, &for_send))?;
+
+        #[cfg(feature = "inotify")]
+        thread::Builder::new().spawn_scoped(scope, || {
+            if let Err(e) = notifier_thread(&dir, &to_send) {
+                log::error!("{e}");
+            }
+        })?;
+
+        for file in dir
+            .read_dir()?
+            .filter_map(|entry| {
+                entry
+                    .inspect_err(|e| log::error!("failed to read entry: {e}"))
+                    .ok()
+                    .map(|entry| entry.path())
             })
-        else {
-            continue;
-        };
-        let total = send_file(config, &file_path)?;
-        log::info!("file {path:?} sent, {total} bytes sent");
-
-        count += 1;
-
-        if config.max_files != 0 && count >= config.max_files {
-            return Ok(());
+            .filter(|path| path.is_file())
+        {
+            if to_send.send(file).is_err() {
+                break;
+            }
         }
-    }
 
-    #[cfg(feature = "inotify")]
-    wait_send_dir(config, dir, count);
-
-    Ok(())
+        Ok(())
+    })
 }
 
 /// # Errors

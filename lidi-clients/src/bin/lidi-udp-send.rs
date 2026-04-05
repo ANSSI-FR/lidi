@@ -26,7 +26,7 @@ struct Clients {
 }
 
 #[derive(Parser)]
-#[clap(about = "Send a file to lidi-receive-file through lidi.")]
+#[clap(about = "Send UDP datagrams to lidi-udp-receive.")]
 struct Args {
     #[clap(
         default_value = "Info",
@@ -35,37 +35,24 @@ struct Args {
         help = "Log level"
     )]
     log_level: log::LevelFilter,
+    #[clap(long, help = "Path to log4rs configuration file")]
+    log_config: Option<path::PathBuf>,
     #[clap(flatten)]
     to: Clients,
     #[clap(
-        default_value = "4194304",
-        value_name = "bytes",
+        value_name = "ip:port",
         long,
-        help = "Size of client internal read/write buffer"
+        help = "IP address and port to receive UDP packets"
     )]
-    buffer_size: usize,
-    #[cfg(feature = "hash")]
-    #[clap(long, help = "Compute and send the hash of file content")]
-    hash: bool,
-    #[clap(
-        long,
-        default_value = "0",
-        value_name = "max_files",
-        help = "Exits after sending max_files files"
-    )]
-    max_files: usize,
+    from: net::SocketAddr,
     #[clap(flatten)]
     tls: lidi_clients::Tls,
-    #[clap(long, help = "Wait/watch for new files after sending existing files")]
-    wait: bool,
-    #[clap(help = "Directory containing files to send")]
-    dir: String,
 }
 
 fn main() {
     let args = Args::parse();
 
-    if let Err(e) = lidi_clients::init_logger(args.log_level) {
+    if let Err(e) = lidi_clients::init_logger(args.log_level, args.log_config.as_ref()) {
         eprintln!("failed to initialize logger: {e}");
         return;
     }
@@ -86,19 +73,13 @@ fn main() {
         unreachable!()
     };
 
-    let config = lidi_clients::file::Config {
+    let config = lidi_clients::udp::Config {
         diode,
-        buffer_size: args.buffer_size,
-        #[cfg(feature = "hash")]
-        hash: args.hash,
-        max_files: args.max_files,
-        overwrite: false,
-        #[cfg(feature = "inotify")]
-        wait: args.wait,
+        buffer_size: u16::MAX as usize,
         tls: args.tls,
     };
 
-    if let Err(e) = lidi_clients::file::send::send_dir(&config, &args.dir) {
+    if let Err(e) = lidi_clients::udp::send::send(&config, args.from) {
         log::error!("{e}");
     }
 }
