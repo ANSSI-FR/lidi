@@ -632,14 +632,14 @@ checksum = "48f5d2a454e16a5ea0f4ced81bd44e4cfc7bd3a507b61887c99fd3538b28e4af"
 
 [[package]]
 name = "lidi-bindings"
-version = "2.1.1"
+version = "3.0.0"
 dependencies = [
  "lidi-clients",
 ]
 
 [[package]]
 name = "lidi-clients"
-version = "2.1.1"
+version = "3.0.0"
 dependencies = [
  "clap",
  "crossbeam-channel",
@@ -656,7 +656,7 @@ dependencies = [
 
 [[package]]
 name = "lidi-command-utils"
-version = "2.1.1"
+version = "3.0.0"
 dependencies = [
  "clap",
  "libc",
@@ -672,14 +672,14 @@ dependencies = [
 
 [[package]]
 name = "lidi-protocol"
-version = "2.1.1"
+version = "3.0.0"
 dependencies = [
  "raptorq",
 ]
 
 [[package]]
 name = "lidi-receive"
-version = "2.1.1"
+version = "3.0.0"
 dependencies = [
  "crossbeam-channel",
  "libc",
@@ -692,7 +692,7 @@ dependencies = [
 
 [[package]]
 name = "lidi-send"
-version = "2.1.1"
+version = "3.0.0"
 dependencies = [
  "crossbeam-channel",
  "crossbeam-deque",
