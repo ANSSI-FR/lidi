@@ -38,7 +38,7 @@ struct Args {
 
     /// Percentage of lost packets
     #[arg(short, long)]
-    loss_rate: Option<usize>,
+    loss_rate: Option<u8>,
 
     /// Apply a total network blackout after a given amount of data (in bytes)
     #[arg(long)]
@@ -61,21 +61,41 @@ struct Args {
     pub log_level: log::LevelFilter,
 }
 
+const fn gcd(a: u8, mut b: u8) -> u8 {
+    if a == 0 {
+        return b;
+    }
+    loop {
+        if b == 0 {
+            return a;
+        }
+        if b < a {
+            return gcd(b, a);
+        }
+        b %= a;
+    }
+}
+
+const fn reduce(a: u8, b: u8) -> (u8, u8) {
+    let gcd = gcd(a, b);
+    (a / gcd, b / gcd)
+}
+
 struct LossRate {
     /// percentage of packets lost
-    rate: usize,
-    /// packet counter
-    counter: usize,
+    rate: (u8, u8),
+    /// sent packet counter
+    counter: u8,
 }
 
 impl LossRate {
-    fn new(rate: usize) -> Self {
+    fn new(rate: u8) -> Self {
         assert!(rate <= 100, "loss rate must be <= 100");
 
         // we gonna drop 1 packet every 100/rate
         // for instance, if rate is 2%, we will drop 1 packet on 50
         Self {
-            rate: 100 / rate,
+            rate: reduce(rate, 100),
             counter: 0,
         }
     }
@@ -83,8 +103,9 @@ impl LossRate {
     /// drop "rate" packets every 100 packets
     /// return false if packet must be dropped
     const fn recv(&mut self) -> bool {
-        self.counter += 1;
-        self.counter % self.rate != self.rate - 1
+        let res = self.counter >= self.rate.0;
+        self.counter = (self.counter + 1) % self.rate.1;
+        res
     }
 }
 

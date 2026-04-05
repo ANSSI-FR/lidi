@@ -14,7 +14,6 @@ Feature: Send simple files with network drop
     When lidi-file-send file A of size 100MB 
     Then lidi-file-receive file A in 5 seconds
 
-  @fail
   Scenario: Send a 10M file with high drop
     Given there is a network drop of 40 %
     And repair percentage is 40 %
