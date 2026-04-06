@@ -1,7 +1,7 @@
 //! Worker for grouping packets according to their block numbers to handle potential UDP packets
 //! reordering
 
-use std::{array, mem, thread};
+use std::{array, thread};
 
 pub const WINDOW_WIDTH: u8 = u8::MAX / 2;
 
@@ -14,14 +14,11 @@ fn send_to_decode(
     to_decode: &crossbeam_channel::Sender<super::Reassembled>,
     id: u8,
     blocks: &mut [Block],
-    nb_packets: usize,
 ) -> Result<bool, crate::Error> {
     blocks[id as usize].ignore = true;
 
-    let packets = mem::replace(
-        &mut blocks[id as usize].packets,
-        Vec::with_capacity(nb_packets),
-    );
+    let packets = blocks[id as usize].packets.clone();
+    blocks[id as usize].packets.clear();
 
     to_decode.send(super::Reassembled::Block { id, packets })?;
 
@@ -82,12 +79,7 @@ pub fn start<ClientNew, ClientEnd>(
                                     "block {cur_id} is incomplete ({nb_packets} packets) after reset timeout, forcibly send to decode"
                                 );
                             }
-                            let _ = send_to_decode(
-                                &receiver.to_decode,
-                                cur_id,
-                                &mut blocks,
-                                nb_packets,
-                            )?;
+                            let _ = send_to_decode(&receiver.to_decode, cur_id, &mut blocks)?;
                         }
                         cur_id = cur_id.wrapping_add(1);
                     }
@@ -147,12 +139,12 @@ pub fn start<ClientNew, ClientEnd>(
 
         if fast_track {
             log::warn!("probable network interrupt, fast track first block");
-            let _ = send_to_decode(&receiver.to_decode, cur_id, &mut blocks, nb_packets)?;
+            let _ = send_to_decode(&receiver.to_decode, cur_id, &mut blocks)?;
             cur_id = cur_id.wrapping_add(1);
         }
 
         while blocks[cur_id as usize].packets.len() >= min_nb_packets {
-            reset = send_to_decode(&receiver.to_decode, cur_id, &mut blocks, nb_packets)?;
+            reset = send_to_decode(&receiver.to_decode, cur_id, &mut blocks)?;
             cur_id = cur_id.wrapping_add(1);
         }
 
