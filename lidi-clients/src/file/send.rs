@@ -186,16 +186,16 @@ pub fn send_file(
                 send_file_aux(config, diode, &path::PathBuf::from(path))
             }
         }
-        crate::DiodeSend::Unix(path) => {
+        crate::DiodeSend::Unix(spath) => {
             #[cfg(not(feature = "unix"))]
             {
-                let _ = path;
+                let _ = spath;
                 log::error!("Unix was not enable at compilation");
                 Ok(0)
             }
             #[cfg(feature = "unix")]
             {
-                let diode = unix::net::UnixStream::connect(path)?;
+                let diode = unix::net::UnixStream::connect(spath)?;
                 send_file_aux(config, diode, &path::PathBuf::from(path))
             }
         }
