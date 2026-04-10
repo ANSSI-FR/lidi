@@ -2,12 +2,13 @@ use serde::Deserialize;
 use std::{
     error, fmt, fs,
     io::{self, Read},
-    net, path,
+    net::{self, ToSocketAddrs},
+    path,
     str::FromStr,
     time,
 };
 
-const DEFAULT_RECEIVER: net::IpAddr = net::IpAddr::V4(net::Ipv4Addr::LOCALHOST);
+const DEFAULT_RECEIVER: &str = "127.0.0.1";
 const DEFAULT_PORTS: &[u16] = &[5000];
 
 const DEFAULT_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Info;
@@ -157,12 +158,40 @@ impl FromStr for Endpoint {
         };
 
         match prefix {
-            "tcp" => net::SocketAddr::from_str(tail)
-                .map(|address| Self::Tcp { address, options })
-                .map_err(|e| Error::Endpoint(format!("invalid socket addr for tcp endpoint: {e}"))),
-            "tls" => net::SocketAddr::from_str(tail)
-                .map(|address| Self::Tls { address, options })
-                .map_err(|e| Error::Endpoint(format!("invalid socket addr for tls endpoint: {e}"))),
+            "tcp" => tail
+                .to_socket_addrs()
+                .map_err(|e| {
+                    Error::Endpoint(format!("invalid socket address for tcp endpoint: {e}"))
+                })
+                .map(|addresses| addresses.filter(net::SocketAddr::is_ipv4))
+                .and_then(|addresses| {
+                    let addresses = addresses.collect::<Vec<_>>();
+                    if addresses.len() == 1 {
+                        let address = addresses[0];
+                        Ok(Self::Tcp { address, options })
+                    } else {
+                        Err(Error::Endpoint(format!(
+                            "hostname matches several addresses for tcp endpoint: {addresses:?}"
+                        )))
+                    }
+                }),
+            "tls" => tail
+                .to_socket_addrs()
+                .map_err(|e| {
+                    Error::Endpoint(format!("invalid socket address for tls endpoint: {e}"))
+                })
+                .map(|addresses| addresses.filter(net::SocketAddr::is_ipv4))
+                .and_then(|addresses| {
+                    let addresses = addresses.collect::<Vec<_>>();
+                    if addresses.len() == 1 {
+                        let address = addresses[0];
+                        Ok(Self::Tls { address, options })
+                    } else {
+                        Err(Error::Endpoint(format!(
+                            "hostname matches several addresses for tls endpoint: {addresses:?}"
+                        )))
+                    }
+                }),
             "unix" => {
                 let path = path::PathBuf::from(tail);
                 Ok(Self::Unix { path, options })
@@ -411,10 +440,10 @@ pub struct Receive {
         clap(
             long,
             value_name = "ip",
-            help = "IP address on which to listen from sender UDP packets"
+            help = "IP address or hostname on which to listen from sender UDP packets"
         )
     )]
-    from: Option<net::IpAddr>,
+    from: Option<String>,
     #[cfg_attr(
         feature = "command-line",
         clap(long, help = "Mode used to receive UDP packets")
@@ -470,8 +499,8 @@ impl Receive {
     }
 
     #[must_use]
-    pub fn from(&self) -> net::IpAddr {
-        self.from.unwrap_or(DEFAULT_RECEIVER)
+    pub fn from(&self) -> &str {
+        self.from.as_ref().map_or(DEFAULT_RECEIVER, String::as_str)
     }
 
     #[must_use]
@@ -539,15 +568,15 @@ pub struct Send {
     from: Vec<Endpoint>,
     #[cfg_attr(
         feature = "command-line",
-        clap(long, value_name = "ip", help = "IP address of receiver")
+        clap(long, value_name = "ip", help = "IP address or hostname of receiver")
     )]
-    to: Option<net::IpAddr>,
+    to: Option<String>,
     #[cfg_attr(
         feature = "command-line",
         clap(
             long,
             value_name = "ip:port",
-            help = "Binding address of UDP socket used to reach reaceiver"
+            help = "Binding address of UDP socket used to reach receiver"
         )
     )]
     to_bind: Option<net::SocketAddr>,
@@ -582,8 +611,8 @@ impl Send {
     }
 
     #[must_use]
-    pub fn to(&self) -> net::IpAddr {
-        self.to.unwrap_or(DEFAULT_RECEIVER)
+    pub fn to(&self) -> &str {
+        self.to.as_ref().map_or(DEFAULT_RECEIVER, String::as_str)
     }
 
     #[must_use]

@@ -100,7 +100,7 @@ struct Config {
     max_clients: u32,
     #[cfg(feature = "heartbeat")]
     heartbeat: Option<time::Duration>,
-    to: net::IpAddr,
+    to: String,
     to_bind: net::SocketAddr,
     mode: config::Mode,
     #[cfg(feature = "from-tls")]
@@ -144,7 +144,7 @@ impl From<&config::SendConfig> for Config {
             max_clients: config.common.max_clients(),
             #[cfg(feature = "heartbeat")]
             heartbeat: config.common.heartbeat(),
-            to: config.send.to(),
+            to: config.send.to().into(),
             to_bind: config.send.to_bind(),
             mode,
             #[cfg(feature = "from-tls")]

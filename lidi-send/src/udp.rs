@@ -1,7 +1,10 @@
 //! Worker that encodes protocol blocks into `RaptorQ` packets
 
 use crate::socket;
-use std::net;
+use std::{
+    io,
+    net::{self, ToSocketAddrs},
+};
 
 pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Error> {
     log::info!(
@@ -29,11 +32,20 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
         log::warn!("Please review the kernel parameters using sysctl");
     }
 
-    let mut udp = socket::Send::new(
-        socket,
-        net::SocketAddr::new(sender.config.to, to_port),
-        sender.config.mode,
-    )?;
+    let addresses = (sender.config.to.as_str(), to_port)
+        .to_socket_addrs()?
+        .filter(net::SocketAddr::is_ipv4)
+        .collect::<Vec<_>>();
+    let address = if addresses.len() == 1 {
+        addresses[0]
+    } else {
+        return Err(crate::Error::Io(io::Error::new(
+            io::ErrorKind::AddrNotAvailable,
+            format!("hostname matches several addresses for UDP destination: {addresses:?}"),
+        )));
+    };
+
+    let mut udp = socket::Send::new(socket, address, sender.config.mode)?;
 
     loop {
         let Some(block) = sender.for_udp.recv()? else {

@@ -1,7 +1,10 @@
 //! Worker that actually receives packets from the UDP diode link
 
 use crate::socket;
-use std::net;
+use std::{
+    io,
+    net::{self, ToSocketAddrs},
+};
 
 pub fn start<ClientNew, ClientEnd>(
     receiver: &crate::Receiver<ClientNew, ClientEnd>,
@@ -14,7 +17,20 @@ pub fn start<ClientNew, ClientEnd>(
         receiver.config.mtu,
     );
 
-    let socket = net::UdpSocket::bind(net::SocketAddr::new(receiver.config.from, port))?;
+    let addresses = (receiver.config.from.as_str(), port)
+        .to_socket_addrs()?
+        .filter(net::SocketAddr::is_ipv4)
+        .collect::<Vec<_>>();
+    let address = if addresses.len() == 1 {
+        addresses[0]
+    } else {
+        return Err(crate::Error::Io(io::Error::new(
+            io::ErrorKind::AddrNotAvailable,
+            format!("hostname matches several addresses for UDP source: {addresses:?}"),
+        )));
+    };
+
+    let socket = net::UdpSocket::bind(address)?;
     socket.set_nonblocking(false)?;
 
     let buffer_size = u32::from(super::reblock::WINDOW_WIDTH)

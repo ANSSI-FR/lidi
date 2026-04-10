@@ -159,7 +159,7 @@ struct Config {
     max_clients: u32,
     #[cfg(feature = "heartbeat")]
     heartbeat: Option<time::Duration>,
-    from: net::IpAddr,
+    from: String,
     to: Vec<config::Endpoint>,
     reset_timeout: time::Duration,
     abort_timeout: Option<time::Duration>,
@@ -204,7 +204,7 @@ impl From<&config::ReceiveConfig> for Config {
             max_clients: config.common.max_clients(),
             #[cfg(feature = "heartbeat")]
             heartbeat: config.common.heartbeat(),
-            from: config.receive.from(),
+            from: config.receive.from().into(),
             to: config.receive.to(),
             reset_timeout: config.receive.reset_timeout(),
             abort_timeout: config.receive.abort_timeout(),
