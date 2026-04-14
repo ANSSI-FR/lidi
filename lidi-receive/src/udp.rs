@@ -10,19 +10,18 @@ pub fn start<ClientNew, ClientEnd>(
     receiver: &crate::Receiver<ClientNew, ClientEnd>,
     port: u16,
 ) -> Result<(), crate::Error> {
-    log::info!(
-        "listening for UDP packets at {}:{} with MTU {}",
-        receiver.config.from,
-        port,
-        receiver.config.mtu,
-    );
-
-    let addresses = (receiver.config.from.as_str(), port)
-        .to_socket_addrs()?
+    let addresses = (receiver.config.from.as_str(), 0)
+        .to_socket_addrs()
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::AddrNotAvailable,
+                format!("bad IP or hostname {:?}: {e}", receiver.config.from),
+            )
+        })?
         .filter(net::SocketAddr::is_ipv4)
         .collect::<Vec<_>>();
     let address = if addresses.len() == 1 {
-        addresses[0]
+        addresses[0].ip()
     } else {
         return Err(crate::Error::Io(io::Error::new(
             io::ErrorKind::AddrNotAvailable,
@@ -30,7 +29,14 @@ pub fn start<ClientNew, ClientEnd>(
         )));
     };
 
-    let socket = net::UdpSocket::bind(address)?;
+    log::info!(
+        "listening for UDP packets at {}:{} with MTU {}",
+        address,
+        port,
+        receiver.config.mtu,
+    );
+
+    let socket = net::UdpSocket::bind((address, port))?;
     socket.set_nonblocking(false)?;
 
     let buffer_size = u32::from(super::reblock::WINDOW_WIDTH)

@@ -161,7 +161,9 @@ impl FromStr for Endpoint {
             "tcp" => tail
                 .to_socket_addrs()
                 .map_err(|e| {
-                    Error::Endpoint(format!("invalid socket address for tcp endpoint: {e}"))
+                    Error::Endpoint(format!(
+                        "invalid ip:port or hostname:port for tcp endpoint {tail:?}: {e}"
+                    ))
                 })
                 .map(|addresses| addresses.filter(net::SocketAddr::is_ipv4))
                 .and_then(|addresses| {
@@ -178,7 +180,9 @@ impl FromStr for Endpoint {
             "tls" => tail
                 .to_socket_addrs()
                 .map_err(|e| {
-                    Error::Endpoint(format!("invalid socket address for tls endpoint: {e}"))
+                    Error::Endpoint(format!(
+                        "invalid ip:port or hostname:port for tcp endpoint {tail:?}: {e}"
+                    ))
                 })
                 .map(|addresses| addresses.filter(net::SocketAddr::is_ipv4))
                 .and_then(|addresses| {
@@ -439,7 +443,7 @@ pub struct Receive {
         feature = "command-line",
         clap(
             long,
-            value_name = "ip",
+            value_name = "ip|hostname",
             help = "IP address or hostname on which to listen from sender UDP packets"
         )
     )]
@@ -557,7 +561,7 @@ pub struct Send {
         feature = "command-line",
         clap(
             long,
-            value_name = "ip:port",
+            value_name = "ip:port|hostname:port",
             help = "Listen socket address for Prometheus connections"
         )
     )]
@@ -568,14 +572,18 @@ pub struct Send {
     from: Vec<Endpoint>,
     #[cfg_attr(
         feature = "command-line",
-        clap(long, value_name = "ip", help = "IP address or hostname of receiver")
+        clap(
+            long,
+            value_name = "ip|hostname",
+            help = "IP address or hostname of receiver"
+        )
     )]
     to: Option<String>,
     #[cfg_attr(
         feature = "command-line",
         clap(
             long,
-            value_name = "ip:port",
+            value_name = "ip:port|hostname:port",
             help = "Binding address of UDP socket used to reach receiver"
         )
     )]

@@ -7,13 +7,6 @@ use std::{
 };
 
 pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Error> {
-    log::info!(
-        "sending UDP traffic to {} with MTU {} binding to {}",
-        sender.config.to,
-        sender.config.mtu,
-        sender.config.to_bind
-    );
-
     let socket = net::UdpSocket::bind(sender.config.to_bind)?;
     socket.set_nonblocking(false)?;
 
@@ -32,18 +25,34 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
         log::warn!("Please review the kernel parameters using sysctl");
     }
 
-    let addresses = (sender.config.to.as_str(), to_port)
-        .to_socket_addrs()?
+    let addresses = (sender.config.to.as_str(), 0)
+        .to_socket_addrs()
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::AddrNotAvailable,
+                format!("bad IP or hostname {:?}: {e}", sender.config.to),
+            )
+        })?
         .filter(net::SocketAddr::is_ipv4)
         .collect::<Vec<_>>();
     let address = if addresses.len() == 1 {
-        addresses[0]
+        addresses[0].ip()
     } else {
         return Err(crate::Error::Io(io::Error::new(
             io::ErrorKind::AddrNotAvailable,
             format!("hostname matches several addresses for UDP destination: {addresses:?}"),
         )));
     };
+
+    log::info!(
+        "sending UDP traffic to {}:{} with MTU {} binding to {}",
+        address,
+        to_port,
+        sender.config.mtu,
+        sender.config.to_bind
+    );
+
+    let address = net::SocketAddr::new(address, to_port);
 
     let mut udp = socket::Send::new(socket, address, sender.config.mode)?;
 
