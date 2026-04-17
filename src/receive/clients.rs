@@ -25,6 +25,7 @@ where
 
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: send loop error: {e}");
+            receiver.stats.client_aborted(client_id);
         }
 
         thread::yield_now();

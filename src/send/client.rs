@@ -13,6 +13,7 @@ where
     C: io::Read + AsRawFd + Send,
 {
     log::info!("client {client_id:x}: connected");
+    sender.stats.client_connected(client_id);
 
     sender.to_ordering.send(Some(protocol::Block::new(
         protocol::BlockType::Start,
@@ -64,10 +65,12 @@ where
             Some(&buffer[..cursor]),
         )?))?;
 
+        sender.stats.add_bytes(client_id, cursor as u64);
         transmitted += cursor;
         cursor = 0;
 
         if 0 == read {
+            sender.stats.client_finished(client_id);
             if let Some(hasher) = hasher {
                 let hash = hasher.finish_ext();
                 log::info!(

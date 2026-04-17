@@ -16,7 +16,7 @@
 //! - there are `max_clients` clients workers running in parallel,
 //! - there are `nb_decode_threads` decode workers running in parallel.
 
-use crate::protocol;
+use crate::{protocol, stats::Stats};
 use std::{
     fmt,
     io::{self, Write},
@@ -147,6 +147,7 @@ enum Reassembled {
 pub struct Receiver<ClientNew, ClientEnd> {
     config: Config,
     raptorq: protocol::RaptorQ,
+    pub stats: sync::Arc<Stats>,
     multiplex_control: semka::Sem,
     block_to_dispatch: (sync::Mutex<u8>, sync::Condvar),
     to_reblock: crossbeam_channel::Sender<crate::udp::Datagrams>,
@@ -181,6 +182,7 @@ where
     pub fn new(
         config: Config,
         raptorq: protocol::RaptorQ,
+        stats: sync::Arc<Stats>,
         client_new: ClientNew,
         client_end: ClientEnd,
     ) -> Result<Self, Error> {
@@ -197,6 +199,7 @@ where
         Ok(Self {
             config,
             raptorq,
+            stats,
             multiplex_control,
             block_to_dispatch,
             to_reblock,

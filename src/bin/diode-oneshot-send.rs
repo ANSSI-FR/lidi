@@ -1,5 +1,5 @@
 use clap::Parser;
-use diode::{protocol, send};
+use diode::{protocol, send, stats};
 use std::{io, net, process, sync, thread};
 
 #[derive(clap::Parser)]
@@ -91,6 +91,7 @@ fn main() {
         }
     };
 
+    let sender_stats = sync::Arc::new(stats::Stats::new(stats::ROLE_SEND, 32));
     let sender = match send::Sender::new(
         send::Config {
             max_clients: 1,
@@ -105,6 +106,7 @@ fn main() {
             hash: args.hash,
         },
         raptorq,
+        sender_stats,
     ) {
         Ok(sender) => sender,
         Err(e) => {

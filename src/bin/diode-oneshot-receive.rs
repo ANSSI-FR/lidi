@@ -1,6 +1,6 @@
 use clap::Parser;
-use diode::{protocol, receive};
-use std::{io, net, process, str::FromStr, thread, time};
+use diode::{protocol, receive, stats};
+use std::{io, net, process, str::FromStr, sync, thread, time};
 
 fn parse_duration_seconds(input: &str) -> Result<time::Duration, <u64 as FromStr>::Err> {
     let input = input.parse()?;
@@ -110,6 +110,7 @@ fn main() {
             }
         };
 
+    let receiver_stats = sync::Arc::new(stats::Stats::new(stats::ROLE_RECEIVE, 32));
     let receiver = match receive::Receiver::new(
         receive::Config {
             from: args.from,
@@ -125,6 +126,7 @@ fn main() {
             hash: args.hash,
         },
         raptorq,
+        receiver_stats,
         |_| Ok::<_, io::Error>(io::stdout()),
         |_, ok| {
             if ok {

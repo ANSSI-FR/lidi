@@ -1,5 +1,5 @@
 use clap::Parser;
-use diode::{protocol, send};
+use diode::{http, protocol, send, stats};
 use std::{
     io::Read,
     net,
@@ -47,6 +47,12 @@ struct Args {
         help = "Log messages in a file instead of the console"
     )]
     log_file: Option<path::PathBuf>,
+    #[clap(
+        value_name = "ip:port",
+        long,
+        help = "Bind a read-only observability HTTP server on this address (bind to 127.0.0.1; no auth)"
+    )]
+    http_addr: Option<net::SocketAddr>,
     #[clap(flatten)]
     from: Listeners,
     #[clap(
@@ -174,13 +180,91 @@ fn tcp_listener_loop(listener: &net::TcpListener, sender: &send::Sender<Client>)
     }
 }
 
+fn bind_tcp(from_tcp: Option<net::SocketAddr>) -> Result<Option<net::TcpListener>, ()> {
+    let Some(addr) = from_tcp else {
+        return Ok(None);
+    };
+    match net::TcpListener::bind(addr) {
+        Err(e) => {
+            log::error!("failed to bind TCP {addr}: {e}");
+            Err(())
+        }
+        Ok(listener) => {
+            log::info!("accepting TCP clients on {addr}");
+            Ok(Some(listener))
+        }
+    }
+}
+
+fn bind_unix(from_unix: Option<path::PathBuf>) -> Result<Option<unix::net::UnixListener>, ()> {
+    let Some(path) = from_unix else {
+        return Ok(None);
+    };
+    if path.exists() {
+        log::error!("Unix socket path '{}' already exists", path.display());
+        return Err(());
+    }
+    match unix::net::UnixListener::bind(&path) {
+        Err(e) => {
+            log::error!("failed to bind Unix {}: {e}", path.display());
+            Err(())
+        }
+        Ok(listener) => {
+            log::info!("accepting Unix clients at {}", path.display());
+            Ok(Some(listener))
+        }
+    }
+}
+
+fn spawn_http(
+    addr: net::SocketAddr,
+    stats: sync::Arc<diode::stats::Stats>,
+    info: sync::Arc<http::InfoSnapshot>,
+    log_ring: Option<sync::Arc<diode::logring::LogRing>>,
+) {
+    // Detached: the HTTP server outlives scoped-thread shutdown (the OS reaps
+    // it when `main` returns).
+    thread::Builder::new()
+        .name("http_server".into())
+        .spawn(move || http::start(addr, &stats, &info, log_ring.as_ref()))
+        .expect("thread spawn");
+}
+
+fn build_info(args: &Args) -> http::InfoSnapshot {
+    http::InfoSnapshot {
+        role: stats::ROLE_SEND,
+        version: env!("CARGO_PKG_VERSION"),
+        max_clients: args.max_clients,
+        block_bytes: args.block,
+        repair_pct: args.repair,
+        heartbeat_secs: args.heartbeat.map(|d| d.as_secs()),
+        mtu: args.to_mtu,
+        peer: Some(args.to),
+        bind: Some(args.to_bind),
+        listener_tcp: args.from.from_tcp,
+        listener_unix: args.from.from_unix.clone(),
+        forward_tcp: None,
+        forward_unix: None,
+        flush: args.flush,
+        hash: args.hash,
+    }
+}
+
 fn main() {
     let args = Args::parse();
 
-    if let Err(e) = diode::init_logger(args.log_level, args.log_file, false) {
-        eprintln!("failed to initialize logger: {e}");
-        return;
-    }
+    let log_ring = match diode::init_logger_with_ring(
+        args.log_level,
+        args.log_file.clone(),
+        false,
+        args.http_addr.is_some(),
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("failed to initialize logger: {e}");
+            return;
+        }
+    };
 
     log::info!(
         "{} version {}",
@@ -196,6 +280,12 @@ fn main() {
         }
     };
 
+    let sender_stats = sync::Arc::new(stats::Stats::new(
+        stats::ROLE_SEND,
+        (args.max_clients as usize).saturating_mul(8).max(32),
+    ));
+    let info = sync::Arc::new(build_info(&args));
+
     let sender = match send::Sender::new(
         send::Config {
             max_clients: args.max_clients,
@@ -210,6 +300,7 @@ fn main() {
             hash: args.hash,
         },
         raptorq,
+        sync::Arc::clone(&sender_stats),
     ) {
         Ok(sender) => sender,
         Err(e) => {
@@ -218,42 +309,23 @@ fn main() {
         }
     };
 
-    let tcp_listener = match args.from.from_tcp {
-        None => None,
-        Some(from_tcp) => match net::TcpListener::bind(from_tcp) {
-            Err(e) => {
-                log::error!("failed to bind TCP {from_tcp}: {e}");
-                return;
-            }
-            Ok(listener) => {
-                log::info!("accepting TCP clients on {from_tcp}");
-                Some(listener)
-            }
-        },
+    let Ok(tcp_listener) = bind_tcp(args.from.from_tcp) else {
+        return;
     };
-
-    let unix_listener = match args.from.from_unix {
-        None => None,
-        Some(from_unix) => {
-            if from_unix.exists() {
-                log::error!("Unix socket path '{}' already exists", from_unix.display());
-                return;
-            }
-
-            match unix::net::UnixListener::bind(&from_unix) {
-                Err(e) => {
-                    log::error!("failed to bind Unix {}: {e}", from_unix.display());
-                    return;
-                }
-                Ok(listener) => {
-                    log::info!("accepting Unix clients at {}", from_unix.display());
-                    Some(listener)
-                }
-            }
-        }
+    let Ok(unix_listener) = bind_unix(args.from.from_unix.clone()) else {
+        return;
     };
 
     let sender = sync::Arc::new(sender);
+
+    if let Some(http_addr) = args.http_addr {
+        spawn_http(
+            http_addr,
+            sync::Arc::clone(&sender_stats),
+            sync::Arc::clone(&info),
+            log_ring,
+        );
+    }
 
     thread::scope(|scope| {
         let lsender = sender.clone();

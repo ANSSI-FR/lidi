@@ -21,6 +21,7 @@ where
     E: Into<receive::Error>,
 {
     log::info!("client {client_id:x}: starting transfer");
+    receiver.stats.client_connected(client_id);
 
     let client = (receiver.client_new)(client_id).map_err(Into::into)?;
     let mut client =
@@ -52,6 +53,7 @@ where
                 hasher.write(payload);
             }
 
+            receiver.stats.add_bytes(client_id, payload.len() as u64);
             transmitted += payload.len();
 
             client.write_all(payload)?;
@@ -63,6 +65,7 @@ where
         match block_type {
             protocol::BlockType::Abort => {
                 log::warn!("client {client_id:x}: aborting transfer");
+                receiver.stats.client_aborted(client_id);
                 (receiver.client_end)(
                     client.into_inner().map_err(|e| {
                         receive::Error::Other(format!("failed to retrieve client inner: {e}",))
@@ -82,6 +85,7 @@ where
                         "client {client_id:x}: finished transfer, {transmitted} bytes transmitted"
                     );
                 }
+                receiver.stats.client_finished(client_id);
                 client.flush()?;
                 (receiver.client_end)(
                     client.into_inner().map_err(|e| {

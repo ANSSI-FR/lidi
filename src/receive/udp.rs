@@ -38,6 +38,11 @@ pub fn start<ClientNew, ClientEnd>(
 
     loop {
         let datagrams = udp.recv()?;
+        let n = match &datagrams {
+            crate::udp::Datagrams::Single(_) => 1,
+            crate::udp::Datagrams::Multiple(v) => v.len() as u64,
+        };
+        receiver.stats.add_packets(n);
         receiver.to_reblock.send(datagrams)?;
     }
 }

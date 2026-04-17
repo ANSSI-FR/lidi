@@ -72,6 +72,7 @@ pub fn start<ClientNew, ClientEnd>(
             protocol::BlockType::Heartbeat => {
                 log::debug!("heartbeat received");
                 last_heartbeat = time::Instant::now();
+                receiver.stats.heartbeat_seen();
                 continue;
             }
             protocol::BlockType::Start => {

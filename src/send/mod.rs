@@ -19,7 +19,7 @@
 //! - there are `max_clients` clients workers running in parallel,
 //! - there are `nb_encode_threads` encoding workers running in parallel.
 
-use crate::protocol;
+use crate::{protocol, stats::Stats};
 use std::{
     fmt,
     io::{self, Read},
@@ -122,6 +122,7 @@ impl From<protocol::Error> for Error {
 pub struct Sender<C> {
     config: Config,
     raptorq: protocol::RaptorQ,
+    pub stats: sync::Arc<Stats>,
     multiplex_control: semka::Sem,
     block_to_send: (sync::Mutex<u8>, sync::Condvar),
     to_server: crossbeam_channel::Sender<Option<C>>,
@@ -142,7 +143,11 @@ where
     ///
     /// Will return `Err` if `multiplex_control` semaphore
     /// cannot be created.
-    pub fn new(config: Config, raptorq: protocol::RaptorQ) -> Result<Self, Error> {
+    pub fn new(
+        config: Config,
+        raptorq: protocol::RaptorQ,
+        stats: sync::Arc<Stats>,
+    ) -> Result<Self, Error> {
         let multiplex_control = semka::Sem::new(config.max_clients)
             .ok_or(Error::Other("failed to create semaphore".into()))?;
 
@@ -158,6 +163,7 @@ where
         Ok(Self {
             config,
             raptorq,
+            stats,
             multiplex_control,
             block_to_send,
             to_server,

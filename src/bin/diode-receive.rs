@@ -1,12 +1,12 @@
 use clap::Parser;
-use diode::{protocol, receive};
+use diode::{http, protocol, receive, stats};
 use std::{
     io::{self, Write},
     net,
     os::{fd::AsRawFd, unix},
     path,
     str::FromStr,
-    thread, time,
+    sync, thread, time,
 };
 
 fn parse_duration_seconds(input: &str) -> Result<time::Duration, <u64 as FromStr>::Err> {
@@ -47,6 +47,12 @@ struct Args {
         help = "Log messages in a file instead of the console"
     )]
     log_file: Option<path::PathBuf>,
+    #[clap(
+        value_name = "ip:port",
+        long,
+        help = "Bind a read-only observability HTTP server on this address (bind to 127.0.0.1; no auth)"
+    )]
+    http_addr: Option<net::SocketAddr>,
     #[clap(
         value_name = "ip:port",
         long,
@@ -177,13 +183,41 @@ impl TryFrom<&Clients> for Client {
     }
 }
 
+fn build_info(args: &Args) -> http::InfoSnapshot {
+    http::InfoSnapshot {
+        role: stats::ROLE_RECEIVE,
+        version: env!("CARGO_PKG_VERSION"),
+        max_clients: args.max_clients,
+        block_bytes: args.block,
+        repair_pct: args.repair,
+        heartbeat_secs: args.heartbeat.map(|d| d.as_secs()),
+        mtu: args.from_mtu,
+        peer: Some(args.from),
+        bind: None,
+        listener_tcp: None,
+        listener_unix: None,
+        forward_tcp: args.to.to_tcp,
+        forward_unix: args.to.to_unix.clone(),
+        flush: args.flush,
+        hash: args.hash,
+    }
+}
+
 fn main() {
     let args = Args::parse();
 
-    if let Err(e) = diode::init_logger(args.log_level, args.log_file, false) {
-        eprintln!("failed to initialize logger: {e}");
-        return;
-    }
+    let log_ring = match diode::init_logger_with_ring(
+        args.log_level,
+        args.log_file.clone(),
+        false,
+        args.http_addr.is_some(),
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("failed to initialize logger: {e}");
+            return;
+        }
+    };
 
     log::info!(
         "{} version {}",
@@ -200,6 +234,25 @@ fn main() {
             }
         };
 
+    let receiver_stats = sync::Arc::new(stats::Stats::new(
+        stats::ROLE_RECEIVE,
+        (args.max_clients as usize).saturating_mul(8).max(32),
+    ));
+    let info = sync::Arc::new(build_info(&args));
+
+    if let Some(http_addr) = args.http_addr {
+        let stats_handle = sync::Arc::clone(&receiver_stats);
+        let info_handle = sync::Arc::clone(&info);
+        // Detached: the HTTP server outlives scoped-thread shutdown (the OS
+        // reaps it when `main` returns).
+        thread::Builder::new()
+            .name("http_server".into())
+            .spawn(move || {
+                http::start(http_addr, &stats_handle, &info_handle, log_ring.as_ref());
+            })
+            .expect("thread spawn");
+    }
+
     let receiver = match receive::Receiver::new(
         receive::Config {
             from: args.from,
@@ -215,6 +268,7 @@ fn main() {
             hash: args.hash,
         },
         raptorq,
+        sync::Arc::clone(&receiver_stats),
         |_| Client::try_from(&args.to),
         |_, _| (),
     ) {

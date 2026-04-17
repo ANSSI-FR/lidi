@@ -39,7 +39,10 @@ pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
             let mut count = sender.config.nb_encode_threads - 1;
             while 0 < count {
                 match sender.for_send.recv()? {
-                    Some(packets) => udp.send(packets)?,
+                    Some(packets) => {
+                        sender.stats.add_packets(packets.len() as u64);
+                        udp.send(packets)?;
+                    }
                     None => {
                         count -= 1;
                     }
@@ -48,6 +51,7 @@ pub fn start<C>(sender: &send::Sender<C>) -> Result<(), send::Error> {
             return Ok(());
         };
 
+        sender.stats.add_packets(packets.len() as u64);
         udp.send(packets)?;
     }
 }

@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lidi</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0f1115;
+    --panel: #161a22;
+    --border: #262c38;
+    --muted: #8892a6;
+    --fg: #e6ebf2;
+    --accent: #7cc5ff;
+    --ok: #5dd39e;
+    --warn: #f5b454;
+    --err: #f06767;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --border: #d9dde5;
+      --muted: #5b6577;
+      --fg: #151a22;
+      --accent: #0c7bd8;
+    }
+  }
+  html, body {
+    background: var(--bg); color: var(--fg);
+    font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    margin: 0; padding: 0;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  header .role {
+    background: var(--accent); color: #000;
+    padding: 2px 10px; border-radius: 999px;
+    font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  header .version { color: var(--muted); font-size: 12px; }
+  header .peer { color: var(--muted); margin-left: auto; font-family: ui-monospace, monospace; }
+  main {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    padding: 16px 20px; max-width: 1200px; margin: 0 auto;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .panel h2 {
+    margin: 0 0 10px; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+  .panel.span { grid-column: 1 / -1; }
+  dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+  dl.kv dt { color: var(--muted); }
+  dl.kv dd { margin: 0; font-family: ui-monospace, monospace; }
+  .counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .metric {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px;
+  }
+  .metric .label { color: var(--muted); font-size: 11px; }
+  .metric .value { font-size: 18px; font-family: ui-monospace, monospace; margin-top: 2px; }
+  .pill {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+  }
+  .pill.ok  { background: color-mix(in oklab, var(--ok) 25%, transparent);  color: var(--ok); }
+  .pill.warn{ background: color-mix(in oklab, var(--warn) 25%, transparent); color: var(--warn); }
+  .pill.err { background: color-mix(in oklab, var(--err) 25%, transparent);  color: var(--err); }
+  .pill.mute{ background: color-mix(in oklab, var(--muted) 25%, transparent);color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-family: ui-monospace, monospace; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  th { color: var(--muted); font-weight: 500; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .empty { color: var(--muted); padding: 8px; font-style: italic; }
+  pre.logs {
+    max-height: 320px; overflow: auto; margin: 0;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; font: 12px/1.45 ui-monospace, monospace;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  pre.logs .Error, pre.logs .ERROR { color: var(--err); }
+  pre.logs .Warn,  pre.logs .WARN  { color: var(--warn); }
+  pre.logs .Info,  pre.logs .INFO  { color: var(--fg); }
+  pre.logs .Debug, pre.logs .DEBUG { color: var(--muted); }
+  pre.logs .Trace, pre.logs .TRACE { color: var(--muted); }
+  footer { padding: 10px 20px; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>lidi</h1>
+  <span class="role" id="role">…</span>
+  <span class="version" id="version"></span>
+  <span class="peer" id="peer"></span>
+</header>
+<main>
+  <section class="panel span counters">
+    <div class="metric"><div class="label">Bytes</div>         <div class="value" id="m_bytes">0</div></div>
+    <div class="metric"><div class="label">Packets</div>       <div class="value" id="m_packets">0</div></div>
+    <div class="metric"><div class="label">Active</div>        <div class="value" id="m_active">0</div></div>
+    <div class="metric"><div class="label">Finished / Aborted</div><div class="value" id="m_done">0 / 0</div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Status</h2>
+    <dl class="kv">
+      <dt>Uptime</dt><dd id="s_uptime">–</dd>
+      <dt>Heartbeat</dt><dd id="s_hb">–</dd>
+      <dt>Transfers started</dt><dd id="s_started">0</dd>
+      <dt>Polling</dt><dd id="s_poll"><span class="pill ok">live</span></dd>
+    </dl>
+  </section>
+
+  <section class="panel">
+    <h2>Configuration</h2>
+    <dl class="kv" id="config"></dl>
+  </section>
+
+  <section class="panel span">
+    <h2>Active &amp; recent clients</h2>
+    <table>
+      <thead><tr><th>Client ID</th><th>Started</th><th>Bytes</th><th>Age</th><th>State</th></tr></thead>
+      <tbody id="clients"></tbody>
+    </table>
+  </section>
+
+  <section class="panel span">
+    <h2>Log</h2>
+    <pre class="logs" id="logs"></pre>
+  </section>
+</main>
+<footer>lidi &middot; observability &middot; read-only</footer>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  let logCursor = 0;
+  let heartbeatSecs = null;
+
+  const fmtBytes = (n) => {
+    if (n < 1024) return n + " B";
+    const units = ["KB","MB","GB","TB","PB"];
+    let v = n / 1024, i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2) + " " + units[i];
+  };
+
+  const fmtDuration = (ms) => {
+    if (ms < 0) return "–";
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return s + "s";
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + "m " + (s % 60) + "s";
+    const h = Math.floor(m / 60);
+    return h + "h " + (m % 60) + "m";
+  };
+
+  const pillFor = (state) => {
+    if (state === "Connected") return '<span class="pill ok">' + state + '</span>';
+    if (state === "Finished")  return '<span class="pill mute">' + state + '</span>';
+    if (state === "Aborted")   return '<span class="pill err">' + state + '</span>';
+    return state;
+  };
+
+  const fetchJson = (url) =>
+    fetch(url, { cache: "no-store" }).then((r) => {
+      if (!r.ok) throw new Error(r.status + " " + r.statusText);
+      return r.json();
+    });
+
+  const renderConfig = (info) => {
+    $("role").textContent = info.role;
+    $("version").textContent = "v" + info.version;
+    heartbeatSecs = info.heartbeat_secs;
+    document.title = "lidi " + info.role;
+    const peer = info.role === "send"
+      ? (info.peer ? "→ " + info.peer : "")
+      : (info.peer ? "← " + info.peer : "");
+    $("peer").textContent = peer;
+
+    const rows = [];
+    const push = (k, v) => { if (v !== undefined && v !== null && v !== "") rows.push([k, v]); };
+    push("Role", info.role);
+    push("Max clients", info.max_clients);
+    push("Block size", fmtBytes(info.block_bytes));
+    push("Repair", info.repair_pct + "%");
+    push("MTU", info.mtu + " bytes");
+    push("Heartbeat", info.heartbeat_secs != null ? info.heartbeat_secs + "s" : "disabled");
+    if (info.peer)  push(info.role === "send" ? "To (UDP)" : "From (UDP)", info.peer);
+    if (info.bind)  push("UDP bind", info.bind);
+    if (info.listeners && info.listeners.tcp)   push("TCP listener", info.listeners.tcp);
+    if (info.listeners && info.listeners.unix)  push("Unix listener", info.listeners.unix);
+    if (info.forward && info.forward.tcp)       push("Forward TCP", info.forward.tcp);
+    if (info.forward && info.forward.unix)      push("Forward Unix", info.forward.unix);
+    push("Flush", info.flush ? "yes" : "no");
+    push("Hash", info.hash ? "yes" : "no");
+
+    $("config").innerHTML = rows.map(
+      ([k, v]) => "<dt>" + k + "</dt><dd>" + String(v).replace(/[<>&]/g, c => ({
+        "<":"&lt;",">":"&gt;","&":"&amp;"
+      }[c])) + "</dd>"
+    ).join("");
+  };
+
+  const renderStatus = (s) => {
+    $("m_bytes").textContent   = fmtBytes(s.bytes_total);
+    $("m_packets").textContent = s.packets_total.toLocaleString();
+    $("m_active").textContent  = s.active_count;
+    $("m_done").textContent    = s.transfers_finished + " / " + s.transfers_aborted;
+    $("s_uptime").textContent  = fmtDuration(s.uptime_secs * 1000);
+    $("s_started").textContent = s.transfers_started;
+
+    const hb = $("s_hb");
+    if (!s.last_heartbeat_unix_ms) {
+      hb.innerHTML = heartbeatSecs
+        ? '<span class="pill mute">none yet</span>'
+        : '<span class="pill mute">disabled</span>';
+    } else {
+      const age = s.now_unix_ms - s.last_heartbeat_unix_ms;
+      const threshold = (heartbeatSecs || 10) * 1000 * 2;
+      const cls = age > threshold ? "err" : age > (heartbeatSecs || 10) * 1000 ? "warn" : "ok";
+      hb.innerHTML = '<span class="pill ' + cls + '">' + fmtDuration(age) + ' ago</span>';
+    }
+
+    const tbody = $("clients");
+    if (!s.clients.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No transfers yet.</td></tr>';
+    } else {
+      // Render newest first.
+      const rows = s.clients.slice().reverse().map((c) => {
+        const age = s.now_unix_ms - c.started_unix_ms;
+        const started = new Date(c.started_unix_ms).toLocaleTimeString();
+        return "<tr><td>" + c.id + "</td><td>" + started + "</td><td>"
+             + fmtBytes(c.bytes) + "</td><td>" + fmtDuration(age) + "</td><td>"
+             + pillFor(c.state) + "</td></tr>";
+      });
+      tbody.innerHTML = rows.join("");
+    }
+  };
+
+  const renderLogs = (payload) => {
+    if (!payload.lines || !payload.lines.length) { logCursor = payload.cursor; return; }
+    const pre = $("logs");
+    const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 8;
+    const frag = document.createDocumentFragment();
+    for (const e of payload.lines) {
+      const ts = new Date(e.ts_unix_ms).toISOString().substring(11, 23);
+      const span = document.createElement("span");
+      span.className = e.level;
+      span.textContent = ts + " " + e.level.padEnd(5) + " " + e.msg + "\n";
+      frag.appendChild(span);
+    }
+    pre.appendChild(frag);
+    // Cap DOM size.
+    while (pre.childNodes.length > 2000) pre.removeChild(pre.firstChild);
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+    logCursor = payload.cursor;
+  };
+
+  const setPoll = (ok) => {
+    $("s_poll").innerHTML = ok
+      ? '<span class="pill ok">live</span>'
+      : '<span class="pill err">disconnected</span>';
+  };
+
+  const tickStatus = () => fetchJson("/api/status").then((s) => { renderStatus(s); setPoll(true); })
+                                                   .catch(() => setPoll(false));
+  const tickLogs   = () => fetchJson("/api/logs?since=" + logCursor).then(renderLogs).catch(() => {});
+
+  fetchJson("/api/info").then(renderConfig).catch(() => setPoll(false));
+  tickStatus();
+  tickLogs();
+  setInterval(tickStatus, 1000);
+  setInterval(tickLogs, 2000);
+})();
+</script>
+</body>
+</html>

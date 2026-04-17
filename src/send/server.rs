@@ -25,6 +25,7 @@ where
 
         if let Err(e) = client_res {
             log::error!("client {client_id:x}: error: {e}");
+            sender.stats.client_aborted(client_id);
 
             if let Err(e) = sender.to_ordering.send(Some(protocol::Block::new(
                 protocol::BlockType::Abort,
