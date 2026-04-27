@@ -21,22 +21,26 @@ pub fn start<ClientNew, ClientEnd>(
 
     #[cfg(feature = "heartbeat")]
     let mut last_heartbeat = time::Instant::now();
+    #[cfg(feature = "heartbeat")]
+    let heartbeat_check = receiver.config.heartbeat.map(|hb| {
+        // Add 25% time between each heartbeat checks to let some time
+        // for the heartbeat block to arrive
+        hb.mul_f32(1.25)
+    });
 
     loop {
         #[cfg(not(feature = "heartbeat"))]
         let block = receiver.for_dispatch.recv()?;
         #[cfg(feature = "heartbeat")]
-        let block = match receiver.config.heartbeat.as_ref() {
+        let block = match heartbeat_check.as_ref() {
             None => receiver.for_dispatch.recv()?,
-            Some(hb_interval) => match receiver.for_dispatch.recv_timeout(*hb_interval) {
+            Some(hb_check) => match receiver.for_dispatch.recv_timeout(*hb_check) {
                 Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                    if last_heartbeat.elapsed() > *hb_interval {
+                    let hb = receiver.config.heartbeat.as_ref().unwrap();
+                    if last_heartbeat.elapsed() > *hb {
                         #[cfg(feature = "prometheus")]
                         metrics::counter!("lidi_receive_heartbeat_missed").increment(1);
-                        log::warn!(
-                            "no heartbeat block received for {} second(s)",
-                            hb_interval.as_secs()
-                        );
+                        log::warn!("no heartbeat block received for {} second(s)", hb.as_secs());
                     }
                     continue;
                 }
