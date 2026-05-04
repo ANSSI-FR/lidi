@@ -120,13 +120,9 @@ fn send_file_thread(
             return;
         };
 
-        let Some(file_path) = path.as_os_str().to_str() else {
-            log::error!("not a file {:?}", path.display());
-            continue;
-        };
-
         if let Some(ignore) = config.ignore.as_ref()
-            && ignore.is_match(file_path)
+            && let Some(file_name) = path.file_name().and_then(|s| s.to_str())
+            && ignore.is_match(file_name)
         {
             log::debug!("ignoring {:?}", path.display());
             continue;
