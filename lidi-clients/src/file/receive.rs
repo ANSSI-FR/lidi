@@ -145,11 +145,8 @@ where
 {
     let header = file::protocol::Header::deserialize_from(&mut diode)?;
 
-    let file_path = path::PathBuf::from(header.file_name);
-    let file_name = file_path
-        .file_name()
-        .ok_or_else(|| file::Error::Other(String::from("unwrap of file_name failed")))?;
-    let file_path = output_dir.join(path::PathBuf::from(file_name));
+    let file_path = path::PathBuf::from_iter(&header.file_path);
+    let file_path = output_dir.join(file_path);
 
     log::info!(
         "receiving file {} ({} bytes)",
@@ -162,6 +159,12 @@ where
             "file {} already exists",
             file_path.display()
         )));
+    }
+
+    if let Some(parent) = file_path.parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent)?;
     }
 
     let mut file = fs::OpenOptions::new()

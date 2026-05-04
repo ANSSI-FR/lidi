@@ -5,26 +5,64 @@ use crate::{file, hash};
 use std::net;
 #[cfg(feature = "unix")]
 use std::os::unix;
+#[cfg(feature = "inotify")]
+use std::{collections, io, thread};
 use std::{
     fs,
     io::{Read, Write},
     os::unix::fs::PermissionsExt,
     path,
 };
-#[cfg(feature = "inotify")]
-use std::{io, thread};
 
 #[cfg(feature = "inotify")]
 fn notifier_thread(
-    dir: &path::Path,
-    to_send: &crossbeam_channel::Sender<path::PathBuf>,
+    dir: path::PathBuf,
+    recursive: bool,
+    to_send: &crossbeam_channel::Sender<Option<path::PathBuf>>,
 ) -> Result<(), file::Error> {
     let mut inotify = inotify::Inotify::init()?;
 
-    inotify.watches().add(
-        dir,
-        inotify::WatchMask::CLOSE_WRITE | inotify::WatchMask::MOVED_TO,
-    )?;
+    let mut watch_mask: inotify::WatchMask =
+        inotify::WatchMask::CLOSE_WRITE | inotify::WatchMask::MOVED_TO;
+    if recursive {
+        watch_mask |= inotify::WatchMask::CREATE;
+    }
+
+    let mut descriptors = collections::HashMap::new();
+
+    let mut todo = collections::HashSet::new();
+    todo.insert(dir);
+
+    loop {
+        if todo.is_empty() {
+            break;
+        }
+
+        let mut next = collections::HashSet::new();
+
+        for dir in todo {
+            log::debug!("watch {}", dir.display());
+            let wd = inotify.watches().add(dir.as_path(), watch_mask)?;
+            descriptors.insert(wd.get_watch_descriptor_id(), dir.clone());
+
+            if recursive {
+                for dir in dir
+                    .read_dir()?
+                    .filter_map(|entry| {
+                        entry
+                            .inspect_err(|e| log::error!("failed to read entry: {e}"))
+                            .ok()
+                            .map(|entry| entry.path())
+                    })
+                    .filter(|path| path.is_dir())
+                {
+                    next.insert(dir);
+                }
+            }
+        }
+
+        todo = next;
+    }
 
     let mut buffer = [0u8; 4096];
 
@@ -32,10 +70,30 @@ fn notifier_thread(
         let events = inotify.read_events_blocking(&mut buffer)?;
         for event in events {
             if let Some(name) = event.name {
-                let path = dir.join(name);
-                to_send.send(path).map_err(|e| {
-                    file::Error::Io(io::Error::new(io::ErrorKind::BrokenPipe, e.to_string()))
-                })?;
+                match descriptors.get(&event.wd.get_watch_descriptor_id()) {
+                    None => {
+                        log::warn!("no descriptor found for event on {}", name.display());
+                    }
+                    Some(dir) => {
+                        let path = dir.join(name);
+                        if path.is_dir() && event.mask.contains(inotify::EventMask::CREATE) {
+                            log::debug!("watch created dir {}", path.display());
+                            let wd = inotify.watches().add(path.clone(), watch_mask)?;
+                            descriptors.insert(wd.get_watch_descriptor_id(), path);
+                        } else if path.is_file()
+                            && (event.mask.contains(inotify::EventMask::CLOSE_WRITE)
+                                || event.mask.contains(inotify::EventMask::MOVED_TO))
+                        {
+                            log::debug!("watch new file {}", path.display());
+                            to_send.send(Some(path)).map_err(|e| {
+                                file::Error::Io(io::Error::new(
+                                    io::ErrorKind::BrokenPipe,
+                                    e.to_string(),
+                                ))
+                            })?;
+                        }
+                    }
+                }
             }
         }
     }
@@ -44,13 +102,12 @@ fn notifier_thread(
 #[cfg(feature = "inotify")]
 fn send_file_thread(
     config: &file::Config<crate::DiodeSend>,
-    for_send: &crossbeam_channel::Receiver<path::PathBuf>,
+    for_send: &crossbeam_channel::Receiver<Option<path::PathBuf>>,
+    base_dir: Option<&path::PathBuf>,
 ) {
     let mut count = 0;
 
     loop {
-        use std::ffi::OsStr;
-
         if config.max_files != 0 && count >= config.max_files {
             break;
         }
@@ -59,32 +116,28 @@ fn send_file_thread(
             break;
         };
 
-        let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
+        let Some(path) = path else {
+            return;
+        };
+
+        let Some(file_path) = path.as_os_str().to_str() else {
             log::error!("not a file {:?}", path.display());
             continue;
         };
 
         if let Some(ignore) = config.ignore.as_ref()
-            && ignore.is_match(file_name)
+            && ignore.is_match(file_path)
         {
             log::debug!("ignoring {:?}", path.display());
             continue;
         }
 
-        let Ok(path) = path
-            .into_os_string()
-            .into_string()
-            .inspect_err(|e| log::error!("unsupported file name {}", e.display()))
-        else {
-            continue;
-        };
-
-        match send_file(config, &path) {
+        match send_file(config, path.as_path(), base_dir) {
             Ok(total) => {
-                log::info!("file {path:?} sent, {total} bytes sent");
+                log::info!("file {} sent, {total} bytes sent", path.display());
             }
             Err(e) => {
-                log::error!("failed to send file {path}: {e}");
+                log::error!("failed to send file {}: {e}", path.display());
             }
         }
 
@@ -92,38 +145,77 @@ fn send_file_thread(
     }
 }
 
-pub fn send_dir(config: &file::Config<crate::DiodeSend>, path: &String) -> Result<(), file::Error> {
+pub fn send_dir(
+    config: &file::Config<crate::DiodeSend>,
+    path: &path::Path,
+) -> Result<(), file::Error> {
     let dir = path::PathBuf::from(path);
 
     if !dir.is_dir() {
-        return Err(file::Error::Other(format!("{path:?} is not a directory")));
+        return Err(file::Error::Other(format!(
+            "{} is not a directory",
+            path.display()
+        )));
     }
 
     let (to_send, for_send) = crossbeam_channel::unbounded();
 
     thread::scope(|scope| {
-        thread::Builder::new().spawn_scoped(scope, || send_file_thread(config, &for_send))?;
-
-        #[cfg(feature = "inotify")]
-        thread::Builder::new().spawn_scoped(scope, || {
-            if let Err(e) = notifier_thread(&dir, &to_send) {
-                log::error!("{e}");
-            }
+        let ldir = dir.clone();
+        thread::Builder::new().spawn_scoped(scope, move || {
+            send_file_thread(config, &for_send, Some(&ldir));
         })?;
 
-        for file in dir
-            .read_dir()?
-            .filter_map(|entry| {
-                entry
-                    .inspect_err(|e| log::error!("failed to read entry: {e}"))
-                    .ok()
-                    .map(|entry| entry.path())
-            })
-            .filter(|path| path.is_file())
-        {
-            if to_send.send(file).is_err() {
+        if config.watch {
+            #[cfg(not(feature = "inotify"))]
+            log::warn!("cannot watch directory because inotify was not enabled at compilation");
+            #[cfg(feature = "inotify")]
+            {
+                let dir = dir.clone();
+                thread::Builder::new().spawn_scoped(scope, || {
+                    if let Err(e) = notifier_thread(dir, config.recursive, &to_send) {
+                        log::error!("{e}");
+                    }
+                })?;
+            }
+        }
+
+        let mut todo = collections::HashSet::new();
+        todo.insert(dir);
+
+        'outer: loop {
+            if todo.is_empty() {
                 break;
             }
+
+            let mut next = collections::HashSet::new();
+
+            for dir in todo {
+                for entry in dir
+                    .read_dir()?
+                    .filter_map(|entry| {
+                        entry
+                            .inspect_err(|e| log::error!("failed to read entry: {e}"))
+                            .ok()
+                            .map(|entry| entry.path())
+                    })
+                    .filter(|entry| config.recursive || entry.is_file())
+                {
+                    if entry.is_dir() {
+                        next.insert(entry);
+                    } else if entry.is_file() && to_send.send(Some(entry)).is_err() {
+                        break 'outer;
+                    }
+                }
+            }
+
+            todo = next;
+        }
+
+        if !config.watch {
+            to_send
+                .send(None)
+                .map_err(|_| file::Error::Other(String::from("failed to stop sender thread")))?;
         }
 
         Ok(())
@@ -136,11 +228,12 @@ pub fn send_dir(config: &file::Config<crate::DiodeSend>, path: &String) -> Resul
 /// returns an `Err`.
 pub fn send_files(
     config: &file::Config<crate::DiodeSend>,
-    paths: &[String],
+    paths: Vec<path::PathBuf>,
+    base_dir: Option<&path::PathBuf>,
 ) -> Result<(), file::Error> {
     for path in paths {
-        let total = send_file(config, path)?;
-        log::info!("file {path:?} sent, {total} bytes sent");
+        let total = send_file(config, path.as_path(), base_dir)?;
+        log::info!("file {} sent, {total} bytes sent", path.display());
     }
     Ok(())
 }
@@ -154,7 +247,8 @@ pub fn send_files(
 ///   fails.
 pub fn send_file(
     config: &file::Config<crate::DiodeSend>,
-    path: &String,
+    path: &path::Path,
+    base_dir: Option<&path::PathBuf>,
 ) -> Result<usize, file::Error> {
     log::debug!("connecting to {}", config.diode);
 
@@ -169,7 +263,7 @@ pub fn send_file(
             #[cfg(feature = "tcp")]
             {
                 let diode = net::TcpStream::connect(socket_addr)?;
-                send_file_aux(config, diode, &path::PathBuf::from(path))
+                send_file_aux(config, diode, path, base_dir)
             }
         }
         crate::DiodeSend::Tls(socket_addr) => {
@@ -183,7 +277,7 @@ pub fn send_file(
             {
                 let context = tls::ClientContext::try_from(&config.tls)?;
                 let diode = tls::TcpStream::connect(&context, socket_addr)?;
-                send_file_aux(config, diode, &path::PathBuf::from(path))
+                send_file_aux(config, diode, path, base_dir)
             }
         }
         crate::DiodeSend::Unix(spath) => {
@@ -196,7 +290,7 @@ pub fn send_file(
             #[cfg(feature = "unix")]
             {
                 let diode = unix::net::UnixStream::connect(spath)?;
-                send_file_aux(config, diode, &path::PathBuf::from(path))
+                send_file_aux(config, diode, path, base_dir)
             }
         }
     }
@@ -205,7 +299,8 @@ pub fn send_file(
 fn send_file_aux<D>(
     config: &file::Config<crate::DiodeSend>,
     mut diode: D,
-    file_path: &path::PathBuf,
+    file_path: &path::Path,
+    base_dir: Option<&path::PathBuf>,
 ) -> Result<usize, file::Error>
 where
     D: Read + Write,
@@ -222,22 +317,39 @@ where
         .create(false)
         .open(file_path)?;
 
-    let file_name = file_path
-        .file_name()
-        .ok_or_else(|| file::Error::Other(String::from("unwrap of file_name failed")))?
-        .to_os_string()
-        .into_string()
-        .map_err(|_| {
-            file::Error::Other(String::from("conversion from OsString to String failed"))
-        })?;
-
-    log::debug!("file name is {file_name:?}");
-
     let metadata = file.metadata()?;
     let permissions = metadata.permissions();
 
+    let file_path = if let Some(base_dir) = base_dir {
+        let mut paths = vec![];
+        let file_path = file_path.strip_prefix(base_dir).map_err(|_| {
+            file::Error::Other(format!(
+                "file {} is not in {}",
+                file_path.display(),
+                base_dir.display()
+            ))
+        })?;
+        for path in file_path.components() {
+            paths.push(path.as_os_str().to_os_string().into_string().map_err(|_| {
+                file::Error::Other(String::from("conversion from OsString to String failed"))
+            })?);
+        }
+        paths
+    } else {
+        vec![
+            file_path
+                .file_name()
+                .ok_or_else(|| file::Error::Other(String::from("unwrap of file_name failed")))?
+                .to_os_string()
+                .into_string()
+                .map_err(|_| {
+                    file::Error::Other(String::from("conversion from OsString to String failed"))
+                })?,
+        ]
+    };
+
     let header = file::protocol::Header {
-        file_name,
+        file_path,
         mode: permissions.mode(),
         file_length: metadata.len(),
     };
@@ -256,8 +368,8 @@ where
     };
 
     log::info!(
-        "sending file {} ({} bytes)",
-        file_path.display(),
+        "sending file {:?} ({} bytes)",
+        header.file_path,
         header.file_length
     );
 

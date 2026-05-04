@@ -8,6 +8,7 @@ pub mod protocol;
 pub mod receive;
 pub mod send;
 
+#[allow(clippy::struct_excessive_bools)]
 pub struct Config<D> {
     pub diode: D,
     pub buffer_size: usize,
@@ -16,6 +17,7 @@ pub struct Config<D> {
     pub max_files: usize,
     pub overwrite: bool,
     pub ignore: Option<regex::Regex>,
+    pub recursive: bool,
     #[cfg(feature = "inotify")]
     pub watch: bool,
     pub tls: crate::Tls,
