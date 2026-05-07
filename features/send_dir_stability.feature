@@ -2,7 +2,7 @@ Feature: Check lidi-dir-send is still working after a lidi-send restart
 
   Scenario: send-dir is still working after lidi-send restarts
     Given lidi is started with max throughput of 100mbit
-    And lidi-dir-send is started
+    And lidi-dir-send is started with watch
     When we copy a file A of size 10KB
     And lidi-file-receive file A in 5 seconds
     And lidi-send is restarted

@@ -52,7 +52,7 @@ struct Args {
     #[clap(flatten)]
     tls: lidi_clients::Tls,
     #[clap(help = "Files to send")]
-    files: Vec<String>,
+    files: Vec<path::PathBuf>,
 }
 
 fn main() {
@@ -87,12 +87,13 @@ fn main() {
         max_files: 0,
         overwrite: false,
         ignore: None,
+        recursive: false,
         #[cfg(feature = "inotify")]
         watch: false,
         tls: args.tls,
     };
 
-    if let Err(e) = lidi_clients::file::send::send_files(&config, &args.files) {
+    if let Err(e) = lidi_clients::file::send::send_files(&config, args.files, None) {
         log::error!("{e}");
     }
 }

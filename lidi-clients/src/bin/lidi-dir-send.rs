@@ -60,10 +60,12 @@ struct Args {
     tls: lidi_clients::Tls,
     #[clap(long, help = "Regex of file names to ignore")]
     ignore: Option<regex::Regex>,
+    #[clap(long, help = "Recurse in given directory")]
+    recursive: bool,
     #[clap(long, help = "Watch for new files")]
     watch: bool,
     #[clap(help = "Directory containing files to send")]
-    dir: String,
+    dir: path::PathBuf,
 }
 
 fn main() {
@@ -98,12 +100,13 @@ fn main() {
         max_files: args.max_files,
         overwrite: false,
         ignore: args.ignore,
+        recursive: args.recursive,
         #[cfg(feature = "inotify")]
         watch: args.watch,
         tls: args.tls,
     };
 
-    if let Err(e) = lidi_clients::file::send::send_dir(&config, &args.dir) {
+    if let Err(e) = lidi_clients::file::send::send_dir(&config, args.dir.as_path()) {
         log::error!("{e}");
     }
 }
