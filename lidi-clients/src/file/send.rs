@@ -15,21 +15,15 @@ use std::{
 };
 
 #[cfg(feature = "inotify")]
-fn notifier_thread(
+fn notifier_new_dir(
     dir: path::PathBuf,
-    recursive: bool,
+    inotify: &inotify::Inotify,
+    watch_mask: inotify::WatchMask,
+    descriptors: &mut collections::HashMap<i32, path::PathBuf>,
     to_send: &crossbeam_channel::Sender<Option<path::PathBuf>>,
+    recursive: bool,
+    send_files: bool,
 ) -> Result<(), file::Error> {
-    let mut inotify = inotify::Inotify::init()?;
-
-    let mut watch_mask: inotify::WatchMask =
-        inotify::WatchMask::CLOSE_WRITE | inotify::WatchMask::MOVED_TO;
-    if recursive {
-        watch_mask |= inotify::WatchMask::CREATE;
-    }
-
-    let mut descriptors = collections::HashMap::new();
-
     let mut todo = collections::HashSet::new();
     todo.insert(dir);
 
@@ -46,23 +40,57 @@ fn notifier_thread(
             descriptors.insert(wd.get_watch_descriptor_id(), dir.clone());
 
             if recursive {
-                for dir in dir
-                    .read_dir()?
-                    .filter_map(|entry| {
-                        entry
-                            .inspect_err(|e| log::error!("failed to read entry: {e}"))
-                            .ok()
-                            .map(|entry| entry.path())
-                    })
-                    .filter(|path| path.is_dir())
-                {
-                    next.insert(dir);
+                for path in dir.read_dir()?.filter_map(|entry| {
+                    entry
+                        .inspect_err(|e| log::error!("failed to read entry: {e}"))
+                        .ok()
+                        .map(|entry| entry.path())
+                }) {
+                    if path.is_dir() {
+                        next.insert(path);
+                    } else if send_files && path.is_file() {
+                        to_send.send(Some(path)).map_err(|e| {
+                            file::Error::Io(io::Error::new(
+                                io::ErrorKind::BrokenPipe,
+                                e.to_string(),
+                            ))
+                        })?;
+                    }
                 }
             }
         }
 
         todo = next;
     }
+
+    Ok(())
+}
+
+#[cfg(feature = "inotify")]
+fn notifier_thread(
+    dir: path::PathBuf,
+    recursive: bool,
+    to_send: &crossbeam_channel::Sender<Option<path::PathBuf>>,
+) -> Result<(), file::Error> {
+    let mut inotify = inotify::Inotify::init()?;
+
+    let mut watch_mask: inotify::WatchMask =
+        inotify::WatchMask::CLOSE_WRITE | inotify::WatchMask::MOVED_TO;
+    if recursive {
+        watch_mask |= inotify::WatchMask::CREATE;
+    }
+
+    let mut descriptors = collections::HashMap::new();
+
+    notifier_new_dir(
+        dir,
+        &inotify,
+        watch_mask,
+        &mut descriptors,
+        to_send,
+        recursive,
+        false,
+    )?;
 
     let mut buffer = [0u8; 4096];
 
@@ -76,10 +104,17 @@ fn notifier_thread(
                     }
                     Some(dir) => {
                         let path = dir.join(name);
-                        if path.is_dir() && event.mask.contains(inotify::EventMask::CREATE) {
+                        if path.is_dir() {
                             log::debug!("watch created dir {}", path.display());
-                            let wd = inotify.watches().add(path.clone(), watch_mask)?;
-                            descriptors.insert(wd.get_watch_descriptor_id(), path);
+                            notifier_new_dir(
+                                path,
+                                &inotify,
+                                watch_mask,
+                                &mut descriptors,
+                                to_send,
+                                recursive,
+                                true,
+                            )?;
                         } else if path.is_file()
                             && (event.mask.contains(inotify::EventMask::CLOSE_WRITE)
                                 || event.mask.contains(inotify::EventMask::MOVED_TO))
