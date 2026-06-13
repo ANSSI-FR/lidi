@@ -19,7 +19,7 @@ where
     let mut sequence_number = 0;
 
     sender
-        .to_udp
+        .to_encode
         .send(Some(
             protocol::Block::new(
                 sender.block_recycler.steal().success(),
@@ -76,7 +76,7 @@ where
         }
 
         sender
-            .to_udp
+            .to_encode
             .send(Some(
                 protocol::Block::new(
                     sender.block_recycler.steal().success(),

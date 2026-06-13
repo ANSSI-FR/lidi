@@ -17,7 +17,7 @@ where
     loop {
         let Some((endpoint_id, endpoint_options, client)) = sender.for_server.recv()? else {
             for _ in 0..sender.config.ports.len() {
-                sender.to_udp.send(None)?;
+                sender.to_encode.send(None)?;
             }
             return Ok(());
         };
@@ -29,7 +29,7 @@ where
         if let Err((sequence_number, e)) = client_res {
             log::error!("client {client_id:x}: error: {e}");
 
-            if let Err(e) = sender.to_udp.send(Some(protocol::Block::new(
+            if let Err(e) = sender.to_encode.send(Some(protocol::Block::new(
                 sender.block_recycler.steal().success(),
                 protocol::BlockType::Abort,
                 &sender.raptorq,

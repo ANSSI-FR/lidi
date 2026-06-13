@@ -13,7 +13,7 @@ pub fn start<C>(sender: &crate::Sender<C>) -> Result<(), crate::Error> {
     loop {
         log::debug!("send heartbeat");
 
-        sender.to_udp.send(Some(protocol::Block::new(
+        sender.to_encode.send(Some(protocol::Block::new(
             sender.block_recycler.steal().success(),
             protocol::BlockType::Heartbeat,
             &sender.raptorq,

@@ -33,6 +33,7 @@ use std::{
 };
 
 mod client;
+mod encode;
 #[cfg(feature = "heartbeat")]
 mod heartbeat;
 mod server;
@@ -66,6 +67,12 @@ impl fmt::Display for Error {
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Self {
         Self::Io(e)
+    }
+}
+
+impl From<crossbeam_channel::SendError<Option<Vec<raptorq::EncodingPacket>>>> for Error {
+    fn from(_: crossbeam_channel::SendError<Option<Vec<raptorq::EncodingPacket>>>) -> Self {
+        Self::SendToUdp
     }
 }
 
@@ -168,8 +175,8 @@ pub struct Sender<C> {
         crossbeam_channel::Sender<Option<(protocol::EndpointId, config::EndpointOptions, C)>>,
     for_server:
         crossbeam_channel::Receiver<Option<(protocol::EndpointId, config::EndpointOptions, C)>>,
-    to_udp: crossbeam_channel::Sender<Option<protocol::Block>>,
-    for_udp: crossbeam_channel::Receiver<Option<protocol::Block>>,
+    to_encode: crossbeam_channel::Sender<Option<protocol::Block>>,
+    for_encode: crossbeam_channel::Receiver<Option<protocol::Block>>,
 }
 
 impl<C> Sender<C>
@@ -185,7 +192,7 @@ where
             thread::sleep(timer);
 
             metrics::gauge!("lidi_send_block_recycler_len").set(self.block_recycler.len() as f64);
-            metrics::gauge!("lidi_send_udp_queue_len").set(self.for_udp.len() as f64);
+            metrics::gauge!("lidi_send_encode_queue_len").set(self.for_encode.len() as f64);
         }
     }
 
@@ -199,7 +206,7 @@ where
         let block_recycler = crossbeam_deque::Injector::new();
 
         let (to_server, for_server) = crossbeam_channel::bounded(1);
-        let (to_udp, for_udp) = crossbeam_channel::bounded(config.ports.len());
+        let (to_encode, for_encode) = crossbeam_channel::bounded(config.ports.len());
 
         Ok(Self {
             config,
@@ -207,8 +214,8 @@ where
             block_recycler,
             to_server,
             for_server,
-            to_udp,
-            for_udp,
+            to_encode,
+            for_encode,
         })
     }
 
@@ -229,10 +236,20 @@ where
         log::info!("send mode is {}", self.config.mode);
 
         for port in &self.config.ports {
+            let (to_udp, for_udp) = crossbeam_channel::bounded(2);
+
+            thread::Builder::new()
+                .name(format!("encode_{port}"))
+                .spawn_scoped(scope, move || {
+                    if let Err(e) = encode::start(self, &to_udp) {
+                        log::error!("fatal encode error: {e}");
+                    }
+                })?;
+
             thread::Builder::new()
                 .name(format!("send_{port}"))
                 .spawn_scoped(scope, move || {
-                    if let Err(e) = udp::start(self, *port) {
+                    if let Err(e) = udp::start(self, *port, &for_udp) {
                         log::error!("fatal udp error: {e}");
                     }
                 })?;

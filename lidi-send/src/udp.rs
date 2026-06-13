@@ -6,7 +6,11 @@ use std::{
     net::{self, ToSocketAddrs},
 };
 
-pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Error> {
+pub fn start<C>(
+    sender: &crate::Sender<C>,
+    to_port: u16,
+    for_udp: &crossbeam_channel::Receiver<Option<Vec<raptorq::EncodingPacket>>>,
+) -> Result<(), crate::Error> {
     let socket = net::UdpSocket::bind(sender.config.to_bind)?;
     socket.set_nonblocking(false)?;
 
@@ -56,22 +60,12 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
 
     let mut udp = socket::Send::new(socket, address, sender.config.mode)?;
 
-    let mut block_id = 0;
-
     loop {
-        let Some(block) = sender.for_udp.recv()? else {
+        let Some(packets) = for_udp.recv()? else {
             return Ok(());
         };
 
-        let client_id = block.client_id();
-
-        log::trace!("encoding block {block_id} for client {client_id:x}");
-
-        let packets = sender.raptorq.encode(block_id, block.serialized());
-
-        sender.block_recycler.push(block);
-
-        log::debug!("sending block {block_id} ({} packets)", packets.len());
+        log::debug!("sending {} packets", packets.len());
 
         if let Err(e) = udp.send(&packets) {
             log::error!("failed to send UDP packet: {e}");
@@ -81,7 +75,5 @@ pub fn start<C>(sender: &crate::Sender<C>, to_port: u16) -> Result<(), crate::Er
             #[cfg(feature = "prometheus")]
             metrics::counter!("lidi_send_udp_packets").increment(packets.len() as u64);
         }
-
-        block_id = block_id.wrapping_add(1);
     }
 }
