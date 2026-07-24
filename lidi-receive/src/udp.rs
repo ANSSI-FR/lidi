@@ -10,10 +10,15 @@ use std::{
 // Pops a drained batch sent back by reblock, falling back to a fresh, empty `Vec` if none is
 // available yet (e.g. at start-up), mirroring lidi-send's block_recycler.
 #[cfg(feature = "receive-mmsg")]
-fn take_recycled(
-    recycler: &crossbeam_channel::Receiver<Vec<raptorq::EncodingPacket>>,
-) -> Vec<raptorq::EncodingPacket> {
-    recycler.try_recv().unwrap_or_default()
+fn take_recycled<Lifecycle>(receiver: &crate::Receiver<Lifecycle>) -> Vec<raptorq::EncodingPacket>
+where
+    Lifecycle: ClientLifecycle,
+{
+    receiver
+        .packet_vec_recycler
+        .steal()
+        .success()
+        .unwrap_or_default()
 }
 
 // Updates `*session_id` and notifies reblock whenever a datagram's session id doesn't match the
@@ -40,9 +45,6 @@ pub fn start<Lifecycle>(
     receiver: &crate::Receiver<Lifecycle>,
     port: u16,
     to_reblock: &crossbeam_channel::Sender<reblock::Message>,
-    #[cfg(feature = "receive-mmsg")] packet_vec_recycler: &crossbeam_channel::Receiver<
-        Vec<raptorq::EncodingPacket>,
-    >,
 ) -> Result<(), crate::Error>
 where
     Lifecycle: ClientLifecycle,
@@ -116,7 +118,7 @@ where
                 to_reblock.send(reblock::Message::Packet(packet))?;
                 #[cfg(feature = "receive-mmsg")]
                 {
-                    let mut packets = take_recycled(packet_vec_recycler);
+                    let mut packets = take_recycled(receiver);
                     packets.push(packet);
                     to_reblock.send(reblock::Message::Packets(packets))?;
                 }
@@ -131,7 +133,7 @@ where
 
                 track_session(&mut session_id, datagram_session_id, to_reblock)?;
 
-                let mut packets = take_recycled(packet_vec_recycler);
+                let mut packets = take_recycled(receiver);
                 packets.extend((0..nb_msg).filter_map(|i| {
                     let (datagram_session_id, datagram) = protocol::session_split(udp.datagram(i));
                     if datagram_session_id == session_id {

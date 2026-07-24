@@ -740,6 +740,7 @@ name = "lidi-receive"
 version = "3.0.0"
 dependencies = [
  "crossbeam-channel",
+ "crossbeam-deque",
  "dashmap",
  "libc",
  "lidi-command-utils",

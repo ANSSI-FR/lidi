@@ -152,11 +152,6 @@ pub enum Message {
 pub fn start<Lifecycle>(
     receiver: &crate::Receiver<Lifecycle>,
     for_reblock: &crossbeam_channel::Receiver<Message>,
-    // Batches drained below are sent back here for the udp worker to reuse, mirroring
-    // lidi-send's block_recycler.
-    #[cfg(feature = "receive-mmsg")] packet_vec_recycler: &crossbeam_channel::Sender<
-        Vec<raptorq::EncodingPacket>,
-    >,
 ) -> Result<(), crate::Error>
 where
     Lifecycle: ClientLifecycle,
@@ -265,9 +260,7 @@ where
         }
 
         #[cfg(feature = "receive-mmsg")]
-        // Ignore the error: if the udp thread's receiver is gone, there's nothing to recycle
-        // into and the `Vec` is simply dropped.
-        let _ = packet_vec_recycler.send(packets);
+        receiver.packet_vec_recycler.push(packets);
 
         if fast_track {
             log::warn!("probable network interrupt, fast track first block");
