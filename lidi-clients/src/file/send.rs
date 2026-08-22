@@ -428,17 +428,19 @@ pub fn send_entry(
     let diode = connect_to_diode(config)?;
 
     let metadata = fs::metadata(path)?;
-    let entry_type;
-    let size;
-    if metadata.is_dir() {
-        entry_type = EntryType::Directory;
-        size = send_dir_entry(diode, config, path, base_dir, &metadata)?;
+    let (entry_type, size) = if metadata.is_dir() {
+        (
+            EntryType::Directory,
+            send_dir_entry(diode, config, path, base_dir, &metadata)?,
+        )
     } else if metadata.is_file() {
-        entry_type = EntryType::File;
-        size = send_file_entry(diode, config, path, base_dir, &metadata)?;
+        (
+            EntryType::File,
+            send_file_entry(diode, config, path, base_dir, &metadata)?,
+        )
     } else {
         return Err(file::Error::Other("not a file or a dir".into()));
-    }
+    };
 
     log::info!(
         "{entry_type} \"{}\" sent, {size} bytes sent",
